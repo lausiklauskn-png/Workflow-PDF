@@ -98,6 +98,17 @@
 
       const wert = f.type === 'check' ? !!f.value : f.type === 'datum' ? datumText(f.value) : String(f.value == null ? '' : f.value);
 
+      if (f.type === 'unterschrift') {
+        // Als Bild auf die Seite, in allen Fassungen gleich; die leere Vorlage bleibt leer
+        if (!wert || modus === 'vorlage' || !/^data:image\/png;base64,/.test(wert)) continue;
+        try {
+          const img = await pdf.embedPng(wert);
+          const s = Math.min(bw / img.width, bh / img.height), iw = img.width * s, ih = img.height * s;
+          const a = p(0, bh - (bh - ih) / 2);
+          page.drawImage(img, { x: a[0], y: a[1], width: iw, height: ih, rotate: degrees(winkel) });
+        } catch (e) { hinweise.push('Unterschrift „' + (f.label || 'Unterschrift') + '" ließ sich nicht einsetzen.'); }
+        continue;
+      }
       if (f.type === 'qr') {
         if (!wert) continue;
         try {

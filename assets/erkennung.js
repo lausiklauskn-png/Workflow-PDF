@@ -90,7 +90,56 @@
     }
     // e) Kästchen über Zusammenhangs-Komponenten
     felder.push(...kaestchen(dark, W, H));
-    return felder.filter(f => f.w > 0.5 && f.h > 0.3 && f.y >= 0);
+    // f) grau hinterlegte Eingabeflächen (viele Behörden- und Kanzlei-Formulare
+    //    zeichnen keine Linie, sondern eine hellgraue Fläche — Befund Klaus 2026-09-25)
+    const fl = flaechen(px, W, H);
+    // Eine Linie am Rand einer Fläche ist deren Kante, kein eigenes Feld
+    const innerhalb = (f, g) => f.x >= g.x - 1 && f.x + f.w <= g.x + g.w + 1 && f.y + f.h >= g.y - 1.2 && f.y <= g.y + g.h + 1.2;
+    const rest = felder.filter(f => !fl.some(g => innerhalb(f, g) && (f.type !== 'check' || g.type === 'check')));
+    return rest.concat(fl).filter(f => f.w > 0.5 && f.h > 0.3 && f.y >= 0);
+  }
+
+  /* Hellgraue, fast gleichmäßig gefüllte Rechtecke. Gesucht wird über
+     Zusammenhangs-Komponenten auf einer Grau-Maske; dunkle Schrift in der
+     Fläche (ausgefüllte Formulare) zählt mit, damit sie die Fläche nicht zerteilt. */
+  function flaechen(px, W, H) {
+    const N = W * H, art = new Uint8Array(N);   // 1 = grau, 2 = dunkel
+    for (let i = 0, j = 0; i < N; i++, j += 4) {
+      const r = px[j], g = px[j + 1], b = px[j + 2];
+      const l = r * 0.299 + g * 0.587 + b * 0.114, sat = Math.max(r, g, b) - Math.min(r, g, b);
+      art[i] = l < 150 ? 2 : (l >= 170 && l <= 247 && sat < 40) ? 1 : 0;
+    }
+    const seen = new Uint8Array(N), out = [];
+    const stack = new Int32Array(Math.min(N, 4e6));
+    for (let start = 0; start < N; start++) {
+      if (art[start] !== 1 || seen[start]) continue;
+      let sp = 0; stack[sp++] = start; seen[start] = 1;
+      let minx = W, maxx = 0, miny = H, maxy = 0, grau = 0;
+      while (sp > 0) {
+        const p = stack[--sp]; const x = p % W, y = (p - x) / W;
+        if (art[p] === 1) grau++;
+        if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y;
+        for (let k = 0; k < 4; k++) {
+          const q = k === 0 ? (x > 0 ? p - 1 : -1) : k === 1 ? (x < W - 1 ? p + 1 : -1) : k === 2 ? p - W : p + W;
+          if (q < 0 || q >= N || seen[q]) continue;
+          // dunkle Punkte nur mitnehmen, wenn sie an Grau grenzen (Schrift IN der Fläche)
+          if (art[q] === 1 || (art[q] === 2 && art[p] === 1)) { seen[q] = 1; if (sp < stack.length) stack[sp++] = q; }
+        }
+      }
+      const bw = maxx - minx + 1, bh = maxy - miny + 1;
+      if (bw > W * 0.95 || bh > H * 0.4) continue;                 // Seitenhintergrund, Fotos
+      if (bh < H * 0.006 || bw < W * 0.012) continue;
+      if (grau / (bw * bh) < 0.6) continue;                         // keine gefüllte Fläche
+      // Füllgrad prüfen: innen muss es überwiegend grau sein (kein grauer Rahmen)
+      let g2 = 0, t2 = 0;
+      for (let y = miny + Math.floor(bh * 0.25); y <= maxy - Math.floor(bh * 0.25); y += 2)
+        for (let x = minx + Math.floor(bw * 0.1); x <= maxx - Math.floor(bw * 0.1); x += 2) { t2++; if (art[y * W + x]) g2++; }
+      if (t2 && g2 / t2 < 0.8) continue;
+      const ar = bw / bh, quadr = ar > 0.7 && ar < 1.45 && bw < W * 0.05;
+      if (!quadr && bw < W * 0.04) continue;
+      out.push({ type: quadr ? 'check' : 'text', x: minx / W * 100, y: miny / H * 100, w: bw / W * 100, h: bh / H * 100, quelle: 'flaeche' });
+    }
+    return out;
   }
 
   function kaestchen(dark, W, H) {
@@ -158,6 +207,15 @@
           if (ov > 0 && d >= -0.3 && d < 3 && d < bd) { bd = d; best = s; }
         }
       }
+      if (best && f.type === 'check' && best.replace(/[^A-Za-zÄÖÜäöüß]/g, '').length <= 5) {
+        // „Ja" / „Nein" allein sagt nichts: die Frage links in derselben Zeile davorsetzen
+        const cy2 = f.y + f.h / 2; let frage = null, fx = -1;
+        for (const t of textItems) {
+          const q = (t.str || '').trim(); if (!/[?:]$/.test(q) || q.length < 4) continue;
+          if (Math.abs(t.y + t.h / 2 - cy2) < Math.max(1.4, f.h * 0.8) && t.x + t.w < f.x && t.x > fx) { fx = t.x; frage = q; }
+        }
+        if (frage) best = frage.replace(/[?:\s]+$/, '') + ': ' + best;
+      }
       if (best) f.label = best.replace(/[_.:…\s]+$/, '').slice(0, 60);
     }
   }
@@ -176,6 +234,34 @@
     + 'x und y sind die linke obere Ecke des Eingabebereichs in Prozent der Bildbreite bzw. Bildhöhe (0 bis 100), b und h Breite und Höhe in Prozent. '
     + 'Ein Textfeld auf einer Linie reicht von der Linie etwa 2 Prozent nach oben. Erfinde keine Felder, wo kein Eingabebereich sichtbar ist, und trage niemals gedruckte Inhalte als Feldwert ein. Gibt es keine Felder, ist die Liste leer.';
 
+  /* Kandidaten nummeriert ins Bild zeichnen: die KI muss dann nur noch sagen,
+     WAS an Stelle 3 hingehört — die Position kommt aus dem Bild selbst. Das ist
+     genauer, als die KI Koordinaten schätzen zu lassen (Befund Klaus 2026-09-25:
+     „setzt sie alle auf den Haufen"). */
+  function markiertesBild(canvas, kand) {
+    const c = document.createElement('canvas'); c.width = canvas.width; c.height = canvas.height;
+    const x = c.getContext('2d'); x.drawImage(canvas, 0, 0);
+    const W = c.width, H = c.height, fs = Math.max(12, Math.round(W / 90));
+    x.font = 'bold ' + fs + 'px sans-serif'; x.textBaseline = 'top';
+    kand.forEach((k, i) => {
+      const bx = k.x / 100 * W, by = k.y / 100 * H, bw = k.w / 100 * W, bh = k.h / 100 * H;
+      x.strokeStyle = '#e0231b'; x.lineWidth = 2; x.strokeRect(bx, by, bw, bh);
+      const t = String(i + 1), tw = x.measureText(t).width + 6;
+      x.fillStyle = '#e0231b'; x.fillRect(bx, by, tw, fs + 4); x.fillStyle = '#fff'; x.fillText(t, bx + 3, by + 2);
+    });
+    return c.toDataURL('image/jpeg', 0.85);
+  }
+  function promptMitKandidaten(kand) {
+    if (!kand.length) return PROMPT;
+    return 'Du siehst eine Seite eines Formulars. Rot umrandet und nummeriert sind Stellen, die eine Bilderkennung als mögliche Eingabefelder gefunden hat (' + kand.length + ' Stück). '
+      + 'Aufgabe: 1) Sage für JEDE Nummer, ob dort wirklich etwas eingetragen oder angekreuzt wird, und wenn ja, welche Beschriftung aus dem Formular dazugehört und welche Art es ist. '
+      + 'Bei Ja/Nein-Kästchen nenne die Frage mit, z. B. "Unfallzeugen: Ja". '
+      + '2) Liste zusätzlich Eingabestellen, die NICHT rot markiert sind, mit Koordinaten in Prozent der Bildbreite und -höhe (0 bis 100, linke obere Ecke). '
+      + 'Antworte AUSSCHLIESSLICH mit JSON in dieser Form: '
+      + '{"text":"der gesamte gedruckte Text der Seite","felder":[{"nr":1,"typ":"text|datum|kaestchen|email|internetadresse|unterschrift","bezeichnung":"..."}],"keinFeld":[5],"zusaetzlich":[{"typ":"text","bezeichnung":"...","x":0,"y":0,"b":0,"h":0}]} '
+      + 'Trage niemals gedruckte Inhalte als Feldwert ein.';
+  }
+
   async function fehlerText(resp) {
     let t = ''; try { t = await resp.text(); } catch (_) {}
     let m = t; try { const j = JSON.parse(t); m = (j.error && (j.error.message || j.error.type)) || j.message || t; } catch (_) {}
@@ -184,19 +270,20 @@
     return 'Fehler ' + resp.status + ': ' + String(m).slice(0, 220);
   }
 
-  async function kiAnfrage(cfg, bildDataUrl) {
+  async function kiAnfrage(cfg, bildDataUrl, prompt) {
+    prompt = prompt || PROMPT;
     const a = ANBIETER[cfg.anbieter]; if (!a) throw new Error('Unbekannter KI-Anbieter');
     const key = (cfg.schluessel || '').trim(); if (!key) throw new Error('Kein Schlüssel für ' + a.label + ' hinterlegt');
     const modell = (cfg.modell || '').trim() || a.modell;
     if (a.kind === 'anthropic') {
       const b64 = bildDataUrl.split(',')[1];
       const resp = await fetch(a.base, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: modell, max_tokens: 4000, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } }, { type: 'text', text: PROMPT }] }] }) });
+        body: JSON.stringify({ model: modell, max_tokens: 12000, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } }, { type: 'text', text: prompt }] }] }) });
       if (!resp.ok) throw new Error(await fehlerText(resp));
       const j = await resp.json(); return (j.content || []).map(c => c.text || '').join('');
     }
     const resp = await fetch(a.base + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-      body: JSON.stringify({ model: modell, max_tokens: 4000, messages: [{ role: 'user', content: [{ type: 'text', text: PROMPT }, { type: 'image_url', image_url: { url: bildDataUrl } }] }] }) });
+      body: JSON.stringify({ model: modell, max_tokens: 12000, messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: bildDataUrl } }] }] }) });
     if (!resp.ok) throw new Error(await fehlerText(resp));
     const j = await resp.json(); return (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
   }
@@ -216,16 +303,29 @@
     if (!r.ok) throw new Error(await fehlerText(r)); return modell;
   }
 
-  function kiAuswerten(text) {
+  function kiAuswerten(text, bild) {
     const s = String(text || '');
     const a = s.indexOf('{'), b = s.lastIndexOf('}');
     if (a < 0 || b <= a) throw new Error('Die KI hat kein lesbares Ergebnis geliefert.');
     let j; try { j = JSON.parse(s.slice(a, b + 1)); } catch (e) { throw new Error('Die KI-Antwort war kein gültiges JSON.'); }
-    const arr = Array.isArray(j) ? j : (j.felder || j.fields || []);
-    const typ = t => { t = String(t || '').toLowerCase(); if (/kaest|kästch|check|box|kreuz/.test(t)) return 'check'; if (/datum|date/.test(t)) return 'datum'; if (/mail/.test(t)) return 'email'; if (/internet|url|web|link/.test(t)) return 'url'; return 'text'; };
+    const arr = (Array.isArray(j) ? j : (j.felder || j.fields || [])).concat(Array.isArray(j.zusaetzlich) ? j.zusaetzlich : []);
+    // Einheit der Koordinaten: Prozent wie verlangt — manche Modelle liefern aber
+    // Pixel des Bildes oder Promille. Einmal für die ganze Antwort entscheiden.
+    let maxX = 0, maxY = 0;
+    for (const f of arr) { const w = +(f.b ?? f.w ?? f.breite) || 0, h = +(f.h ?? f.hoehe) || 0; if (Number.isFinite(+f.x)) maxX = Math.max(maxX, +f.x + w); if (Number.isFinite(+f.y)) maxY = Math.max(maxY, +f.y + h); }
+    let fx = 1, fy = 1;
+    if (maxX > 101 || maxY > 101) {
+      const passtInsBild = bild && maxX <= bild.w * 1.02 && maxY <= bild.h * 1.02;
+      if (passtInsBild && (maxX > 1001 || maxY > 1001 || Math.max(bild.w, bild.h) <= 1001)) { fx = 100 / bild.w; fy = 100 / bild.h; }   // Pixel
+      else { fx = fy = 0.1; }                                                                                                          // Promille
+    }
+    const typ = t => { t = String(t || '').toLowerCase(); if (/kaest|kästch|check|box|kreuz/.test(t)) return 'check'; if (/datum|date/.test(t)) return 'datum'; if (/unterschr|sign/.test(t)) return 'unterschrift'; if (/mail/.test(t)) return 'email'; if (/internet|url|web|link/.test(t)) return 'url'; return 'text'; };
     const out = [];
     for (const f of arr) {
-      let x = +f.x, y = +f.y, w = +(f.b ?? f.w ?? f.breite), h = +(f.h ?? f.hoehe);
+      const t0 = typ(f.typ || f.type), lab0 = String(f.bezeichnung || f.label || '').trim().slice(0, 60);
+      const nr = parseInt(f.nr, 10);
+      if (Number.isFinite(nr) && nr > 0) { out.push({ nr, type: t0, label: lab0 || (/unterschrift|sign/i.test(String(f.typ)) ? 'Unterschrift' : ''), quelle: 'ki' }); continue; }
+      let x = +f.x * fx, y = +f.y * fy, w = +(f.b ?? f.w ?? f.breite) * fx, h = +(f.h ?? f.hoehe) * fy;
       if (![x, y, w, h].every(Number.isFinite)) continue;
       if (x <= 1 && y <= 1 && w <= 1 && h <= 1) { x *= 100; y *= 100; w *= 100; h *= 100; }   // Anteile statt Prozent
       x = clamp(x, 0, 99); y = clamp(y, 0, 99); w = clamp(w, 0.8, 100 - x); h = clamp(h, 0.6, 100 - y);
@@ -233,11 +333,22 @@
       const lab = String(f.bezeichnung || f.label || '').trim().slice(0, 60);
       out.push({ type: t, x, y, w, h, label: lab || (/unterschrift|sign/i.test(String(f.typ)) ? 'Unterschrift' : ''), quelle: 'ki' });
     }
-    return { felder: out, text: typeof j.text === 'string' ? j.text.slice(0, 40000) : '' };
+    const kein = (Array.isArray(j.keinFeld) ? j.keinFeld : []).map(n => parseInt(n, 10)).filter(Number.isFinite);
+    return { felder: out, kein, text: typeof j.text === 'string' ? j.text.slice(0, 40000) : '' };
   }
 
   /* KI-Felder an erkannte Linien/Kästchen einrasten; übrige Linienfelder dazulegen. */
-  function zusammenfuehren(ki, linien) {
+  function zusammenfuehren(ki, linien, kein) {
+    // Nummerierte Antworten übernehmen die Lage des Kandidaten
+    const kand = linien.slice(), weg = new Set();
+    (kein || []).forEach(n => { if (kand[n - 1]) weg.add(kand[n - 1]); });
+    const benannt = [];
+    for (const k of ki.filter(k => k.nr)) {
+      const c = kand[k.nr - 1]; if (!c || weg.has(c) || benannt.some(b => b.q === c)) continue;
+      benannt.push({ q: c, f: Object.assign({}, c, { type: c.type === 'check' ? 'check' : k.type === 'check' ? 'text' : k.type, label: k.label || c.label, quelle: 'ki', eingerastet: true }) });
+    }
+    ki = ki.filter(k => !k.nr).concat(benannt.map(b => b.f));
+    linien = linien.filter(l => !weg.has(l) && !benannt.some(b => b.q === l));
     const frei = linien.slice();
     const nimm = f => { const i = frei.indexOf(f); if (i >= 0) frei.splice(i, 1); };
     for (const k of ki) {
@@ -263,5 +374,5 @@
   }
 
   window.WFP = window.WFP || {};
-  window.WFP.Erkennung = { linienErkennung, beschrifte, ANBIETER, kiAnfrage, kiAuswerten, kiTest, zusammenfuehren, PROMPT };
+  window.WFP.Erkennung = { linienErkennung, beschrifte, ANBIETER, kiAnfrage, kiAuswerten, kiTest, zusammenfuehren, markiertesBild, promptMitKandidaten, PROMPT };
 })();

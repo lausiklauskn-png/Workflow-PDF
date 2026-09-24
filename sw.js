@@ -2,10 +2,10 @@
    Cacht die SCHALE (App-Dateien), niemals Dokumente: die liegen in IndexedDB.
    Wer eine Datei aus SCHALE ändert, erhöht CACHE_VERSION — sonst liefert der
    Worker die alte Fassung weiter. */
-const CACHE_VERSION = 'workfloh-pdf-v1';
+const CACHE_VERSION = 'workfloh-pdf-v2';
 const SCHALE = [
   './', './index.html', './impressum.html', './manifest.webmanifest',
-  './assets/style.css?v=1', './assets/db.js?v=1', './assets/erkennung.js?v=1', './assets/export.js?v=1', './assets/app.js?v=1',
+  './assets/style.css?v=2', './assets/db.js?v=2', './assets/erkennung.js?v=2', './assets/export.js?v=2', './assets/app.js?v=2',
   './vendor/pdfjs/pdf.min.js', './vendor/pdfjs/pdf.worker.min.js', './vendor/pdf-lib.min.js', './vendor/qrcode.js',
   './icons/w-floh-160.png', './icons/favicon-32.png?v=1', './icons/favicon-64.png?v=1',
   './icons/icon-192.png?v=1', './icons/icon-512.png?v=1', './icons/icon-512-maskable.png?v=1', './icons/apple-touch-icon.png?v=1'
