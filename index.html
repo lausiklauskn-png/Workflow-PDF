@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Workfloh PDF — Formulare einlesen, Felder setzen, als PDF ausgeben</title>
+<meta name="description" content="Workflow PDF: PDFs oder fotografierte Papierformulare einlesen, Formularfelder per KI erkennen lassen oder selbst setzen und als festes oder ausfüllbares PDF ausgeben. Offline, ohne Konto.">
+<meta name="theme-color" content="#E0231B">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Workfloh PDF">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1">
+<link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png?v=1">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1">
+<link rel="stylesheet" href="assets/style.css?v=1">
+</head>
+<body>
+<header class="kopf">
+  <button class="floh-knopf" id="flohKnopf" aria-label="Zur Bibliothek" title="Zur Bibliothek">
+    <span class="floh" id="floh" aria-hidden="true"></span>
+  </button>
+  <div class="marke">
+    <div class="marke-name">Workfloh <b>PDF</b></div>
+    <div class="marke-sub" id="kopfSub">Formulare einlesen · Felder setzen · PDF ausgeben</div>
+  </div>
+  <div class="kopf-rechts">
+    <button class="ikon" id="btnHilfe" title="So geht's">?</button>
+    <button class="ikon" id="btnEinst" title="Einstellungen">⚙️</button>
+  </div>
+</header>
+
+<main id="app">
+  <!-- Bibliothek -->
+  <section id="sc-bib" class="screen on">
+    <div class="import-leiste">
+      <label class="gross-knopf rot">
+        <input type="file" id="inDatei" accept="application/pdf,image/*" multiple hidden>
+        <span class="gk-ico">📄</span><span class="gk-t">PDF oder Bild<br><small>aus dem Dateiordner</small></span>
+      </label>
+      <label class="gross-knopf">
+        <input type="file" id="inKamera" accept="image/*" capture="environment" hidden>
+        <span class="gk-ico">📷</span><span class="gk-t">Formular fotografieren<br><small>eine oder mehrere Seiten</small></span>
+      </label>
+      <label class="gross-knopf">
+        <input type="file" id="inOrdner" webkitdirectory multiple hidden>
+        <span class="gk-ico">🗂️</span><span class="gk-t">Ganzen Ordner einlesen<br><small>alle PDFs und Bilder darin</small></span>
+      </label>
+    </div>
+
+    <div class="ordner-leiste" id="ordnerLeiste"></div>
+    <div class="ordner-aktionen" id="ordnerAktionen"></div>
+    <div class="dok-gitter" id="dokGitter"></div>
+  </section>
+
+  <!-- Editor -->
+  <section id="sc-ed" class="screen">
+    <div class="ed-leiste">
+      <button class="knopf" id="edZurueck" title="Zurück zur Bibliothek">←<span class="lang"> Bibliothek</span></button>
+      <input class="ed-name" id="edName" aria-label="Dokumentname">
+      <div class="modus" role="tablist">
+        <button id="mBearbeiten" class="modus-k on" role="tab">✏️ <span class="lang">Felder </span>bearbeiten</button>
+        <button id="mAusfuellen" class="modus-k" role="tab">✍️ Ausfüllen</button>
+      </div>
+      <button class="knopf" id="edErkennen" title="Formularfelder erkennen lassen">🤖<span class="lang"> Felder</span> erkennen</button>
+      <div class="zoom"><button class="knopf klein" id="zMinus" title="Kleiner">−</button><button class="knopf klein" id="zPlus" title="Größer">+</button></div>
+      <button class="knopf rot" id="edExport">⬇ PDF<span class="lang"> ausgeben</span></button>
+    </div>
+    <div class="vorschlag-band" id="vorschlagBand" hidden></div>
+    <div class="ed-flaeche" id="edFlaeche"><div class="seiten" id="seiten"></div></div>
+    <div class="ed-fuss" id="edFuss"></div>
+  </section>
+</main>
+
+<input type="file" id="inAnhang" accept="application/pdf,image/*" multiple hidden>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<div id="modals"></div>
+
+<script src="vendor/pdfjs/pdf.min.js"></script>
+<script src="vendor/pdf-lib.min.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script src="assets/db.js?v=1"></script>
+<script src="assets/erkennung.js?v=1"></script>
+<script src="assets/export.js?v=1"></script>
+<script src="assets/app.js?v=1"></script>
+</body>
+</html>
