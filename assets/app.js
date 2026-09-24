@@ -17,9 +17,9 @@
 
   const TYPEN = {
     text: { name: 'Text', ico: '📝' }, datum: { name: 'Datum', ico: '📅' }, check: { name: 'Kästchen', ico: '☑️' },
-    email: { name: 'E-Mail', ico: '✉️' }, url: { name: 'Internetadresse', ico: '🔗' }, qr: { name: 'QR-Code', ico: '▦' }
+    email: { name: 'E-Mail', ico: '✉️' }, url: { name: 'Internetadresse', ico: '🔗' }, qr: { name: 'QR-Code', ico: '▦' }, unterschrift: { name: 'Unterschrift', ico: '✒️' }
   };
-  const GROESSE = { text: [28, 2.2], datum: [16, 2.2], email: [28, 2.2], url: [28, 2.2], check: [2.6, 1.9], qr: [14, 10] };
+  const GROESSE = { text: [28, 2.2], datum: [16, 2.2], email: [28, 2.2], url: [28, 2.2], check: [2.6, 1.9], qr: [14, 10], unterschrift: [30, 4.5] };
 
   /* ---------- Einstellungen ---------- */
   const EINST_KEY = 'wfpdf_einst_v1';
@@ -166,6 +166,7 @@
   /* ---------- Import ---------- */
   const istPdf = f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
   const istBild = f => /^image\//.test(f.type) || /\.(jpe?g|png|webp|gif|bmp|heic)$/i.test(f.name);
+  const istStand = f => /\.json$/i.test(f.name) || f.type === 'application/json';
 
   // Foto verkleinern statt abweisen (Lehre aus den Rezeptbüchern): die Kamera
   // entscheidet die Auflösung, nicht der Nutzer. Lange Kante ≤ 2400 px, JPEG.
@@ -230,7 +231,61 @@
     return d;
   }
   let _persistGefragt = false;
+
+  /* ---------- Arbeitsstand: Datei zum Weiterarbeiten ----------
+     Der Browserspeicher gehört zu genau EINEM Browser (DeX-Chrome und
+     Tablet-Chrome sind zwei) und ist weg, wenn Browserdaten gelöscht werden.
+     Die Arbeitsstand-Datei trägt PDF + Felder + Einträge und lässt sich überall
+     wieder einlesen. */
+  const STAND_FORMAT = 'workfloh-pdf-arbeitsstand';
+  function zuB64(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
+  function ausB64(b) { const s = atob(b); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
+  function standDatei(doc, bytes) {
+    const inhalt = JSON.stringify({ format: STAND_FORMAT, version: 1, gesichert: jetzt(), doc, pdf: zuB64(bytes) });
+    return new File([inhalt], dateiName(doc.name) + '.workfloh.json', { type: 'application/json' });
+  }
+  async function staendeEinlesen(dateien) {
+    const neu = [], fehler = [];
+    for (const f of dateien) {
+      try {
+        const j = JSON.parse(await f.text());
+        if (!j || j.format !== STAND_FORMAT || !j.doc || !j.pdf || !Array.isArray(j.doc.fields)) throw new Error('keine Workfloh-PDF-Arbeitsdatei');
+        const d = j.doc, bytes = ausB64(j.pdf);
+        const vorhanden = await DB.get('docs', d.id);
+        let hinweis = '';
+        if (vorhanden && String(vorhanden.updatedAt || '') > String(d.updatedAt || '')) {
+          d.id = uid(); d.name = d.name + ' (Arbeitsstand ' + new Date(j.gesichert || d.updatedAt).toLocaleDateString('de-DE') + ')';
+          hinweis = ' · im Browser lag ein neuerer Stand, deshalb als Kopie';
+        } else if (vorhanden) hinweis = ' · Stand im Browser ersetzt';
+        if (d.folderId && !S.ordner.some(o => o.id === d.folderId)) d.folderId = null;
+        await DB.putFile(d.id, bytes); await DB.put('docs', d);
+        neu.push({ d, hinweis });
+      } catch (e) { fehler.push(f.name + ': ' + (e.message || e)); }
+    }
+    await ladeBibliothek();
+    if (fehler.length) dialog(`<h2>Arbeitsstand nicht eingelesen</h2><ul>${fehler.map(x => '<li>' + h(x) + '</li>').join('')}</ul><div class="zeile"><button class="knopf rot" data-x>OK</button></div>`, (d, zu) => d.querySelector('[data-x]').onclick = zu);
+    if (neu.length === 1) { toast('📂 Arbeitsstand „' + neu[0].d.name + '" eingelesen' + neu[0].hinweis); oeffneDok(neu[0].d.id); }
+    else if (neu.length) toast('📂 ' + neu.length + ' Arbeitsstände eingelesen');
+  }
+  async function speichernDialog() {
+    await speichernJetzt();
+    const zeit = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    let dauerhaft = null; try { dauerhaft = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : null; } catch (_) {}
+    dialog(`<h2>💾 Gespeichert</h2>
+      <p>✓ <b>In diesem Browser gespeichert (${zeit} Uhr).</b> Du findest das Dokument in der Bibliothek und kannst jederzeit weitermachen.</p>
+      <p class="hinweis">Der Browserspeicher gilt nur für <b>diesen</b> Browser${dauerhaft === true ? ' (vom Browser als dauerhaft bestätigt)' : ''}. Ein anderer Browser (z.&nbsp;B. DeX und Tablet) sieht ihn nicht, und „Browserdaten löschen" löscht ihn mit.</p>
+      <p><b>Sicher weiterarbeiten:</b> Arbeitsstand als Datei aufs Gerät legen. Sie enthält das PDF, alle Felder und Einträge. Später über „📄 PDF oder Bild" wieder einlesen — auch in einem anderen Browser.</p>
+      <div class="zeile"><button class="knopf" data-x>Schließen</button><button class="knopf rot" data-dl>⬇ Arbeitsstand als Datei sichern</button></div>`,
+      (d, zu) => {
+        d.querySelector('[data-x]').onclick = zu;
+        const b = d.querySelector('[data-dl]');
+        b.onclick = () => { const f = standDatei(S.doc, S.bytes); laden(f.name, f, 'application/json'); toast('⬇ ' + f.name + ' gespeichert'); zu(); };
+        if (navigator.canShare) { try { const f = standDatei(S.doc, S.bytes); if (navigator.canShare({ files: [f] })) { b.insertAdjacentHTML('beforebegin', '<button class="knopf" data-teilen>📤 Teilen …</button>'); d.querySelector('[data-teilen]').onclick = () => navigator.share({ files: [f], title: S.doc.name }).catch(() => {}); } } catch (_) {} }
+      });
+  }
   async function importDateien(dateien, ordnerName) {
+    const staende = Array.from(dateien || []).filter(istStand);
+    if (staende.length) { await staendeEinlesen(staende); dateien = Array.from(dateien).filter(f => !istStand(f)); if (!dateien.length) return []; }
     const liste = Array.from(dateien || []).filter(f => istPdf(f) || istBild(f)).sort((a, b) => (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, 'de'));
     const uebrig = (dateien ? dateien.length : 0) - liste.length;
     if (!liste.length) { toast('Keine PDF- oder Bilddatei gefunden.'); return []; }
@@ -326,12 +381,13 @@
   function speichern() { if (!S.doc) return; S.doc.updatedAt = jetzt(); clearTimeout(_st); _st = setTimeout(speichernJetzt, 350); }
   async function speichernJetzt() { clearTimeout(_st); _st = null; if (S.doc) { try { await DB.put('docs', S.doc); } catch (e) { toast('⚠️ Speichern fehlgeschlagen: ' + e.message); } } }
 
+  let _rzBreite = 0;   // Breite beim letzten Zeichnen (siehe resize)
   function seitenBreite() { const fl = $('edFlaeche'); return Math.round(Math.min(fl.clientWidth - 24, 920) * S.zoom); }
   function zeichneSeiten() {
     const box = $('seiten'); box.innerHTML = '';
     if (S.beob) S.beob.disconnect();
     S.beob = new IntersectionObserver(eintraege => { for (const e of eintraege) if (e.isIntersecting) seiteRendern(+e.target.dataset.i); }, { root: $('edFlaeche'), rootMargin: '800px 0px' });
-    const bw = seitenBreite();
+    const bw = seitenBreite(); _rzBreite = bw;
     S.doc.pages.forEach((p, i) => {
       const el = document.createElement('div'); el.className = 'seite'; el.dataset.i = i;
       el.style.width = bw + 'px'; el.style.height = Math.round(bw * p.h / p.w) + 'px';
@@ -385,6 +441,10 @@
         el.innerHTML = `<span class="kreuz">${f.value ? '✓' : ''}</span>`;
         el.onclick = () => { f.value = !f.value; el.querySelector('.kreuz').textContent = f.value ? '✓' : ''; speichern(); };
         el.title = f.label || 'Kästchen';
+      } else if (f.type === 'unterschrift') {
+        el.innerHTML = f.value ? `<img class="usbild" src="${h(f.value)}" alt="Unterschrift">` : '<span class="usleer">✒️ hier unterschreiben</span>';
+        el.onclick = () => unterschreiben(f);
+        el.title = f.label || 'Unterschrift';
       } else if (f.type === 'qr') {
         el.innerHTML = `<div class="qrbild">${f.value ? qrSvg(f.value) : '<span class="qrleer">QR-Inhalt unten eingeben</span>'}</div>`;
         el.onclick = () => { S.sel = f.id; markiere(); zeichneFuss(); };
@@ -393,6 +453,7 @@
         if (!f.mehrzeilig) inp.type = f.type === 'datum' ? 'date' : f.type === 'email' ? 'email' : f.type === 'url' ? 'url' : 'text';
         inp.value = f.value || ''; inp.placeholder = ''; inp.title = f.label || TYPEN[f.type].name; inp.setAttribute('aria-label', f.label || TYPEN[f.type].name);
         inp.oninput = () => { f.value = inp.value; speichern(); };
+        inp.onblur = () => speichernJetzt();
         inp.onfocus = () => { S.sel = f.id; markiere(); };
         requestAnimationFrame(() => { const hp = hoehePx(); inp.style.fontSize = Math.max(9, Math.min(f.mehrzeilig ? 16 : 22, hp * (f.mehrzeilig ? 0.34 : 0.62))) + 'px'; });
         el.appendChild(inp);
@@ -403,6 +464,7 @@
     let inhalt = '';
     if (f.type === 'check') inhalt = `<span class="kreuz">${f.value ? '✓' : ''}</span>`;
     else if (f.type === 'qr') inhalt = `<div class="qrbild">${f.value ? qrSvg(f.value) : '<span class="qrleer">QR</span>'}</div>`;
+    else if (f.type === 'unterschrift') inhalt = f.value ? `<img class="usbild" src="${h(f.value)}" alt="">` : '';
     else inhalt = `<span class="wert${f.mehrzeilig ? ' mz' : ''}">${h(feldText(f))}</span>`;
     el.innerHTML = inhalt + `<span class="etikett">${!f.geprueft ? '🤖 ' : ''}${h(f.label || TYPEN[f.type].name)}</span><span class="griff" title="Größe ändern"></span>`;
     requestAnimationFrame(() => { const w = el.querySelector('.wert'); if (w) w.style.fontSize = Math.max(8, Math.min(20, hoehePx() * (f.mehrzeilig ? 0.34 : 0.6))) + 'px'; });
@@ -471,12 +533,10 @@
   function zeichneFuss() {
     const fuss = $('edFuss'); const f = S.doc.fields.find(x => x.id === S.sel);
     if (S.modus === 'ausfuellen') {
-      let html = `<div class="werkzeug"><span class="hinweis">✍️ In die Felder tippen und schreiben. Kästchen antippen zum Ankreuzen.${S.doc.fields.length ? '' : ' Noch keine Felder — unter „Felder bearbeiten" setzen oder erkennen lassen.'}</span></div>`;
+      let html = `<div class="werkzeug"><span class="hinweis">✍️ In die Felder tippen und schreiben. Kästchen antippen zum Ankreuzen, Unterschriftsfeld antippen zum Unterschreiben. Gespeichert wird laufend; 💾 Speichern sichert zusätzlich als Datei.${S.doc.fields.length ? '' : ' Noch keine Felder — unter „Felder bearbeiten" setzen oder erkennen lassen.'}</span></div>`;
       if (f && f.type === 'qr') html += `<div class="eigenschaften"><label class="eig" style="flex:1">Inhalt des QR-Codes (Text oder Internetadresse)<input id="eigWert" value="${h(f.value || '')}"></label></div>`;
-      html += `<div class="werkzeug"><button class="knopf" id="fussText">📄 Erkannter Text</button></div>`;
       fuss.innerHTML = html;
       if ($('eigWert')) $('eigWert').oninput = e => { f.value = e.target.value; speichern(); const el = document.querySelector(`.feld[data-id="${f.id}"] .qrbild`); if (el) el.innerHTML = f.value ? qrSvg(f.value) : ''; };
-      $('fussText').onclick = erkannterText;
       return;
     }
     let html = `<div class="werkzeug"><span class="titel">Feld setzen:</span>${Object.entries(TYPEN).map(([k, t]) => `<button class="knopf${S.platzieren === k ? ' an' : ''}" data-t="${k}">${t.ico} ${t.name}</button>`).join('')}
@@ -487,7 +547,8 @@
         ${!f.geprueft ? `<div class="ki-hinweis">🤖 Vorschlag der Erkennung — passt es? <button class="knopf klein blau" id="eigOk">✓ Passt</button></div>` : ''}
         <label class="eig" style="flex:1;min-width:160px">Bezeichnung<input id="eigLabel" value="${h(f.label || '')}"></label>
         <label class="eig">Art<select id="eigTyp">${Object.entries(TYPEN).map(([k, t]) => `<option value="${k}"${k === f.type ? ' selected' : ''}>${t.name}</option>`).join('')}</select></label>
-        ${f.type === 'check' ? `<label class="eig eig-haken"><input type="checkbox" id="eigWertC"${f.value ? ' checked' : ''}> angekreuzt</label>`
+        ${f.type === 'unterschrift' ? `<button class="knopf" id="eigUnterschr">✒️ ${f.value ? 'Neu unterschreiben' : 'Unterschreiben'}</button>${f.value ? '<button class="knopf" id="eigUsWeg">Unterschrift entfernen</button>' : ''}`
+          : f.type === 'check' ? `<label class="eig eig-haken"><input type="checkbox" id="eigWertC"${f.value ? ' checked' : ''}> angekreuzt</label>`
           : f.type === 'datum' ? `<label class="eig">Inhalt<input type="date" id="eigWert" value="${h(f.value || '')}"></label>`
           : `<label class="eig" style="flex:1;min-width:160px">${f.type === 'qr' ? 'Inhalt des QR-Codes' : 'Inhalt (vorbelegt)'}<input id="eigWert" value="${h(f.value || '')}"></label>`}
         ${f.type === 'text' ? `<label class="eig eig-haken"><input type="checkbox" id="eigMz"${f.mehrzeilig ? ' checked' : ''}> mehrzeilig</label>` : ''}
@@ -504,15 +565,61 @@
     $('eigLabel').onchange = () => { neu(); };
     $('eigTyp').onchange = e => {
       const alt = f.type; f.type = e.target.value; f.geprueft = true;
-      if (f.type === 'check') { f.value = false; f.mehrzeilig = false; } else if (alt === 'check') f.value = '';
+      if (f.type === 'check') { f.value = false; f.mehrzeilig = false; } else if (alt === 'check' || alt === 'unterschrift' || f.type === 'unterschrift') f.value = '';
       if (f.type === 'datum' && !/^\d{4}-\d{2}-\d{2}$/.test(f.value || '')) f.value = '';
       speichern(); neu(); zeichneFuss();
     };
     if ($('eigWert')) $('eigWert').oninput = e => { f.value = e.target.value; speichern(); neu(); };
     if ($('eigWertC')) $('eigWertC').onchange = e => { f.value = e.target.checked; speichern(); neu(); };
+    if ($('eigUnterschr')) $('eigUnterschr').onclick = () => unterschreiben(f);
+    if ($('eigUsWeg')) $('eigUsWeg').onclick = () => { f.value = ''; speichern(); neu(); zeichneFuss(); };
     if ($('eigMz')) $('eigMz').onchange = e => { f.mehrzeilig = e.target.checked; speichern(); neu(); };
     $('eigKopie').onclick = () => { const n = Object.assign({}, f, { id: uid(), y: clamp(f.y + f.h + 0.6, 0, 100 - f.h), geprueft: true, herkunft: 'hand' }); S.doc.fields.push(n); S.sel = n.id; speichern(); zeichneFelder(f.page); zeichneFuss(); };
     $('eigDel').onclick = () => feldLoeschen(f);
+  }
+  /* Unterschrift mit Stift oder Finger. Gespeichert als PNG (durchsichtig,
+     auf die Striche zugeschnitten) — im PDF wird sie als Bild eingesetzt. */
+  function unterschreiben(f) {
+    dialog(`<h2>✒️ ${h(f.label || 'Unterschrift')}</h2>
+      <p class="hinweis">Mit dem Stift oder dem Finger in das Feld schreiben.</p>
+      <canvas class="us-flaeche" id="usFlaeche"></canvas>
+      <div class="zeile"><button class="knopf" data-neu>Löschen</button><button class="knopf" data-x>Abbrechen</button><button class="knopf rot" data-ok>✓ Übernehmen</button></div>`,
+      (d, zu) => {
+        const c = d.querySelector('#usFlaeche'), dpr = Math.min(window.devicePixelRatio || 1, 3);
+        const breite = Math.min(d.clientWidth - 8, 720), hoehe = Math.round(breite / Math.max(2, Math.min(6, f.w / f.h * S.doc.pages[f.page].w / S.doc.pages[f.page].h)));
+        c.style.width = breite + 'px'; c.style.height = Math.max(120, hoehe) + 'px';
+        c.width = Math.round(breite * dpr); c.height = Math.round(Math.max(120, hoehe) * dpr);
+        const x = c.getContext('2d'); x.scale(dpr, dpr); x.lineCap = 'round'; x.lineJoin = 'round'; x.strokeStyle = '#0b1a52';
+        let zieht = false, letzte = null, striche = 0;
+        const pos = e => { const r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+        c.addEventListener('pointerdown', e => { e.preventDefault(); zieht = true; letzte = pos(e); try { c.setPointerCapture(e.pointerId); } catch (_) {} x.beginPath(); x.arc(letzte[0], letzte[1], 1.1, 0, 7); x.fillStyle = '#0b1a52'; x.fill(); striche++; });
+        c.addEventListener('pointermove', e => {
+          if (!zieht) return; e.preventDefault();
+          const pts = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+          for (const ev of pts.length ? pts : [e]) {
+            const p = pos(ev); const druck = ev.pointerType === 'pen' && ev.pressure > 0 ? ev.pressure : 0.5;
+            x.lineWidth = 1.2 + druck * 2.6; x.beginPath(); x.moveTo(letzte[0], letzte[1]); x.lineTo(p[0], p[1]); x.stroke(); letzte = p;
+          }
+        });
+        const ende = () => { zieht = false; };
+        c.addEventListener('pointerup', ende); c.addEventListener('pointercancel', ende);
+        d.querySelector('[data-neu]').onclick = () => { x.clearRect(0, 0, c.width, c.height); striche = 0; };
+        d.querySelector('[data-x]').onclick = zu;
+        d.querySelector('[data-ok]').onclick = () => {
+          f.value = striche ? zuschneiden(c) : ''; f.geprueft = true; speichern(); zu();
+          zeichneFelder(f.page); zeichneBand(); zeichneFuss();
+        };
+      });
+  }
+  function zuschneiden(c) {
+    const x = c.getContext('2d'), d = x.getImageData(0, 0, c.width, c.height).data;
+    let x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
+    for (let y = 0; y < c.height; y++) for (let i = 0; i < c.width; i++) if (d[(y * c.width + i) * 4 + 3] > 8) { if (i < x0) x0 = i; if (i > x1) x1 = i; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (x1 < 0) return '';
+    const r = 6, w = x1 - x0 + 1 + 2 * r, hh = y1 - y0 + 1 + 2 * r;
+    const o = document.createElement('canvas'); o.width = w; o.height = hh;
+    o.getContext('2d').drawImage(c, x0 - r, y0 - r, w, hh, 0, 0, w, hh);
+    return o.toDataURL('image/png');
   }
   function feldLoeschen(f) {
     const i = S.doc.fields.indexOf(f); if (i < 0) return;
@@ -571,9 +678,9 @@
     const a = ER.ANBIETER[EINST.anbieter];
     dialog(`<h2>🤖 Formularfelder erkennen</h2>
       <p>${mehrere ? ids.length + ' Dokumente.' : ''} Erkannte Felder sind <b>Vorschläge</b>: sie erscheinen orange gestrichelt, bis du sie prüfst. Noch nicht geprüfte Vorschläge aus einem früheren Durchgang werden dabei ersetzt.</p>
-      <button class="wahl" data-off><b>🔍 Ohne Internet erkennen</b><span>Findet Linien, Eingabe-Rahmen und Kästchen im Seitenbild. Bei digitalen PDFs kommt die Beschriftung aus dem Text daneben.</span></button>
+      <button class="wahl" data-off><b>🔍 Ohne Internet erkennen</b><span>Findet Linien, Eingabe-Rahmen, graue Eingabeflächen und Kästchen im Seitenbild. Bei digitalen PDFs kommt die Beschriftung aus dem Text daneben.</span></button>
       <button class="wahl" data-ki><b>🤖 Mit KI erkennen — ${h(a.label)}</b><span>${kiBereit()
-        ? `Jede Seite wird als Bild an ${h(a.label)} (${h(a.region)}) geschickt. Die KI liefert Bezeichnungen und den erkannten Text; die Positionen rasten an gefundene Linien ein.`
+        ? `Jede Seite wird als Bild an ${h(a.label)} geschickt, mit den offline gefundenen Stellen nummeriert markiert. Die KI benennt sie, sortiert Falsches aus und ergänzt Fehlendes. Die Positionen der markierten Stellen bleiben exakt.`
         : 'Noch kein Schlüssel eingetragen — tippen, um ihn in den Einstellungen einzutragen.'}</span></button>
       <div class="zeile"><button class="knopf" data-x>Abbrechen</button></div>`, (d, zu) => {
       d.querySelector('[data-x]').onclick = zu;
@@ -610,6 +717,7 @@
   function typAusLabel(f) {
     const l = (f.label || '').toLowerCase();
     if (f.type !== 'text') return f.type;
+    if (/unterschrift|signatur|signature/.test(l)) return 'unterschrift';
     if (/datum|geburtstag|geb\.|date\b/.test(l)) return 'datum';
     if (/e-?mail/.test(l)) return 'email';
     if (/internet|webseite|homepage|url\b|www/.test(l)) return 'url';
@@ -630,11 +738,16 @@
       let felder = EINST.linien !== false ? ER.linienErkennung(x.getImageData(0, 0, c.width, c.height)) : [];
       if (mitKi) {
         try {
-          const antwort = await ER.kiAnfrage(kiCfg(), c.toDataURL('image/jpeg', 0.85));
-          const r = ER.kiAuswerten(antwort);
+          // Kandidaten nummeriert ins Bild — schon geprüfte Felder nicht noch einmal fragen
+          const iouV = (a, b) => { const ix = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)), iy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y)); const s = ix * iy; return s / (a.w * a.h + b.w * b.h - s || 1); };
+          const alt = d.fields.filter(f => f.page === i);
+          const kand = (EINST.linien !== false ? felder : ER.linienErkennung(x.getImageData(0, 0, c.width, c.height)))
+            .filter(k => !alt.some(v => iouV(v, k) > 0.25)).slice(0, 150);
+          const antwort = await ER.kiAnfrage(kiCfg(), ER.markiertesBild(c, kand), ER.promptMitKandidaten(kand));
+          const r = ER.kiAuswerten(antwort, { w: c.width, h: c.height });
           if (r.text && d.pages[i]) d.pages[i].text = r.text;
-          felder = ER.zusammenfuehren(r.felder, felder);
-        } catch (e) { fehler = String(e.message || e); if (/401|Schlüssel/.test(fehler)) mitKi = false; }
+          felder = ER.zusammenfuehren(r.felder, kand, r.kein);
+        } catch (e) { const m = String(e.message || e); fehler = (fehler ? fehler + ' · ' : '') + 'Seite ' + (i + 1) + ': ' + m; if (/401|Schlüssel/.test(m)) mitKi = false; }
       }
       // Beschriftung aus der Textebene (digitale PDFs)
       try {
@@ -741,12 +854,13 @@
   function hilfe() {
     dialog(`<h2>So geht's</h2><ol>
       <li><b>Einlesen:</b> PDF oder Bild wählen, ein Papierformular fotografieren oder einen ganzen Ordner einlesen. Dateien lassen sich auch auf die Seite ziehen.</li>
-      <li><b>Felder erkennen:</b> 🤖 findet Linien, Rahmen und Kästchen — offline oder mit KI. Das sind Vorschläge (orange gestrichelt).</li>
+      <li><b>Felder erkennen:</b> 🤖 findet Linien, Rahmen, graue Eingabeflächen und Kästchen — offline oder mit KI. Das sind Vorschläge (orange gestrichelt).</li>
       <li><b>Prüfen und korrigieren:</b> unter „✏️ Felder bearbeiten" Felder verschieben, am roten Punkt vergrößern, Bezeichnung und Art ändern. „✓ Passt" bestätigt einen Vorschlag.</li>
-      <li><b>Eigene Felder:</b> Art wählen (Text, Datum, Kästchen, E-Mail, Internetadresse, QR-Code) und auf die Stelle tippen.</li>
-      <li><b>Ausfüllen:</b> unter „✍️ Ausfüllen" direkt in die Felder schreiben.</li>
+      <li><b>Eigene Felder:</b> Art wählen (Text, Datum, Kästchen, E-Mail, Internetadresse, QR-Code, Unterschrift) und auf die Stelle tippen.</li>
+      <li><b>Ausfüllen:</b> unter „✍️ Ausfüllen" direkt in die Felder schreiben; ein Unterschriftsfeld antippen und mit Stift oder Finger unterschreiben.</li>
+      <li><b>Speichern:</b> geschieht laufend im Browser. 💾 Speichern legt zusätzlich eine Arbeitsdatei aufs Gerät — über „📄 PDF oder Bild" wieder einlesen und weitermachen, auch in einem anderen Browser.</li>
       <li><b>Ausgeben:</b> festes PDF, ausfüllbares PDF oder leere ausfüllbare Vorlage.</li></ol>
-      <p class="hinweis">Alles bleibt in diesem Browser. Ins Netz geht nur, was du ausdrücklich an eine KI schickst.</p>
+      <p class="hinweis">Alles bleibt in diesem Browser (DeX-Chrome und Tablet-Chrome sind zwei getrennte Browser). Ins Netz geht nur, was du ausdrücklich an eine KI schickst.</p>
       <div class="zeile"><button class="knopf rot" data-x>Verstanden</button></div>`, (d, zu) => d.querySelector('[data-x]').onclick = zu);
   }
 
@@ -764,9 +878,21 @@
     $('mAusfuellen').onclick = () => { S.modus = 'ausfuellen'; S.sel = null; zeichneModus(); };
     $('edErkennen').onclick = () => erkennenDialog([S.doc.id]);
     $('edExport').onclick = exportDialog;
+    $('edSpeichern').onclick = speichernDialog;
+    // Beim Schließen oder Wechseln der App sofort sichern — sonst ginge verloren,
+    // was in den letzten 0,35 s getippt wurde (Befund Klaus 2026-09-25).
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') speichernJetzt(); });
+    window.addEventListener('pagehide', () => speichernJetzt());
     $('zMinus').onclick = () => zoom(1 / 1.2); $('zPlus').onclick = () => zoom(1.2);
     window.addEventListener('popstate', () => { if (S.doc && location.hash !== '#dok') schliesseEditor(true); });
-    let _rz = null; window.addEventListener('resize', () => { if (!S.doc) return; clearTimeout(_rz); _rz = setTimeout(zeichneSeiten, 250); });
+    // Nur neu zeichnen, wenn sich die BREITE ändert. Die Bildschirmtastatur macht
+    // das Fenster nur niedriger — ein Neuzeichnen würde das Feld wegwerfen, in
+    // das gerade getippt wird (Befund Klaus 2026-09-25 am Tablet).
+    let _rz = null;
+    window.addEventListener('resize', () => {
+      if (!S.doc) return; clearTimeout(_rz);
+      _rz = setTimeout(() => { const b = seitenBreite(); if (b === _rzBreite) return; _rzBreite = b; zeichneSeiten(); }, 250);
+    });
     document.addEventListener('keydown', e => {
       if (!S.doc || S.modus !== 'bearbeiten' || $('modals').children.length) return;
       if (/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '')) return;

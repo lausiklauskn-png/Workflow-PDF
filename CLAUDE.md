@@ -26,6 +26,14 @@ npm install && npm test     # Syntax + Probe im echten Browser
 - **pdf-lib:** `setFontSize` erst NACH `addToPage` (vorher kein /DA-Eintrag).
 - **Cache-Bump:** `CACHE_VERSION` in `sw.js` erhöhen, wenn eine App-Datei sich ändert.
 - **DB-Name `WorkflohPDF1` nie ändern** — github.io ist eine geteilte Adresse.
+- **Resize nur bei Breitenänderung neu zeichnen.** Die Bildschirmtastatur macht das
+  Fenster niedriger; ein Neuzeichnen warf das Feld weg, in das getippt wurde
+  (Befund Klaus 2026-09-25). Die Probe prüft es.
+- **Erkennung:** Linien, Rahmen, Kästchen UND hellgraue Flächen (`flaechen()`).
+  Die KI bekommt die Offline-Kandidaten nummeriert ins Bild gezeichnet und
+  benennt sie — ihre eigenen Koordinaten sind ungenau („alle auf einem Haufen").
+- **Speichern:** laufend in IndexedDB, sofort bei `visibilitychange`/`pagehide`;
+  💾 legt eine Arbeitsstand-Datei (`*.workfloh.json`, PDF + Felder) aufs Gerät.
 - **KI ist BYOK und freiwillig**, Standard Mistral (EU). Ohne Bestätigung geht
   nichts ins Netz.
 

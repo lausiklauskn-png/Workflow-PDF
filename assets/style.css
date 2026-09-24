@@ -184,3 +184,10 @@ button{cursor:pointer}
   .ordner-aktionen .knopf{white-space:normal;text-align:left}
 }
 @media print{.kopf,.ed-leiste,.ed-fuss,.vorschlag-band{display:none}}
+/* Ausfüllen: Finger darf über Feldern scrollen (touch-action:none gilt nur fürs Ziehen) */
+.ausfuellen .feld{touch-action:auto}
+/* Unterschrift */
+.feld .usbild{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:left center;pointer-events:none}
+.feld .usleer{position:absolute;inset:0;display:flex;align-items:center;padding:0 6px;font-size:clamp(8px,40cqh,13px);color:var(--blau);opacity:.75;pointer-events:none}
+.ausfuellen .feld:has(.usleer),.ausfuellen .feld:has(.usbild){cursor:pointer}
+.us-flaeche{display:block;margin:10px auto;background:#fff;border:2px dashed #b8c2d9;border-radius:10px;touch-action:none;cursor:crosshair}

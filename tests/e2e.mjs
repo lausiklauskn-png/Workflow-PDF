@@ -42,6 +42,20 @@ async function testFormular() {
   return pdf.save();
 }
 
+/* Formular mit grauen Eingabeflächen statt Linien (wie Klaus' Fragebogen) */
+async function grauFormular() {
+  const pdf = await PDFDocument.create(); const f = await pdf.embedFont(StandardFonts.Helvetica);
+  const p = pdf.addPage([595.28, 841.89]); const g = rgb(0.89, 0.89, 0.89);
+  p.drawText('Versicherungsnehmer:', { x: 180, y: 712, size: 10, font: f });
+  p.drawRectangle({ x: 180, y: 690, width: 330, height: 14, color: g });
+  p.drawText('Unfallzeugen?', { x: 60, y: 652, size: 10, font: f });
+  p.drawText('Ja', { x: 190, y: 652, size: 10, font: f }); p.drawRectangle({ x: 210, y: 649, width: 12, height: 12, color: g });
+  p.drawText('Nein', { x: 250, y: 652, size: 10, font: f }); p.drawRectangle({ x: 280, y: 649, width: 12, height: 12, color: g });
+  p.drawText('Schilderung:', { x: 60, y: 600, size: 10, font: f });
+  p.drawRectangle({ x: 60, y: 480, width: 450, height: 110, color: g });
+  return pdf.save();
+}
+
 /* ---------- kleiner Server ---------- */
 function server() {
   const typ = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
@@ -54,8 +68,10 @@ function server() {
 }
 
 const bytes = await testFormular();
+const grauBytes = await grauFormular();
 const TMP = fs.mkdtempSync('/tmp/wfpdf-');
 fs.writeFileSync(path.join(TMP, 'Testformular.pdf'), bytes);
+fs.writeFileSync(path.join(TMP, 'Grauformular.pdf'), grauBytes);
 const srv = await server();
 const URL0 = `http://127.0.0.1:${srv.address().port}/`;
 const exe = ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome'].find(fs.existsSync);
@@ -66,15 +82,19 @@ const konsole = [];
 page.on('pageerror', e => konsole.push(String(e)));
 page.on('console', m => { if (m.type() === 'error') konsole.push(m.text()); });
 // Kein echter KI-Aufruf: die Antwort ist gestellt
-let kiAufrufe = 0;
+let kiAufrufe = 0, kiNummern = false, kiBild = null;
 await page.route('https://api.anthropic.com/**', async route => {
   kiAufrufe++;
   const body = JSON.parse(route.request().postData() || '{}');
   const bild = body.messages?.[0]?.content?.find(c => c.type === 'image');
-  const antwort = { text: 'Anmeldung Testformular\nName:', felder: [
+  if (bild) kiBild = bild.source.data;
+  const antwort = kiNummern ? { text: 'Graues Formular', felder: [{ nr: 1, typ: 'text', bezeichnung: 'KI eins' }, { nr: 3, typ: 'kaestchen', bezeichnung: 'KI drei' }],
+      keinFeld: [2], zusaetzlich: [{ typ: 'text', bezeichnung: 'In Pixeln', x: 700, y: 1500, b: 350, h: 40 }] }
+    : { text: 'Anmeldung Testformular\nName:', felder: [
     { typ: 'text', bezeichnung: 'Vollständiger Name', x: 19.5, y: 14.2, b: 47, h: 2.4 },       // absichtlich etwas daneben
     { typ: 'kaestchen', bezeichnung: 'Newsletter', x: 10.4, y: 41.9, b: 2.2, h: 1.6 },
     { typ: 'email', bezeichnung: 'E-Mail', x: 55, y: 80, b: 30, h: 2.2 } ] };
+  if (kiNummern) {}
   await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ content: [{ type: 'text', text: 'Hier: ' + JSON.stringify(antwort) }], _bild: !!bild }) });
 });
 
@@ -238,6 +258,78 @@ try {
   await page.setInputFiles('#inDatei', [path.join(TMP, 'Testformular.pdf'), png]);
   await page.waitForFunction(() => document.querySelectorAll('.dok').length === 4, null, { timeout: 20000 });
   ok('mehrere Dateien auf einmal eingelesen', true);
+
+  // 10. Graue Eingabeflächen (Befund Klaus 2026-09-25: „erkennt die grauen Bereiche nicht")
+  if (await page.locator('#edZurueck').isVisible()) await page.click('#edZurueck');
+  await page.setInputFiles('#inDatei', path.join(TMP, 'Grauformular.pdf'));
+  await page.waitForFunction(() => window.__wfpdf.S.doc && window.__wfpdf.S.doc.name === 'Grauformular');
+  await page.waitForSelector('#sc-ed.on .seite canvas');
+  await page.click('#edErkennen'); await page.click('[data-off]');
+  await page.waitForFunction(() => window.__wfpdf.S.doc.fields.length >= 4, null, { timeout: 30000 });
+  await page.waitForFunction(() => !document.querySelector('.fortschritt'));
+  const G = await page.evaluate(() => window.__wfpdf.S.doc.fields);
+  const gv = G.find(f => f.type === 'text' && /Versicherungsnehmer/.test(f.label));
+  ok('grau: Fläche „Versicherungsnehmer" als Textfeld erkannt, Beschriftung von oben', !!gv, G.map(f => [f.type, f.label]));
+  ok('grau: Fläche liegt genau auf dem grauen Balken (< 0,5 %)', gv && Math.abs(gv.x - 180 / 595.28 * 100) < 0.5 && Math.abs(gv.y - (841.89 - 704) / 841.89 * 100) < 0.5 && Math.abs(gv.w - 330 / 595.28 * 100) < 0.8, gv);
+  const gk = G.filter(f => f.type === 'check');
+  ok('grau: beide grauen Kästchen erkannt, mit Frage beschriftet', gk.length === 2 && gk.some(f => /Unfallzeugen.*Ja/.test(f.label)) && gk.some(f => /Unfallzeugen.*Nein/.test(f.label)), gk.map(f => f.label));
+  ok('grau: große Fläche „Schilderung" mehrzeilig', G.some(f => f.type === 'text' && f.mehrzeilig && /Schilderung/.test(f.label)), G.map(f => [f.label, f.h.toFixed(1)]));
+  const offGrau = G.length;
+
+  // 11. KI mit nummerierten Kandidaten
+  kiNummern = true; kiBild = null;
+  await page.click('#edErkennen'); await page.click('[data-ki]');
+  await page.waitForFunction(() => window.__wfpdf.S.doc.fields.some(f => f.label === 'KI eins'), null, { timeout: 30000 });
+  await page.waitForFunction(() => !document.querySelector('.fortschritt'));
+  const K = await page.evaluate(() => window.__wfpdf.S.doc.fields);
+  const kn1 = K.find(f => f.label === 'KI eins');
+  ok('KI (Nummern): benanntes Feld übernimmt die Lage eines Offline-Kandidaten exakt', kn1 && G.some(g => Math.abs(g.x - kn1.x) < 1e-6 && Math.abs(g.y - kn1.y) < 1e-6 && Math.abs(g.w - kn1.w) < 1e-6), kn1);
+  ok('KI (Nummern): „keinFeld" nimmt einen Kandidaten heraus', K.filter(f => f.label !== 'In Pixeln').length === offGrau - 1, [K.length, offGrau]);
+  const px = K.find(f => f.label === 'In Pixeln');
+  ok('KI: Pixel-Koordinaten werden in Prozent umgerechnet', px && Math.abs(px.x - 50) < 0.5 && px.y > 50 && px.y < 95, px);
+  ok('KI bekommt das Bild mit den markierten Stellen', !!kiBild && kiBild.length > 1000);
+
+  // 12. Ausfüllen: Tippen trotz Bildschirmtastatur (Fenster wird niedriger)
+  await page.click('#vorschlagBand [data-alle]');
+  await page.click('#mAusfuellen');
+  const ziel = page.locator(`.feld[data-id="${kn1.id}"] input, .feld[data-id="${kn1.id}"] textarea`).first();
+  await ziel.click();
+  await page.setViewportSize({ width: 1280, height: 520 }); await page.waitForTimeout(450);
+  await page.keyboard.type('Getippt');
+  ok('Ausfüllen: Feld behält den Fokus, wenn die Tastatur das Fenster verkleinert', await page.evaluate(id => window.__wfpdf.S.doc.fields.find(f => f.id === id).value === 'Getippt', kn1.id));
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  // 12b. Unterschrift mit Stift/Finger
+  await page.click('#mBearbeiten');
+  await page.click('[data-t="unterschrift"]');
+  const lage0 = page.locator('.seite .lage').first(); const lg = await lage0.boundingBox();
+  await lage0.click({ position: { x: lg.width * 0.3, y: lg.height * 0.55 } });
+  const usId = await page.evaluate(() => window.__wfpdf.S.sel);
+  ok('Unterschriftsfeld lässt sich setzen', await page.evaluate(id => window.__wfpdf.S.doc.fields.find(f => f.id === id).type === 'unterschrift', usId));
+  await page.click('#mAusfuellen');
+  await page.click(`.feld[data-id="${usId}"]`);
+  await page.waitForSelector('#usFlaeche');
+  const cb = await page.locator('#usFlaeche').boundingBox();
+  await page.mouse.move(cb.x + 20, cb.y + cb.height * 0.7); await page.mouse.down();
+  for (let i = 1; i <= 12; i++) await page.mouse.move(cb.x + 20 + i * 18, cb.y + cb.height * (0.7 - 0.4 * Math.sin(i / 2)));
+  await page.mouse.up();
+  await page.click('.dlg [data-ok]');
+  const usWert = await page.evaluate(id => window.__wfpdf.S.doc.fields.find(f => f.id === id).value, usId);
+  ok('Unterschrift gespeichert (PNG) und im Feld zu sehen', /^data:image\/png;base64,/.test(usWert) && await page.locator(`.feld[data-id="${usId}"] img.usbild`).count() === 1);
+  const usPdf = await page.evaluate(async () => { const w = window.__wfpdf; const r = await WFP.Export.exportieren(w.S.doc, w.S.bytes, 'fest'); const v = await WFP.Export.exportieren(w.S.doc, w.S.bytes, 'vorlage'); const t = b => new TextDecoder('latin1').decode(b); return [ /\/Subtype\s*\/Image/.test(t(r.bytes)), /\/Subtype\s*\/Image/.test(t(v.bytes)) ]; });
+  ok('Unterschrift steht im festen PDF als Bild, die leere Vorlage bleibt ohne', usPdf[0] && !usPdf[1], usPdf);
+
+  // 13. Speichern: Arbeitsstand als Datei, wieder einlesen
+  await page.click('#edSpeichern');
+  const [dlStand] = await Promise.all([page.waitForEvent('download'), page.click('[data-dl]')]);
+  const standPfad = path.join(TMP, dlStand.suggestedFilename()); await dlStand.saveAs(standPfad);
+  const stand = JSON.parse(fs.readFileSync(standPfad, 'utf8'));
+  ok('Arbeitsstand-Datei: Format, Felder und PDF enthalten', stand.format === 'workfloh-pdf-arbeitsstand' && stand.doc.fields.some(f => f.value === 'Getippt') && stand.pdf.length > 500, dlStand.suggestedFilename());
+  await page.evaluate(async () => { const w = window.__wfpdf; const id = w.S.doc.id; w.S.doc.fields.forEach(f => { if (f.value === 'Getippt') f.value = 'geändert'; }); w.S.doc.updatedAt = '2000-01-01T00:00:00Z'; await WFP.DB.put('docs', w.S.doc); });
+  await page.click('#edZurueck');
+  await page.setInputFiles('#inDatei', standPfad);
+  await page.waitForFunction(() => window.__wfpdf.S.doc && window.__wfpdf.S.doc.fields.some(f => f.value === 'Getippt'), null, { timeout: 15000 });
+  ok('Arbeitsstand eingelesen: Einträge wieder da, älterer Browserstand ersetzt', await page.evaluate(async () => (await WFP.DB.all('docs')).filter(d => d.name === 'Grauformular').length === 1));
 
   ok('keine Fehler in der Konsole', konsole.length === 0, konsole);
 } catch (e) {
