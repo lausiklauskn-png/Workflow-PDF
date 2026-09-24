@@ -851,6 +851,15 @@
       d.querySelector('[data-ok]').onclick = () => { merke(); EINST.anbieter = anb.value; EINST.schluessel = tmp.schluessel; EINST.modell = tmp.modell; EINST.linien = d.querySelector('#stLin').checked; einstSpeichern(); zu(); toast('⚙️ gespeichert'); };
     });
   }
+  function installHinweis(fertig) {
+    dialog(`<h2>📲 ${fertig ? 'Workfloh PDF ist installiert' : 'Als App installieren'}</h2>
+      ${fertig ? '' : `<p>Chrome bietet die Installation gerade nicht von selbst an. So geht es von Hand:</p>
+      <ol><li>Chrome-Menü <b>⋮</b> oben rechts öffnen</li><li><b>„App installieren"</b> oder <b>„Zum Startbildschirm hinzufügen"</b> wählen</li><li>Bestätigen</li></ol>
+      <p class="hinweis">Steht dort <b>„Workfloh PDF öffnen"</b>, ist die App schon installiert.</p>`}
+      <p><b>Wo die App liegt:</b> in der <b>App-Liste</b> des Tablets (vom Startbildschirm nach oben wischen, „Workfloh PDF" suchen). Aufs Startbild kommt sie nur, wenn der Samsung-Startbildschirm das zulässt: Einstellungen → Startbildschirm → <b>„Neue Apps zum Startbildschirm hinzufügen"</b>. Sonst in der App-Liste lange drücken und aufs Startbild ziehen.</p>
+      <p class="hinweis">DeX und Tablet-Modus haben getrennte Chrome-Installationen: eine in DeX installierte App erscheint im DeX-App-Menü, nicht zwingend im Tablet-Modus.</p>
+      <div class="zeile"><button class="knopf rot" data-x>OK</button></div>`, (d, zu) => d.querySelector('[data-x]').onclick = zu);
+  }
   function hilfe() {
     dialog(`<h2>So geht's</h2><ol>
       <li><b>Einlesen:</b> PDF oder Bild wählen, ein Papierformular fotografieren oder einen ganzen Ordner einlesen. Dateien lassen sich auch auf die Seite ziehen.</li>
@@ -871,6 +880,17 @@
     $('inKamera').onchange = e => { const f = e.target.files && e.target.files[0]; const ziel = S.aufnahmeZiel; S.aufnahmeZiel = null; e.target.value = ''; kameraBild(f, ziel); };
     $('inAnhang').onchange = e => { dateienAnhaengen(e.target.files); e.target.value = ''; };
     $('btnEinst').onclick = einstellungen; $('btnHilfe').onclick = hilfe;
+    // Installieren: eigener Knopf, damit es nicht vom Chrome-Menü abhängt.
+    // Läuft die App schon installiert (eigenes Fenster), bleibt er verborgen.
+    const installiert = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    let _inst = null;
+    if (!installiert()) $('btnInstall').hidden = false;
+    window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); _inst = e; if (!installiert()) $('btnInstall').hidden = false; });
+    window.addEventListener('appinstalled', () => { _inst = null; $('btnInstall').hidden = true; installHinweis(true); });
+    $('btnInstall').onclick = async () => {
+      if (_inst) { _inst.prompt(); try { await _inst.userChoice; } catch (_) {} _inst = null; return; }
+      installHinweis(false);
+    };
     $('flohKnopf').onclick = () => { hops(); if (S.doc) schliesseEditor(); };
     $('edZurueck').onclick = () => schliesseEditor();
     $('edName').oninput = e => { S.doc.name = e.target.value.trim() || 'Dokument'; $('kopfSub').textContent = S.doc.name; speichern(); };
