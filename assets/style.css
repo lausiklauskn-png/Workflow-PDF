@@ -1,0 +1,186 @@
+/* Workfloh PDF — Stil. Marke wie WorkFloh: Rot #E0231B, weiße Flächen, rote Umrandung. */
+:root{
+  --rot:#E0231B;--rot-d:#b71a13;--rot-h:#fdecea;--blau:#1d4ed8;--blau-h:#e8efff;
+  --ink:#16181d;--ink2:#555b66;--linie:#dfe2e8;--grund:#f4f5f8;--flaeche:#fff;
+  --ki:#e8870b;--ki-h:#fff4e3;--ok:#15803d;--schatten:0 2px 10px rgba(20,24,33,.08);
+  --r:12px;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--grund);color:var(--ink);font-size:15px;line-height:1.4;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+
+/* Kopfleiste */
+.kopf{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:10px;padding:4px 12px 4px 6px;
+  background:var(--flaeche);border-bottom:3px solid var(--rot);box-shadow:var(--schatten);min-height:64px}
+.floh-knopf{border:0;background:none;padding:0;width:60px;height:60px;flex:none}
+.floh{display:block;width:60px;height:60px;background:url(../icons/w-floh-160.png) center/contain no-repeat;
+  transform-origin:50% 90%;animation:floh-wippen 3.2s ease-in-out infinite}
+.floh.hopst{animation:floh-hopsen .7s ease-out 1}
+@keyframes floh-wippen{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-3px) rotate(2deg)}}
+@keyframes floh-hopsen{0%{transform:translateY(0)}35%{transform:translateY(-14px) rotate(-8deg)}70%{transform:translateY(0) rotate(4deg)}100%{transform:none}}
+@media (prefers-reduced-motion:reduce){.floh,.floh.hopst{animation:none}}
+.marke{flex:1;min-width:0}
+.marke-name{font-size:1.25rem;font-weight:800;letter-spacing:-.01em;white-space:nowrap}
+.marke-name b{color:var(--rot)}
+.marke-sub{font-size:.78rem;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kopf-rechts{display:flex;gap:6px}
+.ikon{width:40px;height:40px;border-radius:50%;border:2px solid var(--linie);background:var(--flaeche);font-weight:800;font-size:1rem}
+.ikon:hover{border-color:var(--rot)}
+
+.screen{display:none}.screen.on{display:block}
+
+/* Knöpfe */
+.knopf{border:2px solid var(--linie);background:var(--flaeche);border-radius:10px;padding:8px 12px;font-weight:600;min-height:40px;white-space:nowrap}
+.knopf:hover{border-color:var(--rot)}
+.knopf.rot{background:var(--rot);border-color:var(--rot);color:#fff}
+.knopf.rot:hover{background:var(--rot-d)}
+.knopf.blau{background:var(--blau);border-color:var(--blau);color:#fff}
+.knopf.klein{min-width:40px;padding:6px 10px}
+.knopf.gefahr{color:var(--rot);border-color:#f3c2bf}
+.knopf.an{border-color:var(--rot);background:var(--rot-h)}
+.knopf:disabled{opacity:.5;cursor:default}
+
+/* Bibliothek */
+#sc-bib{padding:14px;max-width:1200px;margin:0 auto}
+.import-leiste{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:14px}
+.gross-knopf{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--flaeche);border:2px solid var(--rot);
+  border-radius:var(--r);cursor:pointer;box-shadow:var(--schatten);transition:transform .1s}
+.gross-knopf:hover{transform:translateY(-1px)}
+.gross-knopf.rot{background:var(--rot);color:#fff}
+.gross-knopf .gk-ico{font-size:1.9rem}
+.gross-knopf .gk-t{font-weight:700;line-height:1.2}
+.gross-knopf small{font-weight:400;opacity:.8}
+.ablage{position:fixed;inset:0;z-index:80;background:rgba(224,35,27,.12);border:4px dashed var(--rot);display:flex;
+  align-items:center;justify-content:center;font-size:1.4rem;font-weight:800;color:var(--rot-d);pointer-events:none}
+.ordner-leiste{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px}
+.ordner-chip{border:2px solid var(--linie);background:var(--flaeche);border-radius:999px;padding:7px 14px;white-space:nowrap;font-weight:600}
+.ordner-chip.on{border-color:var(--rot);background:var(--rot-h);color:var(--rot-d)}
+.ordner-chip .anz{font-weight:400;color:var(--ink2);margin-left:4px}
+.ordner-aktionen{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.dok-gitter{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.dok{background:var(--flaeche);border:1px solid var(--linie);border-radius:var(--r);overflow:hidden;box-shadow:var(--schatten);display:flex;flex-direction:column}
+.dok-bild{aspect-ratio:3/4;background:#eceef2 center/contain no-repeat;border:0;width:100%;padding:0;position:relative}
+.dok-bild .marken{position:absolute;left:6px;top:6px;display:flex;gap:4px;flex-wrap:wrap}
+.marke-klein{font-size:.7rem;font-weight:700;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.95);border:1px solid var(--linie)}
+.marke-klein.ki{background:var(--ki-h);border-color:var(--ki);color:#8a4a00}
+.dok-info{padding:8px 10px;flex:1}
+.dok-name{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dok-meta{font-size:.78rem;color:var(--ink2)}
+.dok-akt{display:flex;border-top:1px solid var(--linie)}
+.dok-akt button{flex:1;border:0;background:none;padding:8px 0;font-size:1rem}
+.dok-akt button:hover{background:var(--grund)}
+.leer{padding:40px 20px;text-align:center;color:var(--ink2);background:var(--flaeche);border:2px dashed var(--linie);border-radius:var(--r);grid-column:1/-1}
+.leer b{color:var(--ink)}
+
+/* Editor */
+#sc-ed.on{display:flex;flex-direction:column;height:calc(100vh - 67px);height:calc(100dvh - 67px)}
+.ed-leiste{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 10px;background:var(--flaeche);border-bottom:1px solid var(--linie)}
+.ed-name{flex:1;min-width:140px;border:2px solid var(--linie);border-radius:10px;padding:8px 10px;font-weight:700}
+.ed-name:focus{border-color:var(--rot);outline:none}
+.modus{display:flex;border:2px solid var(--rot);border-radius:10px;overflow:hidden}
+.modus-k{border:0;background:var(--flaeche);padding:8px 12px;font-weight:700;min-height:36px}
+.modus-k.on{background:var(--rot);color:#fff}
+.zoom{display:flex;gap:4px}
+.vorschlag-band{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px;background:var(--ki-h);border-bottom:2px solid var(--ki);font-size:.9rem}
+.vorschlag-band b{color:#8a4a00}
+.ed-flaeche{flex:1;overflow:auto;background:#d9dce3;padding:16px 8px 120px}
+.seiten{display:flex;flex-direction:column;align-items:center;gap:18px}
+.seite{position:relative;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.25);touch-action:pan-x pan-y}
+.seite canvas{display:block;width:100%;height:100%}
+.seite-nr{position:absolute;right:-2px;top:-20px;font-size:.75rem;color:#4b5160}
+.lage{position:absolute;inset:0}
+.seite.platzieren .lage{cursor:crosshair;background:rgba(29,78,216,.04)}
+
+/* Felder */
+.feld{position:absolute;border:1.5px solid var(--blau);background:rgba(29,78,216,.07);border-radius:3px;touch-action:none}
+.feld.ki{border:2px dashed var(--ki);background:rgba(232,135,11,.10)}
+.feld.sel{outline:3px solid rgba(224,35,27,.55);outline-offset:1px;z-index:5}
+.feld{container-type:size}
+/* Etikett IM Feld (überdeckt keine Nachbarzeile); ausgewählt steht es als Fähnchen darüber */
+.feld .etikett{position:absolute;left:3px;right:3px;top:50%;transform:translateY(-50%);font-size:clamp(7px,55cqh,12px);line-height:1.1;
+  color:var(--blau);opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;font-weight:600}
+.feld.ki .etikett{color:#9a5200}
+.feld.hatwert .etikett{display:none}
+.feld.check-feld .etikett{display:none}
+.feld.sel .etikett{display:block;top:auto;bottom:100%;transform:none;left:-1px;right:auto;max-width:240px;font-size:10px;opacity:1;padding:1px 5px;border-radius:4px 4px 0 0;background:var(--blau);color:#fff}
+.feld.sel.ki .etikett{background:var(--ki)}
+.feld .griff{display:none;position:absolute;right:-7px;bottom:-7px;width:16px;height:16px;border-radius:50%;background:var(--rot);border:2px solid #fff;box-shadow:0 0 0 1px var(--rot);cursor:nwse-resize}
+.feld.sel .griff{display:block}
+.feld .wert{position:absolute;inset:0;display:flex;align-items:center;padding:0 3px;overflow:hidden;white-space:nowrap;color:#0b1a52;pointer-events:none}
+.feld .wert.mz{align-items:flex-start;white-space:pre-wrap;line-height:1.15}
+.feld .kreuz{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-weight:900;color:#0b1a52}
+.feld .qrbild{width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.feld .qrbild svg{width:100%;height:100%}
+.feld .qrleer{font-size:10px;color:var(--ink2);text-align:center;padding:2px}
+/* Ausfüllmodus: Felder sind Eingaben, keine Griffe */
+.ausfuellen .feld{border-color:rgba(29,78,216,.35);background:rgba(29,78,216,.05)}
+.ausfuellen .feld .griff,.ausfuellen .feld .etikett{display:none}
+.ausfuellen .feld.ki{border-style:dashed}
+.feld input,.feld textarea{position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent;padding:0 3px;color:#0b1a52;outline:none;resize:none}
+.feld input:focus,.feld textarea:focus{background:rgba(255,255,160,.45)}
+.feld.check-feld{cursor:pointer}
+
+/* Fußleiste Editor */
+.ed-fuss{position:sticky;bottom:0;background:var(--flaeche);border-top:2px solid var(--rot);padding:8px 10px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start;max-height:46vh;overflow:auto}
+.werkzeug{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.werkzeug .titel{font-weight:700;color:var(--ink2);font-size:.85rem;margin-right:2px}
+.eigenschaften{flex:1;min-width:260px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.eig{display:flex;flex-direction:column;gap:2px;font-size:.78rem;color:var(--ink2)}
+.eig input,.eig select,.eig textarea{border:2px solid var(--linie);border-radius:8px;padding:6px 8px;font-size:.95rem;color:var(--ink);background:#fff;min-height:38px}
+.eig input:focus,.eig select:focus,.eig textarea:focus{border-color:var(--rot);outline:none}
+.eig-haken{flex-direction:row;align-items:center;gap:6px;min-height:38px;color:var(--ink)}
+.hinweis{font-size:.82rem;color:var(--ink2)}
+.ki-hinweis{background:var(--ki-h);border:1px solid var(--ki);border-radius:8px;padding:6px 10px;font-size:.85rem}
+
+/* Dialoge */
+.dlg-grund{position:fixed;inset:0;z-index:60;background:rgba(10,12,18,.45);display:flex;align-items:center;justify-content:center;padding:14px}
+.dlg{background:var(--flaeche);border-radius:16px;border-top:5px solid var(--rot);width:100%;max-width:560px;max-height:90vh;overflow:auto;padding:16px 18px;box-shadow:0 12px 40px rgba(0,0,0,.3)}
+.dlg h2{margin:0 0 8px;font-size:1.2rem}
+.dlg p{margin:.4em 0}
+.dlg .zeile{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;justify-content:flex-end}
+.dlg label{display:block;margin:10px 0 4px;font-weight:600;font-size:.9rem}
+.dlg input[type=text],.dlg input[type=password],.dlg select,.dlg textarea{width:100%;border:2px solid var(--linie);border-radius:8px;padding:8px 10px;background:#fff}
+.dlg textarea{min-height:180px;font-size:.85rem}
+.wahl{display:block;width:100%;text-align:left;border:2px solid var(--linie);background:#fff;border-radius:12px;padding:10px 12px;margin:8px 0}
+.wahl:hover{border-color:var(--rot)}
+.wahl b{display:block;font-size:1rem}
+.wahl span{font-size:.85rem;color:var(--ink2)}
+.fortschritt{height:8px;background:var(--grund);border-radius:99px;overflow:hidden;margin:10px 0}
+.fortschritt>i{display:block;height:100%;width:0;background:var(--rot);transition:width .2s}
+.aufnahme-bilder{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;margin:10px 0}
+.aufnahme-bilder div{position:relative;aspect-ratio:3/4;background:#eee center/cover;border-radius:8px;border:1px solid var(--linie)}
+.aufnahme-bilder button{position:absolute;right:4px;top:4px;border:0;border-radius:50%;width:26px;height:26px;background:rgba(0,0,0,.6);color:#fff}
+.dlg ol,.dlg ul{padding-left:1.2em;margin:.4em 0}
+.dlg li{margin:.25em 0}
+
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;z-index:90;
+  background:#1c1f26;color:#fff;padding:10px 16px;border-radius:12px;max-width:min(92vw,560px);transition:.25s;font-size:.92rem;box-shadow:0 6px 24px rgba(0,0,0,.3)}
+.toast.an{opacity:1;transform:translateX(-50%);pointer-events:auto}
+.toast button{margin-left:10px;background:none;border:1px solid #fff8;color:#fff;border-radius:8px;padding:2px 8px}
+
+@media (max-width:640px){
+  .marke-sub{display:none}
+  .lang{display:none}
+  .kopf{min-height:54px}.floh-knopf,.floh{width:50px;height:50px}
+  #sc-ed.on{height:calc(100vh - 57px);height:calc(100dvh - 57px)}
+  .ed-leiste{gap:6px;padding:6px}
+  #edZurueck{order:1}.ed-name{order:2}#edExport{order:3}.modus{order:4}#edErkennen{order:5}.zoom{order:6}
+  .ed-leiste .knopf{padding:6px 9px;min-height:36px}
+  .ed-leiste>*{flex:none}
+  .ed-name{flex:1 0 100px;min-width:100px;padding:6px 8px}
+  .modus-k{padding:6px 8px;font-size:.85rem}
+  .vorschlag-band{padding:6px 8px;gap:6px;font-size:.85rem}
+  .vorschlag-band .knopf{min-height:32px;padding:4px 8px}
+  .ed-flaeche{padding:10px 4px 90px}
+  .ed-fuss{padding:6px;gap:6px;max-height:42vh}
+  .werkzeug{flex-wrap:nowrap;overflow-x:auto;max-width:100%}
+  .werkzeug .knopf{min-height:36px;padding:5px 9px}
+  .eigenschaften{min-width:0;gap:6px}
+  .ki-hinweis{width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:4px 8px}
+  .werkzeug .titel{display:none}
+  .ordner-aktionen .knopf{white-space:normal;text-align:left}
+}
+@media print{.kopf,.ed-leiste,.ed-fuss,.vorschlag-band{display:none}}

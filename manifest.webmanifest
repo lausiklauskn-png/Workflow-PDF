@@ -1,0 +1,17 @@
+{
+  "name": "Workfloh PDF",
+  "short_name": "Workfloh PDF",
+  "description": "Workflow PDF: PDFs und fotografierte Formulare einlesen, Formularfelder erkennen oder setzen, als festes oder ausfüllbares PDF ausgeben.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f5f8",
+  "theme_color": "#E0231B",
+  "lang": "de",
+  "icons": [
+    { "src": "icons/icon-192.png?v=1", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png?v=1", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512-maskable.png?v=1", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

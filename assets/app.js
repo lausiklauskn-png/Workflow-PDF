@@ -1,0 +1,793 @@
+/* Workfloh PDF — Oberfläche.
+   Muster aus Mein-WorkFloh (Originaldokument-Modus): Felder liegen in Prozent
+   über der echten Seite, „Felder bearbeiten" setzt und verschiebt sie,
+   „Ausfüllen" schreibt hinein. Dokumente liegen lokal (IndexedDB), in Ordnern.
+   Ins Netz geht nur, was der Nutzer ausdrücklich an eine KI schickt. */
+(function () {
+  'use strict';
+  const { DB, Erkennung: ER, Export: EX } = WFP;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdfjs/pdf.worker.min.js';
+  if (qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs['UTF-8']) qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+
+  const $ = id => document.getElementById(id);
+  const h = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id' + Date.now().toString(36) + Math.random().toString(36).slice(2));
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const jetzt = () => new Date().toISOString();
+
+  const TYPEN = {
+    text: { name: 'Text', ico: '📝' }, datum: { name: 'Datum', ico: '📅' }, check: { name: 'Kästchen', ico: '☑️' },
+    email: { name: 'E-Mail', ico: '✉️' }, url: { name: 'Internetadresse', ico: '🔗' }, qr: { name: 'QR-Code', ico: '▦' }
+  };
+  const GROESSE = { text: [28, 2.2], datum: [16, 2.2], email: [28, 2.2], url: [28, 2.2], check: [2.6, 1.9], qr: [14, 10] };
+
+  /* ---------- Einstellungen ---------- */
+  const EINST_KEY = 'wfpdf_einst_v1';
+  const EINST = Object.assign({ anbieter: 'mistral', schluessel: {}, modell: {}, linien: true, kiOk: {} }, lesen(EINST_KEY));
+  function lesen(k) { try { return JSON.parse(localStorage.getItem(k) || 'null') || {}; } catch (_) { return {}; } }
+  function einstSpeichern() { try { localStorage.setItem(EINST_KEY, JSON.stringify(EINST)); } catch (_) {} }
+  const kiCfg = () => ({ anbieter: EINST.anbieter, schluessel: EINST.schluessel[EINST.anbieter] || '', modell: EINST.modell[EINST.anbieter] || '' });
+  const kiBereit = () => !!(EINST.schluessel[EINST.anbieter] || '').trim();
+
+  /* ---------- Zustand ---------- */
+  const S = { ordner: [], docs: [], aktOrdner: 'alle', doc: null, bytes: null, pdf: null, modus: 'bearbeiten', sel: null,
+    zoom: 1, platzieren: null, aufnahme: [], aufnahmeZiel: null, beob: null };
+
+  /* ---------- Kleinkram ---------- */
+  let _tt = null;
+  function toast(txt, aktion) {
+    const t = $('toast'); t.innerHTML = h(txt); t.classList.add('an');
+    if (aktion) { const b = document.createElement('button'); b.textContent = aktion.text; b.onclick = () => { t.classList.remove('an'); aktion.tun(); }; t.appendChild(b); }
+    clearTimeout(_tt); _tt = setTimeout(() => t.classList.remove('an'), aktion ? 7000 : 4200);
+  }
+  function hops() { const f = $('floh'); f.classList.remove('hopst'); void f.offsetWidth; f.classList.add('hopst'); }
+  function dialog(html, onMount) {
+    const g = document.createElement('div'); g.className = 'dlg-grund';
+    g.innerHTML = '<div class="dlg" role="dialog" aria-modal="true">' + html + '</div>';
+    g.addEventListener('click', e => { if (e.target === g) zu(); });
+    const zu = () => { g.remove(); document.removeEventListener('keydown', esc); };
+    const esc = e => { if (e.key === 'Escape') zu(); };
+    document.addEventListener('keydown', esc);
+    $('modals').appendChild(g);
+    if (onMount) onMount(g.querySelector('.dlg'), zu);
+    return zu;
+  }
+  function frage(titel, text, ja, nein) {
+    return new Promise(res => {
+      dialog(`<h2>${h(titel)}</h2><div>${text}</div><div class="zeile"><button class="knopf" data-n>${h(nein || 'Abbrechen')}</button><button class="knopf rot" data-j>${h(ja || 'OK')}</button></div>`,
+        (d, zu) => { d.querySelector('[data-j]').onclick = () => { zu(); res(true); }; d.querySelector('[data-n]').onclick = () => { zu(); res(false); }; d.querySelector('[data-j]').focus(); });
+    });
+  }
+  function eingabe(titel, label, wert) {
+    return new Promise(res => {
+      dialog(`<h2>${h(titel)}</h2><label>${h(label)}</label><input type="text" data-e value="${h(wert || '')}"><div class="zeile"><button class="knopf" data-n>Abbrechen</button><button class="knopf rot" data-j>OK</button></div>`,
+        (d, zu) => {
+          const i = d.querySelector('[data-e]'); i.focus(); i.select();
+          const ok = () => { const v = i.value.trim(); zu(); res(v || null); };
+          d.querySelector('[data-j]').onclick = ok; i.onkeydown = e => { if (e.key === 'Enter') ok(); };
+          d.querySelector('[data-n]').onclick = () => { zu(); res(null); };
+        });
+    });
+  }
+  function fortschritt(titel) {
+    let zuF = null, el = null, tx = null;
+    dialog(`<h2>${h(titel)}</h2><div class="fortschritt"><i></i></div><p class="hinweis" data-t>…</p>`, (d, zu) => { zuF = zu; el = d.querySelector('.fortschritt i'); tx = d.querySelector('[data-t]'); });
+    return { setze(anteil, text) { if (el) el.style.width = Math.round(anteil * 100) + '%'; if (tx && text) tx.textContent = text; }, zu() { if (zuF) zuF(); } };
+  }
+  function laden(dateiname, bytes, typ) {
+    const blob = new Blob([bytes], { type: typ || 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = dateiname; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    return blob;
+  }
+  const dateiName = s => (String(s || 'Dokument').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'Dokument');
+
+  /* ---------- Bibliothek ---------- */
+  async function ladeBibliothek() {
+    S.ordner = (await DB.all('folders')).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    S.docs = (await DB.all('docs')).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    zeichneBibliothek();
+  }
+  function offeneVorschlaege(d) { return (d.fields || []).filter(f => !f.geprueft).length; }
+  function zeichneBibliothek() {
+    const anz = id => S.docs.filter(d => id === 'alle' ? true : id === 'ohne' ? !d.folderId || !S.ordner.some(o => o.id === d.folderId) : d.folderId === id).length;
+    let html = `<button class="ordner-chip${S.aktOrdner === 'alle' ? ' on' : ''}" data-o="alle">Alle<span class="anz">${anz('alle')}</span></button>`;
+    for (const o of S.ordner) html += `<button class="ordner-chip${S.aktOrdner === o.id ? ' on' : ''}" data-o="${o.id}">🗂️ ${h(o.name)}<span class="anz">${anz(o.id)}</span></button>`;
+    if (S.ordner.length && anz('ohne')) html += `<button class="ordner-chip${S.aktOrdner === 'ohne' ? ' on' : ''}" data-o="ohne">Ohne Ordner<span class="anz">${anz('ohne')}</span></button>`;
+    html += `<button class="ordner-chip" data-neu>＋ Ordner</button>`;
+    const ol = $('ordnerLeiste'); ol.innerHTML = html;
+    ol.querySelectorAll('[data-o]').forEach(b => b.onclick = () => { S.aktOrdner = b.dataset.o; zeichneBibliothek(); });
+    ol.querySelector('[data-neu]').onclick = neuerOrdner;
+
+    const akt = $('ordnerAktionen'); const o = S.ordner.find(x => x.id === S.aktOrdner);
+    const sicht = S.docs.filter(d => S.aktOrdner === 'alle' ? true : S.aktOrdner === 'ohne' ? !d.folderId || !S.ordner.some(x => x.id === d.folderId) : d.folderId === S.aktOrdner);
+    akt.innerHTML = (sicht.length ? `<button class="knopf" data-erk>🤖 Felder in allen ${sicht.length} Dokumenten erkennen</button>` : '')
+      + (o ? `<button class="knopf" data-ren>✎ Ordner umbenennen</button><button class="knopf gefahr" data-del>🗑 Ordner löschen</button>` : '');
+    const q = s => akt.querySelector(s);
+    if (q('[data-erk]')) q('[data-erk]').onclick = () => erkennenDialog(sicht.map(d => d.id));
+    if (q('[data-ren]')) q('[data-ren]').onclick = async () => { const n = await eingabe('Ordner umbenennen', 'Name', o.name); if (!n) return; o.name = n; await DB.put('folders', o); ladeBibliothek(); };
+    if (q('[data-del]')) q('[data-del]').onclick = async () => {
+      if (!await frage('Ordner löschen?', `<p>Der Ordner „${h(o.name)}" wird gelöscht. Die ${anz(o.id)} Dokumente darin bleiben erhalten und stehen danach unter „Ohne Ordner".</p>`, 'Ordner löschen')) return;
+      for (const d of S.docs.filter(d => d.folderId === o.id)) { d.folderId = null; await DB.put('docs', d); }
+      await DB.del('folders', o.id); S.aktOrdner = 'alle'; ladeBibliothek();
+    };
+
+    const g = $('dokGitter');
+    if (!sicht.length) {
+      g.innerHTML = `<div class="leer"><b>Noch keine Dokumente${o ? ' in diesem Ordner' : ''}.</b><br>Oben ein PDF oder Bild wählen, ein Formular fotografieren oder einen ganzen Ordner einlesen. Du kannst Dateien auch einfach hierher ziehen.</div>`;
+      return;
+    }
+    g.innerHTML = sicht.map(d => {
+      const v = offeneVorschlaege(d), ord = S.ordner.find(x => x.id === d.folderId);
+      return `<div class="dok" data-id="${d.id}">
+        <button class="dok-bild" data-auf style="background-image:url('${d.thumb || ''}')" title="Öffnen">
+          <span class="marken">${v ? `<span class="marke-klein ki">🤖 ${v} zu prüfen</span>` : ''}${d.quelle === 'foto' ? '<span class="marke-klein">📷 Foto</span>' : ''}</span></button>
+        <div class="dok-info"><div class="dok-name" title="${h(d.name)}">${h(d.name)}</div>
+          <div class="dok-meta">${d.pages.length} Seite${d.pages.length === 1 ? '' : 'n'} · ${d.fields.length} Feld${d.fields.length === 1 ? '' : 'er'}${ord && S.aktOrdner === 'alle' ? ' · 🗂️ ' + h(ord.name) : ''}</div></div>
+        <div class="dok-akt"><button data-auf title="Öffnen">✏️</button><button data-verschieben title="In Ordner verschieben">🗂️</button><button data-kopie title="Duplizieren (z. B. als Vorlage)">⧉</button><button data-loeschen title="Löschen">🗑</button></div></div>`;
+    }).join('');
+    g.querySelectorAll('.dok').forEach(el => {
+      const id = el.dataset.id;
+      el.querySelectorAll('[data-auf]').forEach(b => b.onclick = () => oeffneDok(id));
+      el.querySelector('[data-verschieben]').onclick = () => verschieben(id);
+      el.querySelector('[data-kopie]').onclick = () => duplizieren(id);
+      el.querySelector('[data-loeschen]').onclick = () => loeschen(id);
+    });
+  }
+  async function neuerOrdner() {
+    const n = await eingabe('Neuer Ordner', 'Name des Ordners', ''); if (!n) return null;
+    const o = { id: uid(), name: n, createdAt: jetzt() }; await DB.put('folders', o);
+    S.aktOrdner = o.id; await ladeBibliothek(); return o;
+  }
+  async function verschieben(id) {
+    const d = S.docs.find(x => x.id === id); if (!d) return;
+    dialog(`<h2>In Ordner verschieben</h2><p class="hinweis">„${h(d.name)}"</p>
+      ${S.ordner.map(o => `<button class="wahl" data-o="${o.id}"><b>🗂️ ${h(o.name)}</b></button>`).join('')}
+      <button class="wahl" data-o=""><b>Ohne Ordner</b></button><button class="wahl" data-neu><b>＋ Neuer Ordner …</b></button>
+      <div class="zeile"><button class="knopf" data-x>Abbrechen</button></div>`, (dl, zu) => {
+      dl.querySelectorAll('[data-o]').forEach(b => b.onclick = async () => { d.folderId = b.dataset.o || null; await DB.put('docs', d); zu(); ladeBibliothek(); });
+      dl.querySelector('[data-neu]').onclick = async () => { zu(); const o = await neuerOrdner(); if (o) { d.folderId = o.id; await DB.put('docs', d); ladeBibliothek(); } };
+      dl.querySelector('[data-x]').onclick = zu;
+    });
+  }
+  async function duplizieren(id) {
+    const d = await DB.get('docs', id); const b = await DB.getFile(id); if (!d || !b) return;
+    const n = JSON.parse(JSON.stringify(d)); n.id = uid(); n.name = d.name + ' (Kopie)'; n.createdAt = n.updatedAt = jetzt();
+    n.fields.forEach(f => f.id = uid());
+    await DB.putFile(n.id, b); await DB.put('docs', n); toast('⧉ Kopie angelegt'); ladeBibliothek();
+  }
+  async function loeschen(id) {
+    const d = S.docs.find(x => x.id === id); if (!d) return;
+    if (!await frage('Dokument löschen?', `<p>„${h(d.name)}" mit ${d.fields.length} Feldern wird aus diesem Browser gelöscht. Das lässt sich nicht rückgängig machen.</p>`, 'Löschen')) return;
+    await DB.del('docs', id); await DB.del('files', id); toast('🗑 gelöscht'); ladeBibliothek();
+  }
+
+  /* ---------- Import ---------- */
+  const istPdf = f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+  const istBild = f => /^image\//.test(f.type) || /\.(jpe?g|png|webp|gif|bmp|heic)$/i.test(f.name);
+
+  // Foto verkleinern statt abweisen (Lehre aus den Rezeptbüchern): die Kamera
+  // entscheidet die Auflösung, nicht der Nutzer. Lange Kante ≤ 2400 px, JPEG.
+  async function bildNormalisieren(file) {
+    let bmp = null;
+    try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch (_) {
+      const url = URL.createObjectURL(file);
+      try { bmp = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('Bild „' + file.name + '" lässt sich nicht lesen')); i.src = url; }); }
+      finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
+    }
+    const w0 = bmp.width || bmp.naturalWidth, h0 = bmp.height || bmp.naturalHeight;
+    const f = Math.min(1, 2400 / Math.max(w0, h0));
+    const c = document.createElement('canvas'); c.width = Math.round(w0 * f); c.height = Math.round(h0 * f);
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(bmp, 0, 0, c.width, c.height);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.88));
+    return { bytes: new Uint8Array(await blob.arrayBuffer()), vorschau: c.toDataURL('image/jpeg', 0.5) };
+  }
+
+  async function seitenInfo(pdf) {
+    const pages = [];
+    for (let n = 1; n <= pdf.numPages; n++) {
+      const p = await pdf.getPage(n); const vp = p.getViewport({ scale: 1 });
+      pages.push({ w: vp.width, h: vp.height, t: vp.transform.slice(), rot: p.rotate || 0 });
+    }
+    return pages;
+  }
+  async function vorschaubild(pdf) {
+    const p = await pdf.getPage(1); const v1 = p.getViewport({ scale: 1 }); const vp = p.getViewport({ scale: 260 / v1.width });
+    const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+    await p.render({ canvasContext: x, viewport: vp }).promise;
+    return c.toDataURL('image/jpeg', 0.7);
+  }
+  // Vorhandene Formularfelder des PDFs übernehmen — die sind echt, keine Vorschläge.
+  async function vorhandeneFelder(pdf) {
+    const out = [];
+    for (let n = 1; n <= pdf.numPages; n++) {
+      const p = await pdf.getPage(n); const vp = p.getViewport({ scale: 1 });
+      let an = []; try { an = await p.getAnnotations(); } catch (_) {}
+      for (const a of an) {
+        if (a.subtype !== 'Widget' || !a.rect) continue;
+        let type = null;
+        if (a.fieldType === 'Tx') type = 'text'; else if (a.fieldType === 'Btn' && (a.checkBox || a.radioButton)) type = 'check';
+        if (!type) continue;
+        const r = vp.convertToViewportRectangle(a.rect);
+        const x0 = Math.min(r[0], r[2]), y0 = Math.min(r[1], r[3]), x1 = Math.max(r[0], r[2]), y1 = Math.max(r[1], r[3]);
+        let val = a.fieldValue;
+        if (type === 'check') val = !!(val && val !== 'Off' && val !== a.exportValue + '_off');
+        out.push({ id: uid(), page: n - 1, type, label: String(a.alternativeText || a.fieldName || '').slice(0, 60), mehrzeilig: !!a.multiLine,
+          x: x0 / vp.width * 100, y: y0 / vp.height * 100, w: (x1 - x0) / vp.width * 100, h: (y1 - y0) / vp.height * 100,
+          value: type === 'check' ? val : (typeof val === 'string' ? val : ''), herkunft: 'pdf', geprueft: true });
+      }
+    }
+    return out;
+  }
+  async function neuesDok(name, bytes, quelle, folderId) {
+    const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
+    const d = { id: uid(), name, folderId: folderId || null, quelle, createdAt: jetzt(), updatedAt: jetzt(),
+      pages: await seitenInfo(pdf), thumb: await vorschaubild(pdf), fields: await vorhandeneFelder(pdf) };
+    try { pdf.destroy(); } catch (_) {}
+    await DB.putFile(d.id, bytes); await DB.put('docs', d);
+    return d;
+  }
+  let _persistGefragt = false;
+  async function importDateien(dateien, ordnerName) {
+    const liste = Array.from(dateien || []).filter(f => istPdf(f) || istBild(f)).sort((a, b) => (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, 'de'));
+    const uebrig = (dateien ? dateien.length : 0) - liste.length;
+    if (!liste.length) { toast('Keine PDF- oder Bilddatei gefunden.'); return []; }
+    if (!_persistGefragt) { _persistGefragt = true; DB.persist(); }
+    let folderId = (S.ordner.some(o => o.id === S.aktOrdner)) ? S.aktOrdner : null;
+    if (ordnerName) {
+      let o = S.ordner.find(x => x.name === ordnerName);
+      if (!o) { o = { id: uid(), name: ordnerName, createdAt: jetzt() }; await DB.put('folders', o); }
+      folderId = o.id;
+    }
+    const fb = liste.length > 1 ? fortschritt('Dokumente einlesen') : null;
+    const neu = [], fehler = [];
+    for (let i = 0; i < liste.length; i++) {
+      const f = liste[i]; if (fb) fb.setze(i / liste.length, f.name);
+      try {
+        let bytes, quelle = 'pdf';
+        if (istPdf(f)) bytes = new Uint8Array(await f.arrayBuffer());
+        else { const b = await bildNormalisieren(f); bytes = await EX.bilderZuPdf([b]); quelle = 'foto'; }
+        neu.push(await neuesDok(f.name.replace(/\.[^.]+$/, ''), bytes, quelle, folderId));
+      } catch (e) {
+        console.error(e);
+        fehler.push(f.name + ': ' + (/password/i.test(e && e.name + e.message) ? 'passwortgeschützt' : (e.message || e)));
+      }
+    }
+    if (fb) fb.zu();
+    if (folderId) S.aktOrdner = folderId;
+    await ladeBibliothek(); hops();
+    if (fehler.length) dialog(`<h2>Nicht alles ließ sich einlesen</h2><ul>${fehler.map(x => '<li>' + h(x) + '</li>').join('')}</ul><div class="zeile"><button class="knopf rot" data-x>OK</button></div>`, (d, zu) => d.querySelector('[data-x]').onclick = zu);
+    const msg = neu.length + ' Dokument' + (neu.length === 1 ? '' : 'e') + ' eingelesen' + (uebrig > 0 ? ' · ' + uebrig + ' andere Dateien übersprungen' : '');
+    if (neu.length > 1) toast(msg, { text: '🤖 Felder erkennen', tun: () => erkennenDialog(neu.map(d => d.id)) });
+    else if (neu.length === 1) { toast(msg); oeffneDok(neu[0].id); }
+    return neu;
+  }
+
+  /* ---------- Kamera: mehrere Seiten sammeln ---------- */
+  async function kameraBild(file, ziel) {
+    if (!file) return;
+    try {
+      const b = await bildNormalisieren(file);
+      if (ziel === 'anhang' && S.doc) { await seitenAnhaengen([await EX.bilderZuPdf([b])]); return; }
+      S.aufnahme.push(b); aufnahmeDialog();
+    } catch (e) { toast('⚠️ ' + (e.message || e)); }
+  }
+  let _aufZu = null;
+  function aufnahmeDialog() {
+    if (_aufZu) _aufZu();
+    _aufZu = dialog(`<h2>📷 Formular fotografieren</h2>
+      <p class="hinweis">Blatt gerade und gut beleuchtet aufnehmen. Weitere Seiten einfach dazunehmen.</p>
+      <div class="aufnahme-bilder">${S.aufnahme.map((b, i) => `<div style="background-image:url('${b.vorschau}')"><button data-weg="${i}" title="Seite entfernen">✕</button></div>`).join('')}</div>
+      <div class="zeile"><button class="knopf" data-x>Verwerfen</button><button class="knopf" data-mehr>📷 Weitere Seite</button><button class="knopf rot" data-ok>✓ Dokument erstellen (${S.aufnahme.length} Seite${S.aufnahme.length === 1 ? '' : 'n'})</button></div>`,
+      (d, zu) => {
+        d.querySelectorAll('[data-weg]').forEach(b => b.onclick = () => { S.aufnahme.splice(+b.dataset.weg, 1); if (S.aufnahme.length) aufnahmeDialog(); else { zu(); _aufZu = null; } });
+        d.querySelector('[data-x]').onclick = () => { S.aufnahme = []; zu(); _aufZu = null; };
+        d.querySelector('[data-mehr]').onclick = () => { S.aufnahmeZiel = 'neu'; $('inKamera').click(); };
+        d.querySelector('[data-ok]').onclick = async () => {
+          zu(); _aufZu = null;
+          const bilder = S.aufnahme; S.aufnahme = [];
+          try {
+            const bytes = await EX.bilderZuPdf(bilder);
+            const folderId = S.ordner.some(o => o.id === S.aktOrdner) ? S.aktOrdner : null;
+            const name = 'Foto-Formular ' + new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const doc = await neuesDok(name, bytes, 'foto', folderId);
+            await ladeBibliothek(); hops(); oeffneDok(doc.id);
+          } catch (e) { toast('⚠️ ' + (e.message || e)); }
+        };
+      });
+  }
+
+  /* ---------- Editor ---------- */
+  async function oeffneDok(id) {
+    const d = await DB.get('docs', id); const b = await DB.getFile(id);
+    if (!d || !b) { toast('⚠️ Dokument nicht gefunden'); return; }
+    if (S.pdf) { try { S.pdf.destroy(); } catch (_) {} }
+    S.doc = d; S.bytes = b; S.sel = null; S.platzieren = null; S.zoom = 1;
+    S.modus = d.fields.length && !offeneVorschlaege(d) ? 'ausfuellen' : 'bearbeiten';
+    try { S.pdf = await pdfjsLib.getDocument({ data: b.slice(0) }).promise; }
+    catch (e) { toast('⚠️ PDF lässt sich nicht öffnen: ' + (e.message || e)); return; }
+    $('sc-bib').classList.remove('on'); $('sc-ed').classList.add('on');
+    $('edName').value = d.name; $('kopfSub').textContent = d.name;
+    history.pushState({ ed: 1 }, '', '#dok');
+    zeichneSeiten(); zeichneModus();
+  }
+  async function schliesseEditor(ohneHistory) {
+    await speichernJetzt();
+    $('sc-ed').classList.remove('on'); $('sc-bib').classList.add('on');
+    $('kopfSub').textContent = 'Formulare einlesen · Felder setzen · PDF ausgeben';
+    if (S.beob) { S.beob.disconnect(); S.beob = null; }
+    S.doc = null; S.sel = null;
+    if (!ohneHistory && location.hash === '#dok') history.back();
+    ladeBibliothek();
+  }
+  let _st = null;
+  function speichern() { if (!S.doc) return; S.doc.updatedAt = jetzt(); clearTimeout(_st); _st = setTimeout(speichernJetzt, 350); }
+  async function speichernJetzt() { clearTimeout(_st); _st = null; if (S.doc) { try { await DB.put('docs', S.doc); } catch (e) { toast('⚠️ Speichern fehlgeschlagen: ' + e.message); } } }
+
+  function seitenBreite() { const fl = $('edFlaeche'); return Math.round(Math.min(fl.clientWidth - 24, 920) * S.zoom); }
+  function zeichneSeiten() {
+    const box = $('seiten'); box.innerHTML = '';
+    if (S.beob) S.beob.disconnect();
+    S.beob = new IntersectionObserver(eintraege => { for (const e of eintraege) if (e.isIntersecting) seiteRendern(+e.target.dataset.i); }, { root: $('edFlaeche'), rootMargin: '800px 0px' });
+    const bw = seitenBreite();
+    S.doc.pages.forEach((p, i) => {
+      const el = document.createElement('div'); el.className = 'seite'; el.dataset.i = i;
+      el.style.width = bw + 'px'; el.style.height = Math.round(bw * p.h / p.w) + 'px';
+      el.innerHTML = `<span class="seite-nr">Seite ${i + 1} / ${S.doc.pages.length}</span><canvas></canvas><div class="lage"></div>`;
+      const lage = el.querySelector('.lage');
+      lage.addEventListener('pointerdown', e => {
+        if (e.target !== lage) return;
+        if (S.platzieren) { feldSetzen(i, e, lage); return; }
+        if (S.sel) { S.sel = null; markiere(); zeichneFuss(); }
+      });
+      box.appendChild(el); S.beob.observe(el);
+      zeichneFelder(i);
+    });
+  }
+  const _gerendert = new Map();
+  async function seiteRendern(i) {
+    const el = document.querySelector(`.seite[data-i="${i}"]`); if (!el || !S.pdf) return;
+    const key = el.clientWidth + ':' + S.doc.id; if (_gerendert.get(el) === key) return; _gerendert.set(el, key);
+    try {
+      const p = await S.pdf.getPage(i + 1); const v1 = p.getViewport({ scale: 1 });
+      const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+      const vp = p.getViewport({ scale: el.clientWidth / v1.width * dpr });
+      const c = el.querySelector('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+      await p.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+    } catch (e) { _gerendert.delete(el); console.error(e); }
+  }
+  function zoom(f) { S.zoom = clamp(S.zoom * f, 0.5, 3); zeichneSeiten(); }
+
+  function feldText(f) {
+    if (f.type === 'datum') return EX.datumText(f.value);
+    return String(f.value == null ? '' : f.value);
+  }
+  function qrSvg(text) {
+    try { const q = qrcode(0, 'M'); q.addData(text); q.make(); return q.createSvgTag({ cellSize: 2, margin: 0, scalable: true }); }
+    catch (_) { return '<span class="qrleer">zu lang für einen QR-Code</span>'; }
+  }
+  function zeichneFelder(i) {
+    const lage = document.querySelector(`.seite[data-i="${i}"] .lage`); if (!lage) return;
+    lage.innerHTML = '';
+    for (const f of S.doc.fields) if (f.page === i) lage.appendChild(feldElement(f));
+    markiere();
+  }
+  function feldElement(f) {
+    const el = document.createElement('div');
+    el.className = 'feld' + (!f.geprueft ? ' ki' : '') + (f.type === 'check' ? ' check-feld' : '') + ((f.type === 'check' ? f.value : f.value !== '' && f.value != null) ? ' hatwert' : '');
+    el.dataset.id = f.id;
+    el.style.left = f.x + '%'; el.style.top = f.y + '%'; el.style.width = f.w + '%'; el.style.height = f.h + '%';
+    const hoehePx = () => el.getBoundingClientRect().height || 20;
+    if (S.modus === 'ausfuellen') {
+      if (f.type === 'check') {
+        el.innerHTML = `<span class="kreuz">${f.value ? '✓' : ''}</span>`;
+        el.onclick = () => { f.value = !f.value; el.querySelector('.kreuz').textContent = f.value ? '✓' : ''; speichern(); };
+        el.title = f.label || 'Kästchen';
+      } else if (f.type === 'qr') {
+        el.innerHTML = `<div class="qrbild">${f.value ? qrSvg(f.value) : '<span class="qrleer">QR-Inhalt unten eingeben</span>'}</div>`;
+        el.onclick = () => { S.sel = f.id; markiere(); zeichneFuss(); };
+      } else {
+        const inp = document.createElement(f.mehrzeilig ? 'textarea' : 'input');
+        if (!f.mehrzeilig) inp.type = f.type === 'datum' ? 'date' : f.type === 'email' ? 'email' : f.type === 'url' ? 'url' : 'text';
+        inp.value = f.value || ''; inp.placeholder = ''; inp.title = f.label || TYPEN[f.type].name; inp.setAttribute('aria-label', f.label || TYPEN[f.type].name);
+        inp.oninput = () => { f.value = inp.value; speichern(); };
+        inp.onfocus = () => { S.sel = f.id; markiere(); };
+        requestAnimationFrame(() => { const hp = hoehePx(); inp.style.fontSize = Math.max(9, Math.min(f.mehrzeilig ? 16 : 22, hp * (f.mehrzeilig ? 0.34 : 0.62))) + 'px'; });
+        el.appendChild(inp);
+      }
+      return el;
+    }
+    // Bearbeiten
+    let inhalt = '';
+    if (f.type === 'check') inhalt = `<span class="kreuz">${f.value ? '✓' : ''}</span>`;
+    else if (f.type === 'qr') inhalt = `<div class="qrbild">${f.value ? qrSvg(f.value) : '<span class="qrleer">QR</span>'}</div>`;
+    else inhalt = `<span class="wert${f.mehrzeilig ? ' mz' : ''}">${h(feldText(f))}</span>`;
+    el.innerHTML = inhalt + `<span class="etikett">${!f.geprueft ? '🤖 ' : ''}${h(f.label || TYPEN[f.type].name)}</span><span class="griff" title="Größe ändern"></span>`;
+    requestAnimationFrame(() => { const w = el.querySelector('.wert'); if (w) w.style.fontSize = Math.max(8, Math.min(20, hoehePx() * (f.mehrzeilig ? 0.34 : 0.6))) + 'px'; });
+    el.addEventListener('pointerdown', e => ziehen(e, f, el, e.target.classList.contains('griff') ? 'groesse' : 'bewegen'));
+    return el;
+  }
+  function ziehen(e, f, el, art) {
+    if (S.modus !== 'bearbeiten') return;
+    e.preventDefault(); e.stopPropagation();
+    S.sel = f.id; S.platzieren = null; markiere(); zeichneFuss();
+    const lage = el.parentElement.getBoundingClientRect();
+    const sx = e.clientX, sy = e.clientY, f0 = { x: f.x, y: f.y, w: f.w, h: f.h };
+    let bewegt = false;
+    try { el.setPointerCapture(e.pointerId); } catch (_) {}
+    const mv = ev => {
+      const dx = (ev.clientX - sx) / lage.width * 100, dy = (ev.clientY - sy) / lage.height * 100;
+      if (!bewegt && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 4) return; bewegt = true;
+      if (art === 'bewegen') { f.x = clamp(f0.x + dx, 0, 100 - f.w); f.y = clamp(f0.y + dy, 0, 100 - f.h); el.style.left = f.x + '%'; el.style.top = f.y + '%'; }
+      else { f.w = clamp(f0.w + dx, 1, 100 - f.x); f.h = clamp(f0.h + dy, 0.8, 100 - f.y); el.style.width = f.w + '%'; el.style.height = f.h + '%'; }
+    };
+    const up = () => {
+      el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up);
+      if (bewegt) { f.geprueft = f.geprueft || false; speichern(); zeichneFelder(f.page); zeichneBand(); }
+    };
+    el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+  }
+  function markiere() { document.querySelectorAll('.feld').forEach(el => el.classList.toggle('sel', el.dataset.id === S.sel)); }
+  function feldSetzen(seite, e, lage) {
+    const r = lage.getBoundingClientRect(); const t = S.platzieren; const [w, hh] = GROESSE[t];
+    const hKorr = t === 'check' || t === 'qr' ? w * S.doc.pages[seite].w / S.doc.pages[seite].h : hh;   // quadratisch
+    const x = clamp((e.clientX - r.left) / r.width * 100 - (t === 'check' || t === 'qr' ? w / 2 : 1), 0, 100 - w);
+    const y = clamp((e.clientY - r.top) / r.height * 100 - hKorr / 2, 0, 100 - hKorr);
+    const n = S.doc.fields.filter(f => f.type === t).length + 1;
+    const f = { id: uid(), page: seite, type: t, label: TYPEN[t].name + ' ' + n, x, y, w, h: hKorr, value: t === 'check' ? false : '', herkunft: 'hand', geprueft: true, mehrzeilig: false };
+    S.doc.fields.push(f); S.sel = f.id; S.platzieren = null; document.querySelectorAll('.seite').forEach(s => s.classList.remove('platzieren'));
+    zeichneFelder(seite); zeichneFuss(); speichern();
+    setTimeout(() => { const i = $('eigLabel'); if (i) { i.focus(); i.select(); } }, 30);
+  }
+  function platzierenStart(t) {
+    S.platzieren = S.platzieren === t ? null : t;
+    document.querySelectorAll('.seite').forEach(s => s.classList.toggle('platzieren', !!S.platzieren));
+    zeichneFuss();
+    if (S.platzieren) toast('Tippe auf die Stelle im Dokument, an die das ' + TYPEN[t].name + '-Feld soll.');
+  }
+
+  function zeichneModus() {
+    $('mBearbeiten').classList.toggle('on', S.modus === 'bearbeiten');
+    $('mAusfuellen').classList.toggle('on', S.modus === 'ausfuellen');
+    $('seiten').classList.toggle('ausfuellen', S.modus === 'ausfuellen');
+    S.platzieren = null; document.querySelectorAll('.seite').forEach(s => s.classList.remove('platzieren'));
+    S.doc.pages.forEach((_, i) => zeichneFelder(i));
+    zeichneBand(); zeichneFuss();
+  }
+  function zeichneBand() {
+    const b = $('vorschlagBand'); const n = offeneVorschlaege(S.doc);
+    if (!n) { b.hidden = true; return; }
+    b.hidden = false;
+    b.innerHTML = `<span>🤖 <b>${n} Vorschl${n === 1 ? 'ag' : 'äge'} zu prüfen.</b><span class="lang"> Orange gestrichelt = noch nicht geprüft. Position, Bezeichnung und Art bitte kontrollieren.</span></span>
+      <button class="knopf" data-alle>✓ Alle übernehmen</button><button class="knopf gefahr" data-weg>✕ Alle verwerfen</button>`;
+    b.querySelector('[data-alle]').onclick = () => { S.doc.fields.forEach(f => f.geprueft = true); speichern(); zeichneModus(); toast('✓ Alle Vorschläge übernommen'); };
+    b.querySelector('[data-weg]').onclick = async () => {
+      if (!await frage('Vorschläge verwerfen?', `<p>${n} nicht geprüfte Felder werden entfernt. Selbst gesetzte und übernommene Felder bleiben.</p>`, 'Verwerfen')) return;
+      S.doc.fields = S.doc.fields.filter(f => f.geprueft); S.sel = null; speichern(); zeichneModus();
+    };
+  }
+  function zeichneFuss() {
+    const fuss = $('edFuss'); const f = S.doc.fields.find(x => x.id === S.sel);
+    if (S.modus === 'ausfuellen') {
+      let html = `<div class="werkzeug"><span class="hinweis">✍️ In die Felder tippen und schreiben. Kästchen antippen zum Ankreuzen.${S.doc.fields.length ? '' : ' Noch keine Felder — unter „Felder bearbeiten" setzen oder erkennen lassen.'}</span></div>`;
+      if (f && f.type === 'qr') html += `<div class="eigenschaften"><label class="eig" style="flex:1">Inhalt des QR-Codes (Text oder Internetadresse)<input id="eigWert" value="${h(f.value || '')}"></label></div>`;
+      html += `<div class="werkzeug"><button class="knopf" id="fussText">📄 Erkannter Text</button></div>`;
+      fuss.innerHTML = html;
+      if ($('eigWert')) $('eigWert').oninput = e => { f.value = e.target.value; speichern(); const el = document.querySelector(`.feld[data-id="${f.id}"] .qrbild`); if (el) el.innerHTML = f.value ? qrSvg(f.value) : ''; };
+      $('fussText').onclick = erkannterText;
+      return;
+    }
+    let html = `<div class="werkzeug"><span class="titel">Feld setzen:</span>${Object.entries(TYPEN).map(([k, t]) => `<button class="knopf${S.platzieren === k ? ' an' : ''}" data-t="${k}">${t.ico} ${t.name}</button>`).join('')}
+      <button class="knopf" id="fussSeite">＋ Seite</button><button class="knopf" id="fussText">📄 Erkannter Text</button></div>`;
+    if (S.platzieren) html += `<div class="werkzeug"><span class="hinweis">👆 Tippe jetzt auf die Stelle im Dokument. <button class="knopf klein" id="platzAbbr">Abbrechen</button></span></div>`;
+    if (f) {
+      html += `<div class="eigenschaften">
+        ${!f.geprueft ? `<div class="ki-hinweis">🤖 Vorschlag der Erkennung — passt es? <button class="knopf klein blau" id="eigOk">✓ Passt</button></div>` : ''}
+        <label class="eig" style="flex:1;min-width:160px">Bezeichnung<input id="eigLabel" value="${h(f.label || '')}"></label>
+        <label class="eig">Art<select id="eigTyp">${Object.entries(TYPEN).map(([k, t]) => `<option value="${k}"${k === f.type ? ' selected' : ''}>${t.name}</option>`).join('')}</select></label>
+        ${f.type === 'check' ? `<label class="eig eig-haken"><input type="checkbox" id="eigWertC"${f.value ? ' checked' : ''}> angekreuzt</label>`
+          : f.type === 'datum' ? `<label class="eig">Inhalt<input type="date" id="eigWert" value="${h(f.value || '')}"></label>`
+          : `<label class="eig" style="flex:1;min-width:160px">${f.type === 'qr' ? 'Inhalt des QR-Codes' : 'Inhalt (vorbelegt)'}<input id="eigWert" value="${h(f.value || '')}"></label>`}
+        ${f.type === 'text' ? `<label class="eig eig-haken"><input type="checkbox" id="eigMz"${f.mehrzeilig ? ' checked' : ''}> mehrzeilig</label>` : ''}
+        <button class="knopf" id="eigKopie" title="Feld kopieren">⧉ Kopie</button><button class="knopf gefahr" id="eigDel">🗑 Löschen</button></div>`;
+    } else if (!S.platzieren) html += `<div class="werkzeug"><span class="hinweis">Feld antippen, um es zu ändern · ziehen zum Verschieben · roter Punkt ändert die Größe · Entf löscht.</span></div>`;
+    fuss.innerHTML = html;
+    fuss.querySelectorAll('[data-t]').forEach(b => b.onclick = () => platzierenStart(b.dataset.t));
+    $('fussSeite').onclick = seiteDialog; $('fussText').onclick = erkannterText;
+    if ($('platzAbbr')) $('platzAbbr').onclick = () => platzierenStart(S.platzieren);
+    if (!f) return;
+    const neu = () => { zeichneFelder(f.page); zeichneBand(); };
+    if ($('eigOk')) $('eigOk').onclick = () => { f.geprueft = true; speichern(); neu(); zeichneFuss(); };
+    $('eigLabel').oninput = e => { f.label = e.target.value; f.geprueft = true; speichern(); const t = document.querySelector(`.feld[data-id="${f.id}"] .etikett`); if (t) t.textContent = f.label || TYPEN[f.type].name; };
+    $('eigLabel').onchange = () => { neu(); };
+    $('eigTyp').onchange = e => {
+      const alt = f.type; f.type = e.target.value; f.geprueft = true;
+      if (f.type === 'check') { f.value = false; f.mehrzeilig = false; } else if (alt === 'check') f.value = '';
+      if (f.type === 'datum' && !/^\d{4}-\d{2}-\d{2}$/.test(f.value || '')) f.value = '';
+      speichern(); neu(); zeichneFuss();
+    };
+    if ($('eigWert')) $('eigWert').oninput = e => { f.value = e.target.value; speichern(); neu(); };
+    if ($('eigWertC')) $('eigWertC').onchange = e => { f.value = e.target.checked; speichern(); neu(); };
+    if ($('eigMz')) $('eigMz').onchange = e => { f.mehrzeilig = e.target.checked; speichern(); neu(); };
+    $('eigKopie').onclick = () => { const n = Object.assign({}, f, { id: uid(), y: clamp(f.y + f.h + 0.6, 0, 100 - f.h), geprueft: true, herkunft: 'hand' }); S.doc.fields.push(n); S.sel = n.id; speichern(); zeichneFelder(f.page); zeichneFuss(); };
+    $('eigDel').onclick = () => feldLoeschen(f);
+  }
+  function feldLoeschen(f) {
+    const i = S.doc.fields.indexOf(f); if (i < 0) return;
+    S.doc.fields.splice(i, 1); S.sel = null; speichern(); zeichneFelder(f.page); zeichneBand(); zeichneFuss();
+    toast('🗑 Feld „' + (f.label || TYPEN[f.type].name) + '" gelöscht', { text: 'Rückgängig', tun: () => { S.doc.fields.splice(i, 0, f); S.sel = f.id; speichern(); zeichneFelder(f.page); zeichneBand(); zeichneFuss(); } });
+  }
+  function erkannterText() {
+    const t = S.doc.pages.map((p, i) => p.text ? `— Seite ${i + 1} —\n${p.text}` : '').filter(Boolean).join('\n\n');
+    dialog(`<h2>📄 Erkannter Text</h2>${t ? `<textarea readonly>${h(t)}</textarea>` : '<p class="hinweis">Noch kein Text erkannt. Den Text liefert die KI-Erkennung (🤖 Felder erkennen → mit KI).</p>'}
+      <div class="zeile">${t ? '<button class="knopf" data-k>Kopieren</button>' : ''}<button class="knopf rot" data-x>Schließen</button></div>`, (d, zu) => {
+      d.querySelector('[data-x]').onclick = zu;
+      if (d.querySelector('[data-k]')) d.querySelector('[data-k]').onclick = () => navigator.clipboard.writeText(t).then(() => toast('📋 kopiert')).catch(() => { d.querySelector('textarea').select(); document.execCommand('copy'); toast('📋 kopiert'); });
+    });
+  }
+
+  /* ---------- Seite anhängen ---------- */
+  function seiteDialog() {
+    dialog(`<h2>＋ Seite anhängen</h2><p class="hinweis">Die neuen Seiten kommen hinter Seite ${S.doc.pages.length}. Vorhandene Felder bleiben, wo sie sind.</p>
+      <button class="wahl" data-d><b>📄 PDF oder Bild wählen</b><span>eine oder mehrere Dateien</span></button>
+      <button class="wahl" data-k><b>📷 Seite fotografieren</b></button>
+      <div class="zeile"><button class="knopf" data-x>Abbrechen</button></div>`, (d, zu) => {
+      d.querySelector('[data-x]').onclick = zu;
+      d.querySelector('[data-d]').onclick = () => { zu(); $('inAnhang').click(); };
+      d.querySelector('[data-k]').onclick = () => { zu(); S.aufnahmeZiel = 'anhang'; $('inKamera').click(); };
+    });
+  }
+  async function dateienAnhaengen(files) {
+    const teile = [];
+    for (const f of Array.from(files || [])) {
+      try { if (istPdf(f)) teile.push(new Uint8Array(await f.arrayBuffer())); else if (istBild(f)) teile.push(await EX.bilderZuPdf([await bildNormalisieren(f)])); }
+      catch (e) { toast('⚠️ ' + f.name + ': ' + (e.message || e)); }
+    }
+    if (teile.length) await seitenAnhaengen(teile);
+  }
+  async function seitenAnhaengen(teile) {
+    try {
+      const { PDFDocument } = PDFLib;
+      const basis = await PDFDocument.load(S.bytes, { ignoreEncryption: true });
+      for (const t of teile) { const q = await PDFDocument.load(t, { ignoreEncryption: true }); const kopien = await basis.copyPages(q, q.getPageIndices()); kopien.forEach(p => basis.addPage(p)); }
+      const neu = await basis.save();
+      const pdf = await pdfjsLib.getDocument({ data: neu.slice(0) }).promise;
+      const info = await seitenInfo(pdf);
+      const alt = S.doc.pages.length;
+      S.doc.pages = S.doc.pages.map((p, i) => Object.assign({}, info[i], { text: p.text })).concat(info.slice(alt));
+      await DB.putFile(S.doc.id, neu); S.bytes = neu;
+      if (S.pdf) { try { S.pdf.destroy(); } catch (_) {} }
+      S.pdf = pdf; await speichernJetzt(); zeichneSeiten();
+      toast('＋ ' + (info.length - alt) + ' Seite(n) angehängt');
+      setTimeout(() => { const el = document.querySelector(`.seite[data-i="${alt}"]`); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 60);
+    } catch (e) { toast('⚠️ Anhängen fehlgeschlagen: ' + (e.message || e)); }
+  }
+
+  /* ---------- Erkennung ---------- */
+  function erkennenDialog(ids) {
+    const mehrere = ids.length > 1;
+    const a = ER.ANBIETER[EINST.anbieter];
+    dialog(`<h2>🤖 Formularfelder erkennen</h2>
+      <p>${mehrere ? ids.length + ' Dokumente.' : ''} Erkannte Felder sind <b>Vorschläge</b>: sie erscheinen orange gestrichelt, bis du sie prüfst. Noch nicht geprüfte Vorschläge aus einem früheren Durchgang werden dabei ersetzt.</p>
+      <button class="wahl" data-off><b>🔍 Ohne Internet erkennen</b><span>Findet Linien, Eingabe-Rahmen und Kästchen im Seitenbild. Bei digitalen PDFs kommt die Beschriftung aus dem Text daneben.</span></button>
+      <button class="wahl" data-ki><b>🤖 Mit KI erkennen — ${h(a.label)}</b><span>${kiBereit()
+        ? `Jede Seite wird als Bild an ${h(a.label)} (${h(a.region)}) geschickt. Die KI liefert Bezeichnungen und den erkannten Text; die Positionen rasten an gefundene Linien ein.`
+        : 'Noch kein Schlüssel eingetragen — tippen, um ihn in den Einstellungen einzutragen.'}</span></button>
+      <div class="zeile"><button class="knopf" data-x>Abbrechen</button></div>`, (d, zu) => {
+      d.querySelector('[data-x]').onclick = zu;
+      d.querySelector('[data-off]').onclick = () => { zu(); erkenneViele(ids, false); };
+      d.querySelector('[data-ki]').onclick = async () => {
+        zu();
+        if (!kiBereit()) { einstellungen(); return; }
+        if (!EINST.kiOk[EINST.anbieter]) {
+          const ok = await frage('Seiten an die KI senden?', `<p>Die Seiten ${mehrere ? 'aller ' + ids.length + ' Dokumente ' : ''}werden als Bild an <b>${h(a.label)}</b> übertragen (Verarbeitung: ${h(a.region)}). Enthalten sie persönliche Angaben, gehen diese mit.</p><p class="hinweis">Diese Frage kommt je Anbieter einmal. Ohne Bestätigung verlässt nichts das Gerät.</p>`, 'Senden');
+          if (!ok) return; EINST.kiOk[EINST.anbieter] = true; einstSpeichern();
+        }
+        erkenneViele(ids, true);
+      };
+    });
+  }
+  async function erkenneViele(ids, mitKi) {
+    const fb = fortschritt(mitKi ? 'KI erkennt Felder …' : 'Felder werden erkannt …');
+    let gesamt = 0; const fehler = [];
+    for (let k = 0; k < ids.length; k++) {
+      const offen = S.doc && S.doc.id === ids[k];
+      try {
+        const d = offen ? S.doc : await DB.get('docs', ids[k]); const b = offen ? S.bytes : await DB.getFile(ids[k]);
+        const r = await erkenneDok(d, b, mitKi, (a, t) => fb.setze((k + a) / ids.length, (ids.length > 1 ? `Dokument ${k + 1}/${ids.length} · ` : '') + t));
+        gesamt += r.neu; if (r.fehler) fehler.push(d.name + ': ' + r.fehler);
+        if (!offen) await DB.put('docs', d);
+      } catch (e) { fehler.push(String(e.message || e)); }
+    }
+    fb.zu();
+    if (S.doc && ids.includes(S.doc.id)) { S.modus = 'bearbeiten'; await speichernJetzt(); zeichneModus(); } else ladeBibliothek();
+    if (fehler.length) dialog(`<h2>Hinweise zur Erkennung</h2><ul>${fehler.map(x => '<li>' + h(x) + '</li>').join('')}</ul><p class="hinweis">Was offline gefunden wurde, ist trotzdem eingetragen.</p><div class="zeile"><button class="knopf rot" data-x>OK</button></div>`, (d, zu) => d.querySelector('[data-x]').onclick = zu);
+    toast(gesamt ? `🤖 ${gesamt} Feld${gesamt === 1 ? '' : 'er'} vorgeschlagen — bitte prüfen` : 'Keine neuen Felder gefunden. Felder lassen sich von Hand setzen.');
+    if (gesamt) hops();
+  }
+  function typAusLabel(f) {
+    const l = (f.label || '').toLowerCase();
+    if (f.type !== 'text') return f.type;
+    if (/datum|geburtstag|geb\.|date\b/.test(l)) return 'datum';
+    if (/e-?mail/.test(l)) return 'email';
+    if (/internet|webseite|homepage|url\b|www/.test(l)) return 'url';
+    return 'text';
+  }
+  async function erkenneDok(d, bytes, mitKi, melde) {
+    const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
+    d.fields = d.fields.filter(f => f.geprueft);           // alte, ungeprüfte Vorschläge ersetzen
+    let neu = 0, fehler = '';
+    const seiten = Math.min(pdf.numPages, 40);
+    for (let i = 0; i < seiten; i++) {
+      melde(i / seiten, `Seite ${i + 1} von ${pdf.numPages}`);
+      const p = await pdf.getPage(i + 1); const v1 = p.getViewport({ scale: 1 });
+      const vp = p.getViewport({ scale: 1400 / v1.width });
+      const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+      const x = c.getContext('2d', { willReadFrequently: true }); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+      await p.render({ canvasContext: x, viewport: vp }).promise;
+      let felder = EINST.linien !== false ? ER.linienErkennung(x.getImageData(0, 0, c.width, c.height)) : [];
+      if (mitKi) {
+        try {
+          const antwort = await ER.kiAnfrage(kiCfg(), c.toDataURL('image/jpeg', 0.85));
+          const r = ER.kiAuswerten(antwort);
+          if (r.text && d.pages[i]) d.pages[i].text = r.text;
+          felder = ER.zusammenfuehren(r.felder, felder);
+        } catch (e) { fehler = String(e.message || e); if (/401|Schlüssel/.test(fehler)) mitKi = false; }
+      }
+      // Beschriftung aus der Textebene (digitale PDFs)
+      try {
+        const tc = await p.getTextContent();
+        const items = tc.items.map(t => {
+          const tr = pdfjsLib.Util.transform(vp.transform, t.transform); const fh = Math.hypot(tr[2], tr[3]);
+          return { str: t.str, x: tr[4] / c.width * 100, y: (tr[5] - fh) / c.height * 100, w: t.width * vp.scale / c.width * 100, h: fh / c.height * 100 };
+        });
+        ER.beschrifte(felder, items);
+        if (!d.pages[i].text && items.length) d.pages[i].text = tc.items.map(t => t.str + (t.hasEOL ? '\n' : ' ')).join('').trim();
+      } catch (_) {}
+      const iou = (a, b) => { const ix = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)), iy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y)); const s = ix * iy; return s / (a.w * a.h + b.w * b.h - s || 1); };
+      const vorhanden = d.fields.filter(f => f.page === i);
+      let nr = 0;
+      for (const f of felder) {
+        if (vorhanden.some(v => iou(v, f) > 0.25)) continue;
+        nr++;
+        const typ = typAusLabel(f);
+        vorhanden.push(f);
+        d.fields.push({ id: uid(), page: i, type: typ, label: f.label || (typ === 'check' ? 'Kästchen ' : 'Feld ') + (i + 1) + '.' + nr,
+          x: f.x, y: f.y, w: f.w, h: f.h, value: typ === 'check' ? false : '', mehrzeilig: typ === 'text' && f.h > 4.5,
+          herkunft: f.quelle === 'ki' ? 'ki' : 'erkennung', geprueft: false });
+        neu++;
+      }
+    }
+    if (pdf.numPages > seiten) fehler = (fehler ? fehler + ' · ' : '') + `nur die ersten ${seiten} von ${pdf.numPages} Seiten untersucht`;
+    try { pdf.destroy(); } catch (_) {}
+    d.updatedAt = jetzt();
+    return { neu, fehler };
+  }
+
+  /* ---------- Export ---------- */
+  function exportDialog() {
+    const n = offeneVorschlaege(S.doc);
+    dialog(`<h2>⬇ PDF ausgeben</h2>
+      ${n ? `<p class="ki-hinweis">🤖 ${n} Vorschläge sind noch nicht geprüft. Sie werden mit ausgegeben.</p>` : ''}
+      <button class="wahl" data-m="fest"><b>📄 Festes PDF</b><span>Die eingetragenen Inhalte werden Teil der Seite. Zum Verschicken, Ablegen, Drucken.</span></button>
+      <button class="wahl" data-m="ausfuellbar"><b>📝 Ausfüllbares PDF</b><span>Echte PDF-Formularfelder, vorbelegt mit deinen Einträgen. Der Empfänger kann sie ändern und speichern.</span></button>
+      <button class="wahl" data-m="vorlage"><b>📝 Leere ausfüllbare Vorlage</b><span>Echte Formularfelder, alle leer. Der Empfänger füllt selbst aus.</span></button>
+      <button class="wahl" data-m="druck"><b>🖨 Ansehen / Drucken</b><span>Öffnet das feste PDF in der PDF-Anzeige des Geräts.</span></button>
+      <p class="hinweis">QR-Codes stehen in allen Fassungen als festes Bild auf der Seite. Datum, E-Mail und Internetadresse sind im ausfüllbaren PDF gewöhnliche Textfelder.</p>
+      <div class="zeile"><button class="knopf" data-x>Schließen</button></div>`, (d, zu) => {
+      d.querySelector('[data-x]').onclick = zu;
+      d.querySelectorAll('[data-m]').forEach(b => b.onclick = async () => {
+        const m = b.dataset.m; b.disabled = true;
+        try {
+          await speichernJetzt();
+          const { bytes, hinweise } = await EX.exportieren(S.doc, S.bytes, m === 'druck' ? 'fest' : m);
+          const zusatz = { fest: '', ausfuellbar: ' (ausfuellbar)', vorlage: ' (Vorlage)', druck: '' }[m];
+          if (m === 'druck') {
+            const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+            const w = window.open(url, '_blank'); if (!w) laden(dateiName(S.doc.name) + '.pdf', bytes);
+            setTimeout(() => URL.revokeObjectURL(url), 120000);
+          } else {
+            const name = dateiName(S.doc.name) + zusatz + '.pdf';
+            laden(name, bytes);
+            if (navigator.canShare) { try { const file = new File([bytes], name, { type: 'application/pdf' }); if (navigator.canShare({ files: [file] })) b.insertAdjacentHTML('afterend', '<button class="knopf" data-teilen>📤 Teilen …</button>'), d.querySelector('[data-teilen]').onclick = () => navigator.share({ files: [file], title: S.doc.name }).catch(() => {}); } catch (_) {} }
+          }
+          toast('✅ ' + (m === 'druck' ? 'PDF geöffnet' : 'PDF gespeichert') + (hinweise.length ? ' · ' + hinweise.join(' ') : ''));
+          hops();
+        } catch (e) { console.error(e); toast('⚠️ Ausgabe fehlgeschlagen: ' + (e.message || e)); }
+        finally { b.disabled = false; }
+      });
+    });
+  }
+
+  /* ---------- Einstellungen, Hilfe ---------- */
+  function einstellungen() {
+    const opt = Object.entries(ER.ANBIETER).map(([k, a]) => `<option value="${k}"${k === EINST.anbieter ? ' selected' : ''}>${h(a.label)}</option>`).join('');
+    dialog(`<h2>⚙️ Einstellungen</h2>
+      <h3 style="margin:10px 0 0;font-size:1rem">KI-Felderkennung (freiwillig)</h3>
+      <p class="hinweis">Ohne KI funktionieren Import, Linien-Erkennung, Felder setzen und Export vollständig offline. Mit eigenem Schlüssel (BYOK) erkennt die KI auch Beschriftungen und Text. Standard ist Mistral mit Verarbeitung in der EU.</p>
+      <label>Anbieter</label><select id="stAnb">${opt}</select>
+      <label>Schlüssel <a id="stKonsole" target="_blank" rel="noopener" style="font-weight:400">— Schlüssel beim Anbieter holen ↗</a></label><input type="password" id="stKey" autocomplete="off" placeholder="nur in diesem Browser gespeichert">
+      <label>Modell (leer = Vorgabe)</label><input type="text" id="stMod" placeholder="">
+      <div class="zeile" style="justify-content:flex-start"><button class="knopf" id="stTest">🔌 Verbindung testen</button><span class="hinweis" id="stTestErg"></span></div>
+      <p class="hinweis">Der Schlüssel liegt unverschlüsselt im Speicher dieses Browsers (localStorage) und wird nur an den gewählten Anbieter geschickt.</p>
+      <h3 style="margin:14px 0 0;font-size:1rem">Erkennung</h3>
+      <label style="font-weight:400"><input type="checkbox" id="stLin"${EINST.linien !== false ? ' checked' : ''}> Linien, Rahmen und Kästchen im Seitenbild suchen (offline)</label>
+      <h3 style="margin:14px 0 0;font-size:1rem">Speicher</h3>
+      <p class="hinweis" id="stSpeicher">…</p>
+      <p class="hinweis"><a href="impressum.html" target="_blank" rel="noopener">Impressum &amp; Datenschutz</a></p>
+      <div class="zeile"><button class="knopf" data-x>Abbrechen</button><button class="knopf rot" data-ok>Speichern</button></div>`, (d, zu) => {
+      const anb = d.querySelector('#stAnb'), key = d.querySelector('#stKey'), mod = d.querySelector('#stMod'), kon = d.querySelector('#stKonsole');
+      const tmp = { schluessel: Object.assign({}, EINST.schluessel), modell: Object.assign({}, EINST.modell) };
+      let akt = anb.value;
+      const zeige = () => { const a = ER.ANBIETER[anb.value]; key.value = tmp.schluessel[anb.value] || ''; mod.value = tmp.modell[anb.value] || ''; mod.placeholder = a.modell; kon.href = a.konsole; akt = anb.value; };
+      const merke = () => { tmp.schluessel[akt] = key.value.trim(); tmp.modell[akt] = mod.value.trim(); };
+      anb.onchange = () => { merke(); zeige(); d.querySelector('#stTestErg').textContent = ''; };
+      zeige();
+      d.querySelector('#stTest').onclick = async () => {
+        merke(); const e = d.querySelector('#stTestErg'); e.textContent = 'prüfe …';
+        try { const m = await ER.kiTest({ anbieter: anb.value, schluessel: tmp.schluessel[anb.value], modell: tmp.modell[anb.value] }); e.textContent = '✅ Verbindung steht (' + m + ')'; }
+        catch (err) { e.textContent = '⚠️ ' + (err.message || err); }
+      };
+      if (navigator.storage && navigator.storage.estimate) navigator.storage.estimate().then(async est => {
+        const pers = navigator.storage.persisted ? await navigator.storage.persisted() : false;
+        d.querySelector('#stSpeicher').textContent = `Belegt: ${(est.usage / 1048576).toFixed(1)} MB. ${pers ? 'Der Browser hat dauerhafte Speicherung zugesagt.' : 'Dauerhafte Speicherung ist nicht zugesagt — der Browser darf bei Platzmangel löschen. Wichtige Ergebnisse als PDF sichern.'}`;
+      }); else d.querySelector('#stSpeicher').textContent = 'Keine Angabe vom Browser.';
+      d.querySelector('[data-x]').onclick = zu;
+      d.querySelector('[data-ok]').onclick = () => { merke(); EINST.anbieter = anb.value; EINST.schluessel = tmp.schluessel; EINST.modell = tmp.modell; EINST.linien = d.querySelector('#stLin').checked; einstSpeichern(); zu(); toast('⚙️ gespeichert'); };
+    });
+  }
+  function hilfe() {
+    dialog(`<h2>So geht's</h2><ol>
+      <li><b>Einlesen:</b> PDF oder Bild wählen, ein Papierformular fotografieren oder einen ganzen Ordner einlesen. Dateien lassen sich auch auf die Seite ziehen.</li>
+      <li><b>Felder erkennen:</b> 🤖 findet Linien, Rahmen und Kästchen — offline oder mit KI. Das sind Vorschläge (orange gestrichelt).</li>
+      <li><b>Prüfen und korrigieren:</b> unter „✏️ Felder bearbeiten" Felder verschieben, am roten Punkt vergrößern, Bezeichnung und Art ändern. „✓ Passt" bestätigt einen Vorschlag.</li>
+      <li><b>Eigene Felder:</b> Art wählen (Text, Datum, Kästchen, E-Mail, Internetadresse, QR-Code) und auf die Stelle tippen.</li>
+      <li><b>Ausfüllen:</b> unter „✍️ Ausfüllen" direkt in die Felder schreiben.</li>
+      <li><b>Ausgeben:</b> festes PDF, ausfüllbares PDF oder leere ausfüllbare Vorlage.</li></ol>
+      <p class="hinweis">Alles bleibt in diesem Browser. Ins Netz geht nur, was du ausdrücklich an eine KI schickst.</p>
+      <div class="zeile"><button class="knopf rot" data-x>Verstanden</button></div>`, (d, zu) => d.querySelector('[data-x]').onclick = zu);
+  }
+
+  /* ---------- Verdrahtung ---------- */
+  function start() {
+    $('inDatei').onchange = e => { importDateien(e.target.files); e.target.value = ''; };
+    $('inOrdner').onchange = e => { const fs = Array.from(e.target.files || []); const n = fs[0] && fs[0].webkitRelativePath ? fs[0].webkitRelativePath.split('/')[0] : null; importDateien(fs, n); e.target.value = ''; };
+    $('inKamera').onchange = e => { const f = e.target.files && e.target.files[0]; const ziel = S.aufnahmeZiel; S.aufnahmeZiel = null; e.target.value = ''; kameraBild(f, ziel); };
+    $('inAnhang').onchange = e => { dateienAnhaengen(e.target.files); e.target.value = ''; };
+    $('btnEinst').onclick = einstellungen; $('btnHilfe').onclick = hilfe;
+    $('flohKnopf').onclick = () => { hops(); if (S.doc) schliesseEditor(); };
+    $('edZurueck').onclick = () => schliesseEditor();
+    $('edName').oninput = e => { S.doc.name = e.target.value.trim() || 'Dokument'; $('kopfSub').textContent = S.doc.name; speichern(); };
+    $('mBearbeiten').onclick = () => { S.modus = 'bearbeiten'; zeichneModus(); };
+    $('mAusfuellen').onclick = () => { S.modus = 'ausfuellen'; S.sel = null; zeichneModus(); };
+    $('edErkennen').onclick = () => erkennenDialog([S.doc.id]);
+    $('edExport').onclick = exportDialog;
+    $('zMinus').onclick = () => zoom(1 / 1.2); $('zPlus').onclick = () => zoom(1.2);
+    window.addEventListener('popstate', () => { if (S.doc && location.hash !== '#dok') schliesseEditor(true); });
+    let _rz = null; window.addEventListener('resize', () => { if (!S.doc) return; clearTimeout(_rz); _rz = setTimeout(zeichneSeiten, 250); });
+    document.addEventListener('keydown', e => {
+      if (!S.doc || S.modus !== 'bearbeiten' || $('modals').children.length) return;
+      if (/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '')) return;
+      const f = S.doc.fields.find(x => x.id === S.sel);
+      if (e.key === 'Escape') { S.sel = null; if (S.platzieren) platzierenStart(S.platzieren); markiere(); zeichneFuss(); return; }
+      if (!f) return;
+      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); feldLoeschen(f); return; }
+      const st = e.shiftKey ? 1 : 0.2; const d = { ArrowLeft: [-st, 0], ArrowRight: [st, 0], ArrowUp: [0, -st], ArrowDown: [0, st] }[e.key];
+      if (d) { e.preventDefault(); f.x = clamp(f.x + d[0], 0, 100 - f.w); f.y = clamp(f.y + d[1], 0, 100 - f.h); speichern(); zeichneFelder(f.page); }
+    });
+    // Ziehen & Ablegen auf die Bibliothek
+    let ablage = null, tiefe = 0;
+    const hatDateien = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+    document.addEventListener('dragenter', e => { if (!hatDateien(e)) return; tiefe++; if (!ablage) { ablage = document.createElement('div'); ablage.className = 'ablage'; ablage.textContent = S.doc ? 'Loslassen = als Seiten anhängen' : 'Loslassen zum Einlesen'; document.body.appendChild(ablage); } });
+    document.addEventListener('dragleave', () => { if (--tiefe <= 0 && ablage) { ablage.remove(); ablage = null; tiefe = 0; } });
+    document.addEventListener('dragover', e => { if (hatDateien(e)) e.preventDefault(); });
+    document.addEventListener('drop', e => { if (!hatDateien(e)) return; e.preventDefault(); tiefe = 0; if (ablage) { ablage.remove(); ablage = null; } if (S.doc) dateienAnhaengen(e.dataTransfer.files); else importDateien(e.dataTransfer.files); });
+
+    if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+    ladeBibliothek().catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
+    window.__wfpdf = { S, EINST, erkenneDok, importDateien, oeffneDok, einstSpeichern };   // für die Probe
+  }
+  start();
+})();
