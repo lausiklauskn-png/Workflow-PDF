@@ -1057,8 +1057,8 @@
      ⋮ → „Übersetzen", und die Adresse der App kennt kaum jemand. Die Adresse trägt
      Dokumente und Sprachen mit; der Chrome-Tab öffnet damit denselben Übersetzer
      wieder (Rückweg), und das Ergebnis wird ein PDF wie hier — nicht die übersetzte
-     App-Oberfläche. Auf Android: kopieren + Anleitung (siehe CHROME_STARTEN), anderswo
-     ein neuer Tab. */
+     App-Oberfläche. Auf Android über „Teilen" (siehe inChromeOeffnen), anderswo ein
+     neuer Tab. */
   // lage: { ids, von, nach } (Seiten übersetzen) oder { rueck: id } (Einträge ins Original)
   function chromeTabAdresse(l) {
     const u = new URL(location.pathname, location.origin);
@@ -1068,22 +1068,23 @@
     return { url: u.href };
   }
   const leer = l => !l.rueck && !(l.ids && l.ids.length);
-  /* Chrome OHNE Adresse starten. Eine Adresse unter /Workflow-PDF/ lässt sich aus der
-     installierten App nicht in Chrome öffnen: der Geltungsbereich der App ist „./", und
-     Android gibt jeden Link dorthin an die installierte App zurück — auch einen, der
-     ausdrücklich an Chrome gerichtet ist (Klaus 2026-09-25, zweimal: „zuck, zuck, und
-     dann ist immer noch der Workflow da"). Ohne Adresse gibt es nichts zurückzugeben. */
-  const CHROME_STARTEN = 'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.android.chrome;end';
+  /* Direkt hinüberspringen geht aus der installierten App NICHT: der Geltungsbereich
+     ist „./", und Android gibt jede Adresse unter /Workflow-PDF/ an die App zurück — auch
+     einen intent an Chrome, und auch „Chrome starten" ohne Adresse blitzte am Tablet nur
+     weiß auf (Klaus 2026-09-25, dreimal gemessen). Was trägt, hat Klaus gefunden:
+     „Teilen" → Chrome wählen. Das ist jetzt der Weg des Knopfes. */
   const istAndroid = () => /Android/i.test(navigator.userAgent);
+  // Auf Android ist der Knopf „Teilen" — der Name sagt deshalb, WOHIN (Klaus 2026-09-25:
+  // „nicht, dass die dann überlegen, was soll ich denn für ein Übersetzungsprogramm nehmen").
+  const chromeKnopf = () => istAndroid() ? '🌐 Mit Browser öffnen zum Übersetzen' : '🌐 In Chrome öffnen';
   // Der Weg, der am Tablet trägt (Klaus: „das Kopieren funktioniert"): kopieren + einfügen.
-  function chromeHinweis(url, kopiert, android) {
+  function chromeHinweis(url, kopiert) {
     dialog(`<h2>In Chrome öffnen</h2><p data-chromehinweis>${kopiert ? '✅ Die Adresse liegt in der Zwischenablage. ' : ''}So geht es: 1. Chrome öffnen · 2. oben in die Adresszeile tippen · 3. lange drücken und „Einfügen" · 4. öffnen. Die Dokumente sind dort da, der Übersetzer öffnet sich von selbst.</p>
       <p class="hinweis">Direkt hinüberspringen geht aus der installierten App nicht: Android schickt jede Adresse dieser App an die App zurück.</p>
       <input readonly data-adr style="width:100%;font-size:12px;padding:6px;border:1px solid #bbb;border-radius:6px">
-      <div class="zeile">${android ? '<button class="knopf" data-chromestart>🌐 Chrome starten</button>' : ''}<button class="knopf" data-kopie>📋 Nochmal kopieren</button><button class="knopf rot" data-hinok>OK</button></div>`, (d, zu) => {
+      <div class="zeile"><button class="knopf" data-kopie>📋 Nochmal kopieren</button><button class="knopf rot" data-hinok>OK</button></div>`, (d, zu) => {
       const f = d.querySelector('[data-adr]'); f.value = url; f.onfocus = () => f.select();
       d.querySelector('[data-kopie]').onclick = async () => { try { await navigator.clipboard.writeText(url); toast('📋 Adresse kopiert.'); } catch (_) { f.focus(); } };
-      if (d.querySelector('[data-chromestart]')) d.querySelector('[data-chromestart]').onclick = () => { window.__wfpdfChromeStart = CHROME_STARTEN; try { location.href = CHROME_STARTEN; } catch (_) {} };
       d.querySelector('[data-hinok]').onclick = zu;
     });
   }
@@ -1092,18 +1093,33 @@
     if (leer(l)) return toast('Kein Dokument gewählt.');
     const a = chromeTabAdresse(l);
     window.__wfpdfChromeTab = a;   // für die Probe
-    // Zuerst kopieren, solange der Tipp noch „frisch" ist — danach geht es nicht mehr.
-    let kopiert = false;
-    try { await navigator.clipboard.writeText(a.url); kopiert = true; } catch (_) {}
+    if (!istAndroid()) {
+      if (vorher) try { await vorher(); } catch (_) {}
+      try { await speichernJetzt(); } catch (_) {}
+      window.open(a.url, '_blank', 'noopener'); return;
+    }
+    // Android: „Teilen" SOFORT aus dem Tipp heraus (danach erlaubt der Browser es nicht
+    // mehr); Anhalten und Speichern laufen, während das Teilen-Fenster offen ist.
+    let teilen = null;
+    if (navigator.share) {
+      try { teilen = navigator.share({ title: 'Workfloh PDF · mit dem Browser öffnen zum Übersetzen', url: a.url }); toast('Im Teilen-Fenster den Browser „Chrome" wählen — kein anderes Übersetzungsprogramm. Dort ⋮ → „Übersetzen".'); }
+      catch (e) { teilen = Promise.reject(e); }
+    }
     if (vorher) try { await vorher(); } catch (_) {}
     try { await speichernJetzt(); } catch (_) {}
-    if (!istAndroid()) { window.open(a.url, '_blank', 'noopener'); return; }
-    chromeHinweis(a.url, kopiert, true);
+    if (teilen) {
+      try { await teilen; return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }   // selbst abgebrochen: nichts tun
+    }
+    // Kein Teilen möglich: Adresse kopieren + Anleitung (Klaus: „das Kopieren funktioniert")
+    let kopiert = false;
+    try { await navigator.clipboard.writeText(a.url); kopiert = true; } catch (_) {}
+    chromeHinweis(a.url, kopiert);
   }
   function chromeTabKnoepfe(el, lage, vorher) {   // lage() → { ids, von, nach } oder { rueck }
     const k = (txt, titel) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'knopf klein'; b.textContent = txt; b.title = titel; b.style.cssText = 'padding:6px 10px;border:1px solid #999;border-radius:8px;background:#fff;font-size:13px'; el.appendChild(b); return b; };
-    k('🌐 In Chrome öffnen', 'Öffnet dieselben Dokumente im Chrome-Browser. Dort ⋮ → „Übersetzen" — das Ergebnis wird ein PDF wie hier.').onclick = () => inChromeOeffnen(lage(), vorher);
-    if (navigator.share) k('📤 Teilen …', 'Teilen mit Chrome oder einem anderen Browser').onclick = async () => {
+    k(chromeKnopf(), istAndroid() ? 'Öffnet das Teilen-Fenster — dort Chrome wählen. Dann ⋮ → „Übersetzen", das Ergebnis wird ein PDF wie hier.' : 'Öffnet dieselben Dokumente im Chrome-Browser. Dort ⋮ → „Übersetzen" — das Ergebnis wird ein PDF wie hier.').onclick = () => inChromeOeffnen(lage(), vorher);
+    if (navigator.share && !istAndroid()) k('📤 Teilen …', 'Teilen mit Chrome oder einem anderen Browser').onclick = async () => {
       const l = lage(); if (leer(l)) return toast('Kein Dokument gewählt.');
       try { await navigator.share({ title: 'Workfloh PDF · Übersetzen', url: chromeTabAdresse(l).url }); } catch (_) {}
     };
@@ -1146,7 +1162,7 @@
       <label style="font-weight:400"><input type="checkbox" data-rueck${EINST.ueRueck !== false ? ' checked' : ''}> Gegenprobe: danach zurück in die Ausgangssprache übersetzen und daneben ablegen</label>
       <p class="hinweis" data-zahl></p>
       <button class="wahl" data-weg="browser"><b>📱 Übersetzer im Browser</b><span data-bstat>prüfe …</span></button>
-      <button class="wahl" data-weg="chrome"><b>🌐 Mit Chrome übersetzen (Google)</b><span>Kostenlos, ohne Schlüssel und ohne Kontingent. Die App zeigt den Text jeder Seite unten an, du tippst einmal in Chrome ⋮ → „Übersetzen" — danach läuft es Seite für Seite von selbst. Der Text geht dabei an Google.${matchMedia('(display-mode: standalone)').matches ? ' Die App läuft gerade im eigenen Fenster — dort fehlt „Übersetzen" oft. Dann „🌐 In Chrome öffnen" (darunter): derselbe Übersetzer öffnet sich in Chrome.' : ''}</span></button>
+      <button class="wahl" data-weg="chrome"><b>🌐 Mit Chrome übersetzen (Google)</b><span>Kostenlos, ohne Schlüssel und ohne Kontingent. Die App zeigt den Text jeder Seite unten an, du tippst einmal in Chrome ⋮ → „Übersetzen" — danach läuft es Seite für Seite von selbst. Der Text geht dabei an Google.${matchMedia('(display-mode: standalone)').matches ? ' Die App läuft gerade im eigenen Fenster — dort fehlt „Übersetzen" oft. Dann „' + chromeKnopf() + '" (darunter): derselbe Übersetzer öffnet sich in Chrome.' : ''}</span></button>
       ${matchMedia('(display-mode: standalone)').matches ? '<div class="zeile" data-tabreihe style="flex-wrap:wrap;gap:6px;margin:-4px 0 8px"></div>' : ''}
       <button class="wahl" data-weg="ki"><b>🤖 Mit KI — ${h(a.label)}</b><span>${kiBereit() ? `Der Text jeder Seite (nicht das Bild) geht an ${h(a.label)}. Kostet je Seite, abgerechnet über deinen Schlüssel. Vor dem ersten Senden wird gefragt.` : 'Noch kein Schlüssel eingetragen — tippen, um ihn in den Einstellungen einzutragen.'}</span></button>
       <details class="ue-mess"><summary>🔎 Messen: was kann dieses Gerät?</summary><div data-mess class="hinweis">Tippen auf „Jetzt messen".</div><button class="knopf klein" data-messen>Jetzt messen</button></details>
@@ -1197,7 +1213,7 @@
       const lage = Array.isArray(ids) ? (ids.length ? { ids, von, nach } : null) : ids;
       // Android, installiertes App-Fenster: dort gibt es ⋮ → „Übersetzen" nicht (Klaus
       // 2026-09-25: „ich kann von da aus nur abbrechen"). Die Fläche wäre eine Sackgasse —
-      // also gleich der Weg, der trägt: Adresse kopieren, Anleitung, Chrome starten.
+      // also gleich der Weg, der trägt: Teilen-Fenster → Chrome.
       if (lage && matchMedia('(display-mode: standalone)').matches && istAndroid()) { if (zu) zu(); await inChromeOeffnen(lage); return null; }
       if (lage && matchMedia('(display-mode: standalone)').matches) opt.tab = el => chromeTabKnoepfe(el, () => lage, () => { if (hin.halt) hin.halt(); });
       const hin = UE.chromeUebersetzer(von, nach, opt);
@@ -1258,7 +1274,7 @@
       <p class="hinweis">Datum, E-Mail, Internetadresse, Unterschrift und Kästchen werden übernommen, nicht übersetzt. Bitte die Einträge danach prüfen — Namen und Adressen bleiben in der Regel stehen, aber jede Übersetzung kann sich irren.</p>
       <button class="wahl" data-weg="browser"><b>📱 Übersetzer im Browser</b><span data-bstat>prüfe …</span></button>
       ${opt.chromeTab ? `<p class="hinweis" data-ausapp style="background:#fff3cd;padding:8px;border-radius:8px"><b>Aus der App in Chrome geöffnet.</b> Tippe „🌐 Mit Chrome übersetzen", danach in Chrome ⋮ → „Übersetzen" → ${h(UE.SPRACHEN[nach])}. Die ausgefüllte Kopie liegt danach in der Bibliothek.</p>` : ''}
-      <button class="wahl" data-weg="chrome"><b>🌐 Mit Chrome übersetzen (Google)</b><span>Kostenlos. Die Einträge erscheinen unten, du tippst in Chrome ⋮ → „Übersetzen" und wählst ${h(UE.NAME_DE[nach])}. Der Text geht dabei an Google.${fenster ? ' Die App läuft gerade im eigenen Fenster — dort gibt es ⋮ → „Übersetzen" nicht. Dann „🌐 In Chrome öffnen" (darunter): dieselben Einträge öffnen sich in Chrome.' : ''}</span></button>
+      <button class="wahl" data-weg="chrome"><b>🌐 Mit Chrome übersetzen (Google)</b><span>Kostenlos. Die Einträge erscheinen unten, du tippst in Chrome ⋮ → „Übersetzen" und wählst ${h(UE.NAME_DE[nach])}. Der Text geht dabei an Google.${fenster ? ' Die App läuft gerade im eigenen Fenster — dort gibt es ⋮ → „Übersetzen" nicht. Dann „' + chromeKnopf() + '" (darunter): dieselben Einträge öffnen sich in Chrome.' : ''}</span></button>
       ${fenster ? '<div class="zeile" data-tabreihe style="flex-wrap:wrap;gap:6px;margin:-4px 0 8px"></div>' : ''}
       <button class="wahl" data-weg="ki"><b>🤖 Mit KI — ${h(a.label)}</b><span>${kiBereit() ? `Nur die Einträge (nicht die Seiten) gehen an ${h(a.label)}. Vor dem ersten Senden wird gefragt.` : 'Noch kein Schlüssel eingetragen — tippen, um ihn einzutragen.'}</span></button>
       <div class="zeile"><button class="knopf" data-x>Abbrechen</button></div>`, async (dl, zu) => {

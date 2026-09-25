@@ -167,29 +167,37 @@ try {
   ok('unbekanntes Dokument: Meldung „in diesem Browser nicht da", kein Dialog', await tab.evaluate(() => /nicht da/.test(document.getElementById('toast').textContent) && !document.querySelector('.dlg [data-ausapp]')));
   await tab.close();
 
-  // 5. Android, App-Fenster (Klaus 2026-09-25, zweimal gemessen): ein Sprung auf die
-  //    App-Adresse kommt in die installierte App zurück („zuck, zuck"). Also kein Sprung:
-  //    kopieren, Anleitung sofort, und „Chrome starten" öffnet Chrome OHNE Adresse.
+  // 5. Android, App-Fenster (Klaus 2026-09-25, dreimal gemessen): jeder Sprung — auch
+  //    „Chrome starten" ohne Adresse — blitzt nur weiß auf. Was trägt: „Teilen" → Chrome.
+  //    Also öffnet „In Chrome öffnen" dort das Teilen-Fenster, SOFORT aus dem Tipp.
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: `http://127.0.0.1:${srv.address().port}` });
-  await page.evaluate(() => { document.querySelectorAll('.dlg [data-x]').forEach(b => b.click()); Object.defineProperty(navigator, 'userAgent', { get: () => 'Mozilla/5.0 (Linux; Android 14; SM-X710) AppleWebKit/537.36 Chrome/140 Safari/537.36', configurable: true }); });
+  await page.evaluate(() => { document.querySelectorAll('.dlg [data-x]').forEach(b => b.click());
+    Object.defineProperty(navigator, 'userAgent', { get: () => 'Mozilla/5.0 (Linux; Android 14; SM-X710) AppleWebKit/537.36 Chrome/140 Safari/537.36', configurable: true });
+    window.__geteilt = []; navigator.share = d => { window.__geteilt.push({ d, aktiv: navigator.userActivation.isActive }); return new Promise(() => {}); }; });
   await page.waitForTimeout(300);
   await oeffne('en');
   const url0 = page.url(), seitenVorher = ctx.pages().length;
+  ok('Android: kein eigener „Teilen"-Knopf daneben (In Chrome öffnen IST Teilen)', await page.evaluate(() => !/Teilen/.test(document.querySelector('.dlg [data-tabreihe]').textContent)));
+  ok('… und der Knopf sagt, wohin: „Mit Browser öffnen zum Übersetzen" (auch im Text darüber)', await page.evaluate(() => /Mit Browser öffnen zum Übersetzen/.test(document.querySelector('.dlg [data-tabreihe] button').textContent) && /Mit Browser öffnen zum Übersetzen/.test(document.querySelector('.dlg [data-weg="chrome"]').textContent)));
   await page.click('.dlg [data-tabreihe] button');
-  await page.waitForSelector('.dlg [data-chromehinweis]', { timeout: 1500 }).catch(() => {});
-  const hw = await page.evaluate(() => { const d = document.querySelector('.dlg [data-chromehinweis]')?.closest('.dlg'); return d ? { t: d.textContent, v: d.querySelector('[data-adr]').value, start: !!d.querySelector('[data-chromestart]') } : null; });
+  await page.waitForFunction(() => window.__geteilt.length, null, { timeout: 3000 }).catch(() => {});
+  const ge = await page.evaluate(() => window.__geteilt), adr2 = await page.evaluate(() => window.__wfpdfChromeTab);
+  ok('„In Chrome öffnen" öffnet das Teilen-Fenster mit der Adresse des Übersetzers', ge.length === 1 && ge[0].d.url === adr2.url && /\?ue=/.test(adr2.url), ge);
+  ok('… und zwar noch aus dem Tipp heraus (sonst verweigert Android das Teilen)', ge.length === 1 && ge[0].aktiv, ge);
+  ok('… der Hinweis sagt: den Browser „Chrome" wählen, kein anderes Übersetzungsprogramm', await page.evaluate(() => /Chrome/.test(document.getElementById('toast').textContent) && /kein anderes Übersetzungsprogramm/.test(document.getElementById('toast').textContent)) && /Browser/.test(ge[0].d.title));
+  ok('… kein Sprung: die App bleibt stehen, kein neues Fenster, keine Anleitung dazwischen', page.url() === url0 && ctx.pages().length === seitenVorher && !(await page.$('.dlg [data-chromehinweis]')));
+  ok('… und nirgends mehr ein Aufruf per intent:', await page.evaluate(() => !window.__wfpdfChromeStart && !document.querySelector('[data-chromestart]')));
+  // Teilen abgebrochen → nichts weiter
+  await page.evaluate(() => { document.querySelectorAll('.dlg [data-x]').forEach(b => b.click()); navigator.share = () => Promise.reject(Object.assign(new Error('x'), { name: 'AbortError' })); });
+  await oeffne('en'); await page.click('.dlg [data-tabreihe] button'); await page.waitForTimeout(600);
+  ok('selbst abgebrochen: keine Anleitung, keine Meldung darüber', !(await page.$('.dlg [data-chromehinweis]')));
+  // Teilen geht nicht → Rückfall: kopieren + Anleitung
+  await page.evaluate(() => { document.querySelectorAll('.dlg [data-x]').forEach(b => b.click()); navigator.share = () => Promise.reject(Object.assign(new Error('x'), { name: 'NotAllowedError' })); });
+  await oeffne('en'); await page.click('.dlg [data-tabreihe] button');
+  await page.waitForSelector('.dlg [data-chromehinweis]', { timeout: 3000 }).catch(() => {});
+  const hw = await page.evaluate(() => { const d = document.querySelector('.dlg [data-chromehinweis]')?.closest('.dlg'); return d ? { t: d.textContent, v: d.querySelector('[data-adr]').value } : null; });
   const ab = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''));
-  const adr2 = await page.evaluate(() => window.__wfpdfChromeTab);
-  ok('Android: die Adresse liegt SOFORT in der Zwischenablage', ab === adr2.url, [ab, adr2.url]);
-  ok('… kein Sprung: die App bleibt stehen, kein neues Fenster', page.url() === url0 && ctx.pages().length === seitenVorher, [page.url(), ctx.pages().length]);
-  ok('… die Anleitung steht SOFORT da (ohne auf einen Sprung zu warten), mit Adresse und „Chrome starten"', hw && /Zwischenablage/.test(hw.t) && /Einfügen/.test(hw.t) && hw.v === adr2.url && hw.start, hw);
-  await page.click('.dlg [data-kopie]');
-  ok('… „Nochmal kopieren" legt dieselbe Adresse ab', await page.evaluate(() => navigator.clipboard.readText().catch(() => '')) === adr2.url);
-  if (await page.$('.dlg [data-chromestart]')) await page.click('.dlg [data-chromestart]');
-  const st = await page.evaluate(() => window.__wfpdfChromeStart);
-  ok('„Chrome starten" startet Chrome OHNE die App-Adresse (nichts, was Android zurückgeben könnte)', /package=com\.android\.chrome/.test(st || '') && /LAUNCHER/.test(st) && !/127\.0\.0\.1|index\.html|ue=/.test(st), st);
-  // Nach dem Aufruf von intent: nimmt das Test-Chromium keine Mausklicks mehr an (es hält eine
-  // unsichtbare Frage „externes Programm öffnen?" offen) — daher der letzte Klick über das Element.
+  ok('Teilen geht nicht: Adresse kopiert + Anleitung zum Einfügen (ohne „Chrome starten")', hw && /Zwischenablage/.test(hw.t) && /Einfügen/.test(hw.t) && hw.v === ab && !/Chrome starten/.test(hw.t), [hw, ab]);
   await page.evaluate(() => document.querySelector('.dlg [data-hinok]')?.click());
   await page.waitForTimeout(300);
   ok('… „OK" schließt die Anleitung', await page.evaluate(() => !document.querySelector('.dlg [data-chromehinweis]')));
