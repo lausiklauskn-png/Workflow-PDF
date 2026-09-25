@@ -201,3 +201,10 @@ button{cursor:pointer}
 .dreher{flex:none;width:22px;height:22px;border-radius:50%;border:3px solid var(--grund);border-top-color:var(--rot);animation:dreh .8s linear infinite}
 @keyframes dreh{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.dreher{animation-duration:2.4s}}
+.ue-sprachen{display:flex;gap:10px;align-items:flex-end}
+.ue-sprachen>div:not(.ue-pfeil){flex:1}
+.ue-pfeil{padding-bottom:10px;font-weight:700}
+.ue-mess{margin:10px 0;font-size:.9rem}
+.ue-mess summary{cursor:pointer;font-weight:600}
+.ue-mess [data-mess]{margin:6px 0}
+button.gross-knopf{font:inherit;text-align:left;color:inherit;width:100%;cursor:pointer}

@@ -37,6 +37,26 @@ npm install && npm test     # Syntax + Probe im echten Browser
 - **KI ist BYOK und freiwillig**, Standard Mistral (EU). Ohne Bestätigung geht
   nichts ins Netz.
 
+## 🌐 Übersetzen (seit 2026-09-25)
+
+Eigener Bereich (Knopf „🌐 Übersetzen …", Ordner mit `bereich:'uebersetzung'`,
+Ergebnis-Ordner je Sprache, per Kennung verknüpft — Umbenennen bricht nichts).
+Seite für Seite: Textblöcke aus der Textebene (Scans: Texterkennung auf dem
+Gerät), Farbe gemessen, Block in Hintergrundfarbe abgedeckt, Übersetzung in
+Textfarbe an dieselbe Stelle. Zwischenstand je Seite in IndexedDB
+(`ue:<doc>:<von>-<nach>`), Fortsetzen nach Abbruch.
+
+- `assets/uebersetzung.js` ist **host-neutral** und wird byte-1:1 in die WorkFlohs
+  kopiert (`assets/wfpdf/`) — nur hier ändern, dann dort neu kopieren.
+- **Kyrillisch** braucht fontkit + Noto Sans (`vendor/`), als Teilmenge eingebettet.
+- **Texterkennung** `vendor/tesseract/` (21 MB, nicht im Installations-Vorrat) —
+  die WorkFlohs laden sie von hier (`/Workflow-PDF/vendor/`). **Nicht umbenennen.**
+- Headless-Chromium hat **keinen** `Translator` (gemessen) — die Probe stellt ihn;
+  am Gerät misst der Knopf „🔎 Messen" im Übersetzen-Dialog.
+- Unter der Übersetzung bleibt der Originaltext im PDF (abgedeckt); die Gegenprobe
+  übersetzt deshalb die gespeicherten Übersetzungen zurück, statt neu zu lesen.
+- `npm run messen` misst 400 Seiten + 10 Scans (nicht Teil von `npm test`).
+
 ## Netzweit
 
 Freibrief · frisch von `origin/main` · Ton · kein PII · Ehrlichkeit:

@@ -13,7 +13,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1">
 <link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png?v=1">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1">
-<link rel="stylesheet" href="assets/style.css?v=6">
+<link rel="stylesheet" href="assets/style.css?v=7">
 </head>
 <body>
 <header class="kopf">
@@ -22,7 +22,7 @@
   </button>
   <div class="marke">
     <div class="marke-name">Workfloh <b>PDF</b></div>
-    <div class="marke-sub" id="kopfSub">Formulare einlesen · Felder setzen · PDF ausgeben</div>
+    <div class="marke-sub" id="kopfSub">Formulare einlesen · Felder setzen · übersetzen · PDF ausgeben</div>
   </div>
   <div class="kopf-rechts">
     <button class="knopf klein rot" id="btnInstall" hidden title="Als App auf dieses Gerät legen">📲<span class="lang"> Installieren</span></button>
@@ -48,6 +48,9 @@
         <input type="file" id="inOrdner" webkitdirectory multiple hidden>
         <span class="gk-ico">🗂️</span><span class="gk-t">Ganzen Ordner einlesen<br><small>alle PDFs und Bilder darin</small></span>
       </label>
+      <button class="gross-knopf" id="btnUebersetzen" type="button">
+        <span class="gk-ico">🌐</span><span class="gk-t">Übersetzen<br><small>Deutsch · Русский · English — eigener Bereich</small></span>
+      </button>
     </div>
 
     <div class="ordner-leiste" id="ordnerLeiste"></div>
@@ -76,6 +79,8 @@
 </main>
 
 <input type="file" id="inAnhang" accept="application/pdf,image/*" multiple hidden>
+<input type="file" id="inUeOrdner" webkitdirectory multiple hidden>
+<input type="file" id="inUeDateien" accept="application/pdf" multiple hidden>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 <div id="modals"></div>
 
@@ -86,6 +91,7 @@
 <script src="assets/erkennung.js?v=4"></script>
 <script src="assets/export.js?v=5"></script>
 <script src="assets/html-export.js?v=1"></script>
-<script src="assets/app.js?v=12"></script>
+<script src="assets/uebersetzung.js?v=1"></script>
+<script src="assets/app.js?v=13"></script>
 </body>
 </html>
