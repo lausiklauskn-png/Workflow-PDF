@@ -873,6 +873,7 @@
       <button class="wahl" data-m="fest"><b>📄 Festes PDF</b><span>Die eingetragenen Inhalte werden Teil der Seite. Zum Verschicken, Ablegen, Drucken.</span></button>
       <button class="wahl" data-m="ausfuellbar"><b>📝 Ausfüllbares PDF</b><span>Echte PDF-Formularfelder, vorbelegt mit deinen Einträgen. Der Empfänger kann sie ändern und speichern.</span></button>
       <button class="wahl" data-m="vorlage"><b>📝 Leere ausfüllbare Vorlage</b><span>Echte Formularfelder, alle leer. Der Empfänger füllt selbst aus.</span></button>
+      <button class="wahl" data-m="html"><b>🌐 Zum Ausfüllen im Browser (HTML)</b><span>Eine Datei, die sich in jedem Browser öffnet und dort ausfüllen lässt — auch wo die PDF-Anzeige keine Formularfelder kann. Danach im Browser „Als PDF speichern".</span></button>
       <button class="wahl" data-m="druck"><b>🖨 Ansehen / Drucken</b><span>Öffnet das feste PDF in der PDF-Anzeige des Geräts.</span></button>
       <p class="hinweis">QR-Codes stehen in allen Fassungen als festes Bild auf der Seite. Datum, E-Mail und Internetadresse sind im ausfüllbaren PDF gewöhnliche Textfelder.</p>
       <div class="zeile"><button class="knopf" data-x>Schließen</button></div>`, (d, zu) => {
@@ -881,6 +882,14 @@
         const m = b.dataset.m; b.disabled = true;
         try {
           await speichernJetzt();
+          if (m === 'html') {
+            const html = await WFP.HtmlExport.htmlFormular(S.doc, S.bytes);
+            const name = dateiName(S.doc.name) + ' (zum Ausfuellen).html';
+            laden(name, new TextEncoder().encode(html), 'text/html');
+            if (navigator.canShare) { try { const file = new File([html], name, { type: 'text/html' }); if (navigator.canShare({ files: [file] })) b.insertAdjacentHTML('afterend', '<button class="knopf" data-teilen>📤 Teilen …</button>'), d.querySelector('[data-teilen]').onclick = () => navigator.share({ files: [file], title: S.doc.name }).catch(() => {}); } catch (_) {} }
+            toast('✅ HTML gespeichert — im Browser öffnen, ausfüllen, dann „Als PDF speichern".');
+            return;
+          }
           const { bytes, hinweise } = await EX.exportieren(S.doc, S.bytes, m === 'druck' ? 'fest' : m);
           const zusatz = { fest: '', ausfuellbar: ' (ausfuellbar)', vorlage: ' (Vorlage)', druck: '' }[m];
           if (m === 'druck') {

@@ -41,3 +41,7 @@ npm install && npm test     # Syntax + Probe im echten Browser
 
 Freibrief · frisch von `origin/main` · Ton · kein PII · Ehrlichkeit:
 [Sage-Protokol/docs/NETZWEIT.md](https://github.com/lausiklauskn-png/Sage-Protokol/blob/main/docs/NETZWEIT.md)
+- **HTML-Ausgabe** (`assets/html-export.js`): Seiten als Bild + echte Eingabefelder,
+  eigenständige Datei. Für Geräte, deren PDF-Anzeige keine Formulare kann (Google
+  Drive/Files). Kästchen sind durchsichtig, damit gedruckte Haken sichtbar bleiben —
+  dasselbe gilt für die Kästchen-Widgets im ausfüllbaren PDF.
