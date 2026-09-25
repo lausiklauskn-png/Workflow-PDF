@@ -20,6 +20,7 @@ App: <https://lausiklauskn-png.github.io/Workflow-PDF/>
 | **Felder von Hand** | Text, Datum, Kästchen, E-Mail, Internetadresse, QR-Code: Art wählen, auf die Stelle tippen, verschieben, am roten Punkt vergrößern |
 | **Ausfüllen** | direkt auf der Seite schreiben |
 | **Ausgeben** | festes PDF · ausfüllbares PDF (vorbelegt) · leere ausfüllbare Vorlage · Ansehen/Drucken |
+| **🌐 Übersetzen** (seit 2026-09-25) | eigener Bereich mit selbst benannten Ordnern · ganze Ordner oder einzelne PDFs · Deutsch ↔ Русский ↔ English in jede Richtung · Seite für Seite **in die Lage des Originals** (Bilder, Farben, Seitenumbrüche bleiben) · gescannte Seiten per Texterkennung auf dem Gerät · Gegenprobe (Rückübersetzung) als eigenes PDF · Übersetzer im Browser (Gerät) oder KI mit eigenem Schlüssel · „Seite N von M", Abbrechen, Fortsetzen |
 
 ## Grenzen der ersten Fassung
 
@@ -33,6 +34,12 @@ App: <https://lausiklauskn-png.github.io/Workflow-PDF/>
 - Der KI-Schlüssel liegt unverschlüsselt im Speicher des Browsers.
 - Die KI-Erkennung ist mit **gestellten** Antworten geprüft, nicht mit einem
   echten Anbieter-Aufruf.
+- Übersetzen: innerhalb eines Absatzes bricht die Übersetzung neu um (andere
+  Länge); Absätze, Bilder und Seiten bleiben am Platz. Der Originaltext liegt
+  abgedeckt weiter im PDF (beim Markieren/Suchen findbar). Schräg gesetzter
+  Text bleibt stehen. Texterkennung kann sich verlesen — Scans gegenlesen.
+- Der eingebaute Übersetzer des Browsers ist in der Probe **gestellt** (der
+  Probe-Browser hat keinen); ob er auf dem Gerät da ist, zeigt „🔎 Messen".
 - Später vorgesehen: Bildgestaltung, Druck-PDFs bis 300 dpi.
 
 ## Prüfen
@@ -46,7 +53,10 @@ npm run serve   # http://localhost:8000/
 Die Probe liest ein Test-Formular ein (mit vorhandenem Formularfeld und einer
 um 90° gedrehten Seite), erkennt offline und mit gestellter KI-Antwort, füllt
 aus, gibt alle drei Fassungen aus und rechnet die Positionen aus den Dateien
-zurück.
+zurück. `tests/uebersetzung.mjs` übersetzt Ordner mit Handbuch-, gedrehten,
+beschnittenen, Querformat- und gescannten Seiten und prüft Lage, Farbe,
+Seitenzahl, Kyrillisch, Abbruch/Fortsetzen und die Gegenprobe.
+`npm run messen` misst 400 Seiten und 10 Scans.
 
 ## Technik
 
