@@ -56,6 +56,15 @@ Textfarbe an dieselbe Stelle. Zwischenstand je Seite in IndexedDB
 - Unter der Übersetzung bleibt der Originaltext im PDF (abgedeckt); die Gegenprobe
   übersetzt deshalb die gespeicherten Übersetzungen zurück, statt neu zu lesen.
 - `npm run messen` misst 400 Seiten + 10 Scans (nicht Teil von `npm test`).
+- **Behördenformular** (`tests/behoerde.mjs`): Felder kommen übersetzt mit
+  (`quellFeld` → Feld im Original), Rückweg „↩ Einträge ins Original" legt eine
+  KOPIE des Originals an (`ausgefuellt`). `zeichenNormal()` setzt zerlegte Umlaute
+  zusammen — vor dem Übersetzen UND auf dessen Ausgabe (der Übersetzer kann sie
+  zerlegt liefern). Kyrillische Feldwerte brauchen Noto im Export (`opt.schrift`);
+  der /DR-Schlüssel ist `fontU.name`, weil pdf-lib ihn so in /DA schreibt.
+- **`assets/blatt.js`** (byte-1:1 in die WorkFlohs): Blatt im Foto finden, auf A4
+  entzerren. Unsicher → NICHT schneiden, ganzes Foto auf A4. `bilderZuPdf` nimmt
+  `b.seite` als Seitengröße.
 
 ## Netzweit
 

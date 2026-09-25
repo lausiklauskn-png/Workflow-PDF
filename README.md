@@ -21,6 +21,8 @@ App: <https://lausiklauskn-png.github.io/Workflow-PDF/>
 | **Ausfüllen** | direkt auf der Seite schreiben |
 | **Ausgeben** | festes PDF · ausfüllbares PDF (vorbelegt) · leere ausfüllbare Vorlage · Ansehen/Drucken |
 | **🌐 Übersetzen** (seit 2026-09-25) | eigener Bereich mit selbst benannten Ordnern · ganze Ordner oder einzelne PDFs · Deutsch ↔ Русский ↔ English in jede Richtung · Seite für Seite **in die Lage des Originals** (Bilder, Farben, Seitenumbrüche bleiben) · gescannte Seiten per Texterkennung auf dem Gerät · Gegenprobe (Rückübersetzung) als eigenes PDF · Übersetzer im Browser (Gerät) oder KI mit eigenem Schlüssel · „Seite N von M", Abbrechen, Fortsetzen |
+| **🏛️ Behördenformulare** (seit 2026-09-25) | Felder im Original setzen → beim Übersetzen kommen sie **übersetzt an dieselbe Stelle** mit → in der Fremdsprache ausfüllen → „⬇ PDF ausgeben → ↩ Einträge ins Original" setzt die Einträge zurückübersetzt in eine **Kopie des Originals** · Umlaute werden vor und nach dem Übersetzen zusammengesetzt (NFC) · Kyrillisch in festem und ausfüllbarem PDF |
+| **📷 Papierbrief → A4** (seit 2026-09-25) | im Foto wird das Blatt gesucht und auf **genau A4** gerade gezogen (auch schräg aufgenommen) — ausgedruckt mit „Tatsächliche Größe / 100 %" so groß wie das Papier, mit seinem Rand · nicht sicher erkannt → nichts wird abgeschnitten, das ganze Foto liegt auf A4 · pro Seite umschaltbar · auch im Übersetzen-Bereich („📷 Brief fotografieren", Fotos als Datei) |
 
 ## Grenzen der ersten Fassung
 
