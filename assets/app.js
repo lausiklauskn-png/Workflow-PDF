@@ -102,7 +102,7 @@
 
     const akt = $('ordnerAktionen'); const o = S.ordner.find(x => x.id === S.aktOrdner);
     const sicht = S.docs.filter(d => S.aktOrdner === 'alle' ? true : S.aktOrdner === 'ohne' ? !d.folderId || !S.ordner.some(x => x.id === d.folderId) : d.folderId === S.aktOrdner);
-    akt.innerHTML = (sicht.length ? `<button class="knopf" data-erk>🤖 Felder in allen ${sicht.length} Dokumenten erkennen</button>` : '')
+    akt.innerHTML = (sicht.length ? `<button class="knopf" data-erk>🤖 Felder erkennen${sicht.length > 1 ? ' — Dokumente wählen' : ''}</button>` : '')
       + (o ? `<button class="knopf" data-ren>✎ Ordner umbenennen</button><button class="knopf gefahr" data-del>🗑 Ordner löschen</button>` : '');
     const q = s => akt.querySelector(s);
     if (q('[data-erk]')) q('[data-erk]').onclick = () => erkennenDialog(sicht.map(d => d.id));
@@ -680,7 +680,7 @@
     if (mehrere) for (const id of ids) { try { const d = S.doc && S.doc.id === id ? S.doc : await DB.get('docs', id); namen[id] = d && d.name; } catch (_) {} }
     const a = ER.ANBIETER[EINST.anbieter];
     dialog(`<h2>🤖 Formularfelder erkennen</h2>
-      ${mehrere ? `<p><b>In welchen Dokumenten?</b></p><div class="erk-liste">${ids.map(id => `<label class="erk-dok"><input type="checkbox" data-dok="${h(id)}" checked> ${h(namen[id] || id)}</label>`).join('')}</div>` : ''}
+      ${mehrere ? `<p><b>In welchen Dokumenten?</b> Tippe die an, die erkannt werden sollen — nur diese gehen an die KI. <button class="knopf klein" data-alle>Alle</button></p><div class="erk-liste">${ids.map(id => `<label class="erk-dok"><input type="checkbox" data-dok="${h(id)}"> ${h(namen[id] || id)}</label>`).join('')}</div><p class="hinweis" data-zahl>Noch kein Dokument gewählt.</p>` : ''}
       <p>Erkannte Felder sind <b>Vorschläge</b>: sie erscheinen orange gestrichelt, bis du sie prüfst. Noch nicht geprüfte Vorschläge aus einem früheren Durchgang werden dabei ersetzt.</p>
       <button class="wahl" data-off><b>🔍 Ohne Internet erkennen</b><span>Findet Linien, Eingabe-Rahmen, graue Eingabeflächen und Kästchen im Seitenbild. Bei digitalen PDFs kommt die Beschriftung aus dem Text daneben.</span></button>
       <button class="wahl" data-ki><b>🤖 Mit KI erkennen — ${h(a.label)}</b><span>${kiBereit()
@@ -689,13 +689,19 @@
       <div class="zeile"><button class="knopf" data-x>Abbrechen</button></div>`, (d, zu) => {
       d.querySelector('[data-x]').onclick = zu;
       const gewaehlt = () => mehrere ? [...d.querySelectorAll('[data-dok]')].filter(c => c.checked).map(c => c.dataset.dok) : ids;
+      if (mehrere) {
+        const zahl = () => { const n = gewaehlt().length; d.querySelector('[data-zahl]').textContent = n ? n + ' von ' + ids.length + ' Dokumenten gewählt.' : 'Noch kein Dokument gewählt.'; d.querySelector('[data-off]').disabled = d.querySelector('[data-ki]').disabled = !n; };
+        d.querySelectorAll('[data-dok]').forEach(c => c.onchange = zahl);
+        d.querySelector('[data-alle]').onclick = () => { const alle = gewaehlt().length < ids.length; d.querySelectorAll('[data-dok]').forEach(c => c.checked = alle); zahl(); };
+        zahl();
+      }
       d.querySelector('[data-off]').onclick = () => { const w = gewaehlt(); if (!w.length) return toast('Kein Dokument gewählt.'); zu(); erkenneViele(w, false); };
       d.querySelector('[data-ki]').onclick = async () => {
         const w = gewaehlt(); if (!w.length) return toast('Kein Dokument gewählt.');
         ids = w; zu();
         if (!kiBereit()) { einstellungen(); return; }
         if (!EINST.kiOk[EINST.anbieter]) {
-          const ok = await frage('Seiten an die KI senden?', `<p>Die Seiten ${mehrere ? 'aller ' + ids.length + ' Dokumente ' : ''}werden als Bild an <b>${h(a.label)}</b> übertragen (Verarbeitung: ${h(a.region)}). Enthalten sie persönliche Angaben, gehen diese mit.</p><p class="hinweis">Diese Frage kommt je Anbieter einmal. Ohne Bestätigung verlässt nichts das Gerät.</p>`, 'Senden');
+          const ok = await frage('Seiten an die KI senden?', `<p>Die Seiten ${mehrere ? 'der ' + ids.length + ' gewählten Dokumente ' : ''}werden als Bild an <b>${h(a.label)}</b> übertragen (Verarbeitung: ${h(a.region)}). Enthalten sie persönliche Angaben, gehen diese mit.</p><p class="hinweis">Diese Frage kommt je Anbieter einmal. Ohne Bestätigung verlässt nichts das Gerät.</p>`, 'Senden');
           if (!ok) return; EINST.kiOk[EINST.anbieter] = true; einstSpeichern();
         }
         erkenneViele(ids, true);

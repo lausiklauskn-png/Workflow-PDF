@@ -338,6 +338,15 @@ try {
   await page.waitForFunction(() => window.__wfpdf.S.doc && window.__wfpdf.S.doc.fields.some(f => f.value === 'Getippt'), null, { timeout: 15000 });
   ok('Arbeitsstand eingelesen: Einträge wieder da, älterer Browserstand ersetzt', await page.evaluate(async () => (await WFP.DB.all('docs')).filter(d => d.name === 'Grauformular').length === 1));
 
+  // 14a. Felder erkennen in der Bibliothek: Dokumente einzeln wählen, nichts vorgewählt
+  if (await page.locator('#edZurueck').isVisible()) await page.click('#edZurueck');
+  await page.click('[data-erk]'); await page.waitForSelector('.dlg [data-dok]');
+  const wahl0 = await page.evaluate(() => ({ n: document.querySelectorAll('.dlg [data-dok]').length, an: document.querySelectorAll('.dlg [data-dok]:checked').length, ki: document.querySelector('.dlg [data-ki]').disabled }));
+  await page.locator('.dlg [data-dok]').first().check();
+  const wahl1 = await page.evaluate(() => ({ ki: document.querySelector('.dlg [data-ki]').disabled, t: document.querySelector('.dlg [data-zahl]').textContent }));
+  ok('Erkennen: Dokumente einzeln wählbar, nichts vorgewählt, Knöpfe erst nach Wahl aktiv', wahl0.n >= 2 && wahl0.an === 0 && wahl0.ki && !wahl1.ki && /^1 von/.test(wahl1.t), [wahl0, wahl1]);
+  await page.click('.dlg [data-x]');
+
   // 14. ⟳ Hard-Reload: lädt neu, räumt die Adresse auf, Dokumente bleiben
   const vorN = await page.evaluate(async () => (await WFP.DB.all('docs')).length);
   await Promise.all([page.waitForNavigation(), page.click('#btnNeu')]);
