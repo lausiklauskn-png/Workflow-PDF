@@ -295,8 +295,10 @@ try {
     const d = await PDFLib.PDFDocument.load(r.bytes); const fs = d.getForm().getFields();
     const w0 = fs[0].acroField.getWidgets()[0]; const mk = w0.getAppearanceCharacteristics();
     const cbx = fs.find(x => x instanceof PDFLib.PDFCheckBox); const mkc = cbx && cbx.acroField.getWidgets()[0].getAppearanceCharacteristics();
-    return { n: fs.length, bg: !!(mk && mk.getBackgroundColor()), print: (w0.dict.get(PDFLib.PDFName.of('F')) || {}).numberValue, cbBg: !cbx ? 'kein' : !!(mkc && mkc.getBackgroundColor()) }; });
+    return { n: fs.length, bg: !!(mk && mk.getBackgroundColor()), print: (w0.dict.get(PDFLib.PDFName.of('F')) || {}).numberValue, cbBg: !cbx ? 'kein' : !!(mkc && mkc.getBackgroundColor()),
+      dr: (() => { const a = d.catalog.lookup(PDFLib.PDFName.of('AcroForm')); const dr = a && a.lookup(PDFLib.PDFName.of('DR')); const fo = dr && dr.lookup(PDFLib.PDFName.of('Font')); return !!(fo && fo.get(PDFLib.PDFName.of('Helvetica'))) && /Helvetica/.test(String(a.get(PDFLib.PDFName.of('DA')))); })() }; });
   ok('ausfüllbares PDF: echte Felder mit sichtbarem Hintergrund und Druck-Flag', af.n >= 4 && af.bg && (af.print & 4) === 4, af);
+  ok('ausfüllbares PDF: Formular trägt Standard-Schrift (/DR, /DA) für Acrobat und Android-Anzeigen', af.dr === true, af);
   ok('ausfüllbares PDF: Kästchen ohne Füllung (gedruckte Haken bleiben sichtbar)', af.cbBg === false, af);
   const offGrau = G.length;
 
