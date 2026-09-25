@@ -131,7 +131,11 @@
     const q = s => akt.querySelector(s);
     if (q('[data-erk]')) q('[data-erk]').onclick = () => erkennenDialog(sicht.map(d => d.id));
     if (q('[data-ueb]')) q('[data-ueb]').onclick = () => uebersetzenDialog(sicht.filter(d => !d.uebersetzung).map(d => d.id).concat(sicht.filter(d => d.uebersetzung).map(d => d.id)));
-    if (q('[data-ren]')) q('[data-ren]').onclick = async () => { const n = await eingabe('Ordner umbenennen', 'Name', o.name); if (!n) return; o.name = n; await DB.put('folders', o); ladeBibliothek(); };
+    if (q('[data-ren]')) q('[data-ren]').onclick = async () => { const n = await eingabe('Ordner umbenennen', 'Name', o.name); if (!n) return; const alt = o.name; o.name = n; await DB.put('folders', o);
+      // Abgeleitete Ordner („Beispiele · EN") ziehen mit, solange sie noch den alten Namen vorn tragen.
+      // Wer einen davon selbst umbenannt hat, behält seinen Namen.
+      for (const x of S.ordner) if (x !== o && stammOrdner(x) === stammOrdner(o) && abkoemmling(x, o) && x.name.startsWith(alt + ' · ')) { x.name = n + x.name.slice(alt.length); await DB.put('folders', x); }
+      ladeBibliothek(); };
     if (q('[data-del]')) q('[data-del]').onclick = async () => {
       if (!await frage('Ordner löschen?', `<p>Der Ordner „${h(o.name)}" wird gelöscht. Die ${anz(o.id)} Dokumente darin bleiben erhalten und stehen danach unter „Ohne Ordner".</p>`, 'Ordner löschen')) return;
       for (const d of S.docs.filter(d => d.folderId === o.id)) { d.folderId = null; await DB.put('docs', d); }
@@ -973,8 +977,18 @@
   // eigenen 🌐-Ordnern, damit sich nichts mit bearbeiteten Formularen mischt.
   // Die Ergebnis-Ordner hängen an der Kennung des Quell-Ordners (o.ziele), nicht am
   // Namen: jeder Ordner lässt sich umbenennen, ohne dass Ergebnisse woanders landen.
+  // Ergebnisse gehören zum STAMM-Ordner (Klaus 2026-09-26): eine ausgefüllte Kopie liegt in
+  // „Beispiele · ausgefüllt (aus EN)"; übersetzt man sie, gehört das Ergebnis nach
+  // „Beispiele · RU" neben „Beispiele · EN" — nicht in einen dritten Ordner
+  // „Beispiele · ausgefüllt (aus EN) · RU". Gefolgt wird der Kennung (o.quelle), nicht dem Namen.
+  function stammOrdner(q) {
+    let n = 0;
+    while (q && q.quelle && n++ < 10) { const p = S.ordner.find(x => x.id === q.quelle); if (!p) break; q = p; }
+    return q;
+  }
+  function abkoemmling(x, o) { let n = 0; while (x && x.quelle && n++ < 10) { if (x.quelle === o.id) return true; x = S.ordner.find(y => y.id === x.quelle); } return false; }
   async function ergebnisOrdner(d, schluessel, zusatz) {
-    let q = S.ordner.find(x => x.id === d.folderId);
+    let q = stammOrdner(S.ordner.find(x => x.id === d.folderId));
     if (!q) { q = { id: uid(), name: d.name, bereich: 'uebersetzung', createdAt: jetzt() }; d.folderId = q.id; await DB.put('docs', d); await DB.put('folders', q); S.ordner.push(q); }
     q.ziele = q.ziele || {};
     let o = S.ordner.find(x => x.id === q.ziele[schluessel]);
@@ -1606,7 +1620,7 @@
 
     if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
     ladeBibliothek().then(chromeTabRueckweg).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
-    window.__wfpdf = { beispieleLaden, S, EINST, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele };   // für die Probe
+    window.__wfpdf = { beispieleLaden, S, EINST, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner };   // für die Probe
   }
   start();
 })();

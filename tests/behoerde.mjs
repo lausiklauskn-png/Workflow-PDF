@@ -210,6 +210,24 @@ try {
   const deEn = await page.evaluate(async () => WFP.DB.get('docs', window.__wfpdfRueckweg.id));
   ok('EN → DE: Geburtsort = London, Name = Müller, Ordner „ausgefüllt (aus EN)"', deEn.fields.find(x => x.label === 'Geburtsort').value === 'London' && deEn.fields.find(x => x.label === 'Name').value === 'Müller' && deEn.ausgefuellt.aus === 'en');
 
+  // 4a. Ergebnisse gehören zum STAMM-Ordner (Klaus 2026-09-26): übersetzt man die ausgefüllte
+  //     Kopie weiter, landet das Ergebnis im selben „· RU"-Ordner wie die Übersetzung des
+  //     Originals — nicht in „… · ausgefüllt (aus EN) · RU". Und eine Umbenennung des
+  //     Stamm-Ordners zieht die abgeleiteten Namen mit.
+  const stamm = await page.evaluate(async (a) => {
+    const W = window.__wfpdf, o = W.S.ordner, f = id => o.find(x => x.id === id);
+    const ziel = await W.ergebnisOrdner(a.deEn, 'ru', 'RU');
+    return { ziel: ziel.id, zielName: ziel.name, ruOrdner: a.ruFolder, kopieOrdner: f(a.deEn.folderId).name };
+  }, { deEn, ruFolder: ru.folderId });
+  ok('ausgefüllte Kopie weiter übersetzt → derselbe „· RU"-Ordner wie das Original', stamm.ziel === stamm.ruOrdner && !/ausgefüllt/.test(stamm.zielName), stamm);
+  const wurzel = await page.evaluate(() => { const o = window.__wfpdf.S.ordner; const r = o.find(x => !x.quelle && x.ziele && x.ziele.ru); return { id: r.id, name: r.name }; });
+  await page.click('#edZurueck').catch(() => {});
+  await page.click(`.ordner-chip[data-o="${wurzel.id}"]`); await page.waitForSelector('[data-ren]');
+  await page.click('[data-ren]'); await page.waitForSelector('.dlg [data-e]'); await page.fill('.dlg [data-e]', 'Ämter'); await page.click('.dlg [data-j]');
+  await page.waitForFunction(() => window.__wfpdf.S.ordner.some(x => x.name === 'Ämter · RU'), null, { timeout: 5000 }).catch(() => {});
+  const namen = await page.evaluate(() => window.__wfpdf.S.ordner.map(x => x.name));
+  ok('Stamm-Ordner umbenannt → „· RU", „· EN" und „· ausgefüllt …" ziehen mit', ['Ämter · RU', 'Ämter · EN'].every(n => namen.includes(n)) && namen.some(n => /^Ämter · ausgefüllt/.test(n)) && !namen.some(n => n.startsWith(wurzel.name + ' · ')), namen);
+
   // 4b. Rückweg im installierten App-Fenster auf Android (Klaus 2026-09-25: „ich kann von da
   //     aus nur abbrechen"). Dort gibt es ⋮ → „Übersetzen" nicht; die Chrome-Fläche wäre eine
   //     Sackgasse. Also: Adresse kopieren + Anleitung, und der Chrome-Tab öffnet denselben Rückweg.

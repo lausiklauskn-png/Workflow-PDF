@@ -99,6 +99,12 @@ Textfarbe an dieselbe Stelle. Zwischenstand je Seite in IndexedDB
   bei „Englisch" wieder Russisch. `falscheSchrift()` prüft die Schrift (kyrillisch ⟷ lateinisch)
   und übernimmt dann NICHTS, sondern nennt den Weg (⋮ → Übersetzen → Sprache umstellen).
   DE und EN sind darüber nicht zu unterscheiden — benannte Grenze.
+- **Ergebnisse gehören zum Stamm-Ordner** (Klaus 2026-09-26, „Beispiele · ausgefüllt (aus EN) · RU"):
+  `ergebnisOrdner()` geht über `stammOrdner()` die Kette `quelle` hinauf — wer die ausgefüllte
+  Kopie weiter übersetzt, landet in „Beispiele · RU" neben „Beispiele · EN". Wer den
+  Stamm-Ordner umbenennt, dem ziehen die abgeleiteten Namen nach, solange sie noch mit dem
+  alten Namen beginnen (selbst umbenannte bleiben). Die große Kachel heißt
+  „Importieren zum Übersetzen" (neue Datei), der Knopf über der Liste übersetzt Vorhandenes.
 - **Aufbau auf der Seite** (Klaus 2026-09-25: „Textüberlagerung, Logos und Zahlen abgedeckt"),
   geprüft in `tests/layout.mjs` (erfundenes Formular, Stellvertreter +34 % länger):
   Stücke ohne Buchstaben/Ziffern und Absätze mit weniger als 2 Buchstaben (Logo „M",
