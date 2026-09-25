@@ -837,10 +837,15 @@
       let nr = 0;
       for (const f of felder) {
         if (vorhanden.some(v => iou(v, f) > 0.25)) continue;
+        // Frei gesetzte KI-Felder, die ein schon vorhandenes Feld doppeln, fallen weg:
+        // gleiche Bezeichnung auf derselben Seite, oder dicht daneben/darüber (dann traf die KI die Beschriftung)
+        const norm = t => String(t || '').toLowerCase().replace(/[^a-zäöüß0-9]+/g, '');
         if (f.quelle === 'ki' && !f.eingerastet && vorhanden.concat(felder.filter(g => g !== f && (g.quelle !== 'ki' || g.eingerastet))).some(v => {
+          if (f.label && norm(f.label) === norm(v.label) && (v.type === 'check') === (f.type === 'check')) return true;
+          const mx = (f.x + f.w / 2) - (v.x + v.w / 2), my = (f.y + f.h / 2) - (v.y + v.h / 2);
+          if (f.type === 'check' || v.type === 'check') return f.type === v.type && Math.abs(mx) < 2 && Math.abs(my) < 1.5;
           const ov = Math.min(f.x + f.w, v.x + v.w) - Math.max(f.x, v.x);
-          const unten = v.y - (f.y + f.h);
-          return ov > 0.5 * Math.min(f.w, v.w) && unten > -f.h && unten < 1.0;
+          return ov > 0.5 * Math.min(f.w, v.w) && Math.abs(my) < 2.5;
         })) continue;
         nr++;
         const typ = typAusLabel(f);
