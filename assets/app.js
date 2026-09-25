@@ -71,8 +71,28 @@
   }
   function fortschritt(titel) {
     let zuF = null, el = null, tx = null;
-    dialog(`<h2>${h(titel)}</h2><div class="fortschritt"><i></i></div><p class="hinweis" data-t>…</p>`, (d, zu) => { zuF = zu; el = d.querySelector('.fortschritt i'); tx = d.querySelector('[data-t]'); });
-    return { setze(anteil, text) { if (el) el.style.width = Math.round(anteil * 100) + '%'; if (tx && text) tx.textContent = text; }, zu() { if (zuF) zuF(); } };
+    dialog(`<h2 class="fb-kopf"><span class="dreher" aria-hidden="true"></span>${h(titel)}</h2><div class="fortschritt"><i></i></div><p class="hinweis" data-t>…</p>`, (d, zu) => { zuF = zu; el = d.querySelector('.fortschritt i'); tx = d.querySelector('[data-t]'); });
+    // Wartet die App auf etwas Langes (KI-Antwort), kriecht der Balken Richtung „bis",
+    // läuft ein Streifen darüber und die Sekunden zählen mit — sonst sieht es aus wie stehengeblieben.
+    let uhr = null;
+    const stopp = () => { clearInterval(uhr); uhr = null; if (el) el.parentNode.classList.remove('laeuft'); };
+    return {
+      setze(anteil, text, bis) {
+        stopp();
+        if (el) el.style.width = Math.round(anteil * 100) + '%';
+        if (tx && text) tx.textContent = text;
+        if (bis > anteil && el) {
+          el.parentNode.classList.add('laeuft');
+          const t0 = Date.now();
+          uhr = setInterval(() => {
+            const s = (Date.now() - t0) / 1000;
+            el.style.width = ((anteil + (bis - anteil) * (1 - Math.exp(-s / 25))) * 100).toFixed(1) + '%';
+            if (tx) tx.textContent = text + ' · ' + Math.round(s) + ' s';
+          }, 500);
+        }
+      },
+      zu() { stopp(); if (zuF) zuF(); }
+    };
   }
   function laden(dateiname, bytes, typ) {
     const blob = new Blob([bytes], { type: typ || 'application/pdf' });
@@ -715,7 +735,7 @@
       const offen = S.doc && S.doc.id === ids[k];
       try {
         const d = offen ? S.doc : await DB.get('docs', ids[k]); const b = offen ? S.bytes : await DB.getFile(ids[k]);
-        const r = await erkenneDok(d, b, mitKi, (a, t) => fb.setze((k + a) / ids.length, (ids.length > 1 ? `Dokument ${k + 1}/${ids.length} · ` : '') + t));
+        const r = await erkenneDok(d, b, mitKi, (a, t, b) => fb.setze((k + a) / ids.length, (ids.length > 1 ? `Dokument ${k + 1}/${ids.length} · ` : '') + t, b == null ? undefined : (k + b) / ids.length));
         gesamt += r.neu; if (r.fehler) fehler.push(d.name + ': ' + r.fehler);
         if (!offen) await DB.put('docs', d);
       } catch (e) { fehler.push(String(e.message || e)); }
@@ -785,6 +805,7 @@
           const alt = d.fields.filter(f => f.page === i);
           const kand = (EINST.linien !== false ? felder : ER.linienErkennung(x.getImageData(0, 0, c.width, c.height)))
             .filter(k => !alt.some(v => iouV(v, k) > 0.25)).slice(0, 150);
+          melde((i + 0.1) / seiten, `Seite ${i + 1} von ${pdf.numPages} · KI liest die Seite …`, (i + 0.95) / seiten);
           const antwort = await ER.kiAnfrage(kiCfg(), ER.markiertesBild(c, kand), ER.promptMitKandidaten(kand));
           const r = ER.kiAuswerten(antwort, { w: c.width, h: c.height });
           if (r.text && d.pages[i]) d.pages[i].text = r.text;

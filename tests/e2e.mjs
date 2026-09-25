@@ -83,9 +83,10 @@ const konsole = [];
 page.on('pageerror', e => konsole.push(String(e)));
 page.on('console', m => { if (m.type() === 'error') konsole.push(m.text()); });
 // Kein echter KI-Aufruf: die Antwort ist gestellt
-let kiAufrufe = 0, kiNummern = false, kiBild = null;
+let kiAufrufe = 0, kiNummern = false, kiBild = null, kiVerz = 0;
 await page.route('https://api.anthropic.com/**', async route => {
   kiAufrufe++;
+  if (kiVerz) await new Promise(r => setTimeout(r, kiVerz));
   const body = JSON.parse(route.request().postData() || '{}');
   const bild = body.messages?.[0]?.content?.find(c => c.type === 'image');
   if (bild) kiBild = bild.source.data;
@@ -284,8 +285,14 @@ try {
   const offGrau = G.length;
 
   // 11. KI mit nummerierten Kandidaten
-  kiNummern = true; kiBild = null;
+  kiNummern = true; kiBild = null; kiVerz = 2500;
   await page.click('#edErkennen'); await page.click('[data-ki]');
+  await page.waitForSelector('.fortschritt.laeuft', { timeout: 10000 });
+  const w0 = await page.evaluate(() => parseFloat(document.querySelector('.fortschritt i').style.width));
+  await page.waitForTimeout(1600);
+  const lb = await page.evaluate(() => ({ w: parseFloat(document.querySelector('.fortschritt i').style.width), t: document.querySelector('.dlg [data-t]').textContent }));
+  ok('Ladebalken bewegt sich, während die KI liest, zählt Sekunden, Rad dreht sich', await page.locator('.dlg .dreher').isVisible() && lb.w > w0 && /KI liest/.test(lb.t) && /\d+ s$/.test(lb.t), [w0, lb]);
+  kiVerz = 0;
   await page.waitForFunction(() => window.__wfpdf.S.doc.fields.some(f => f.label === 'KI eins'), null, { timeout: 30000 });
   await page.waitForFunction(() => !document.querySelector('.fortschritt'));
   const K = await page.evaluate(() => window.__wfpdf.S.doc.fields);
