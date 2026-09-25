@@ -54,6 +54,25 @@ Ansicht mit **echtem Text im HTML**.
 | B | **Übersetzer-API im Browser** (`Translator`, in Chrome eingebaut, läuft auf dem Gerät) | keine | **nicht geprüft**, ob es auf Klaus' Tablet (Android-Chrome) verfügbar ist und ob Deutsch↔Russisch dabei ist. Zuerst mit `'Translator' in self` und `Translator.availability()` messen |
 | C | **KI mit eigenem Schlüssel** (Mistral schon da; DeepL wäre möglich) | je Seite bezahlt | Text verlässt das Gerät → vorher bestätigen lassen, wie bei der KI-Felderkennung |
 
+### Klaus' Ansatz (2026-09-25, nachgereicht): erst HTML, dann übersetzen
+
+> „die PDFs als HTML-Dokument … im Hintergrund speichern und die HTML-Datei zu
+> übersetzen, wenn es ein Problem darstellt mit der Übersetzung."
+
+Das ist ein **Zwischenformat**: PDF → HTML-Datei mit echtem Text (je Seite ein
+Abschnitt, Text in seiner Lage über dem Seitenbild) → diese Datei übersetzen
+(Chrome, `Translator` oder KI) → drucken oder als PDF ausgeben.
+
+**Was dafür stimmen muss:**
+- Die HTML-Datei braucht **Text**, nicht nur Seitenbilder. Die heutige
+  `html-export.js` legt Bilder ab — sie müsste um eine **Textebene** aus
+  `getTextContent()` erweitert werden (so wie pdf.js' eigener „text layer").
+- Der Vorteil: die Datei liegt gespeichert vor, man kann sie seitenweise öffnen
+  (kein 400-Seiten-Brocken auf einmal), und jede übersetzte Fassung lässt sich
+  als eigene Datei ablegen.
+- Die offene Frage bleibt dieselbe wie bei Weg A: **übersetzt Chrome eine
+  lokal geöffnete HTML-Datei auf dem Tablet?** Zuerst an einer Seite messen.
+
 Wahrscheinlich die ehrlichste Richtung: **B wo verfügbar, C als Rückfall, A als
 Hilfe ohne Speichern**. Das ist ein Vorschlag, keine Messung.
 
