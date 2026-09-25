@@ -137,7 +137,7 @@ page.on('console', m => { if (m.type() === 'error') konsole.push(m.text()); });
 let mistral = [], mistral429 = 1;
 await page.route('https://api.mistral.ai/**', async route => {
   const body = JSON.parse(route.request().postData() || '{}'); mistral.push(body);
-  if (mistral429-- > 0) return route.fulfill({ status: 429, contentType: 'application/json', body: '{"message":"rate limit"}' });
+  if (mistral429-- > 0) return route.fulfill({ status: 429, contentType: 'application/json', headers: { 'retry-after': '5', 'access-control-allow-origin': '*', 'access-control-expose-headers': 'retry-after' }, body: '{"message":"Rate limit exceeded"}' });
   const t = JSON.parse(body.messages[1].content).t;
   const aus = t.map(x => RU_EN[x] != null ? RU_EN[x] : Object.entries(RU_EN).find(([k, v]) => v === x) ? Object.entries(RU_EN).find(([k, v]) => v === x)[0] : '[ki] ' + x);
   await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ choices: [{ message: { content: JSON.stringify({ t: aus }) }, finish_reason: 'stop' }], usage: { prompt_tokens: 120, completion_tokens: 60 } }) });
@@ -287,6 +287,8 @@ try {
   await page.locator('.dlg [data-dok]').nth(idx).check();
   await page.selectOption('.dlg [data-von]', 'ru'); await page.selectOption('.dlg [data-nach]', 'en');
   await page.click('.dlg [data-weg="ki"]'); await page.click('.dlg [data-j]');
+  const bremsText = await page.waitForFunction(() => { const t = document.querySelector('.dlg [data-t]')?.textContent || ''; return /Tempo-Limit/.test(t) && t; }, null, { timeout: 15000 }).then(h => h.jsonValue(), () => '');
+  ok('KI: Tempo-Limit wird sichtbar abgewartet, die Wartezeit des Anbieters (Retry-After 5 s) gilt', /warte 5 s/.test(bremsText), bremsText);
   await page.waitForFunction(() => /Übersetzung fertig/.test(document.querySelector('.dlg h2')?.textContent || ''), null, { timeout: 60000 });
   ok('KI: 429 wird abgewartet und wiederholt (2 Anfragen für 1 Seite)', mistral.length === 2, mistral.length);
   ok('KI: gesendet wird nur Text (kein Bild), Modell mistral-small-latest, JSON verlangt', mistral.every(b => !JSON.stringify(b).includes('image') && b.model === 'mistral-small-latest' && b.response_format?.type === 'json_object'));

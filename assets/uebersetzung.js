@@ -185,6 +185,81 @@
     return fn;
   }
 
+  /* ---------- Chrome übersetzt die Seite (Klaus 2026-09-25) ----------
+     Android-Chrome hat keine Übersetzer-Schnittstelle für Apps, aber ⋮ → Übersetzen
+     übersetzt jeden ECHTEN Text auf der Seite (über Google). Also stellt die App die
+     Absätze einer Seite als Text auf eine eigene Fläche, der Nutzer schaltet Chromes
+     Übersetzung EINMAL ein, und die App liest, was Chrome daraus macht. Chrome
+     übersetzt danach nachgeschobenen Text von selbst — so läuft es Seite für Seite.
+     Erkennen: Chrome setzt `translated-ltr/-rtl` an <html> und hüllt jeden übersetzten
+     Text in <font>. Die App-Oberfläche bekommt so lange translate="no" (sonst stünde
+     sie danach auf Russisch), bis Chrome wieder das Original zeigt. */
+  let _chromeAktiv = null;
+  const chromeAn = () => /(^|\s)translated-(ltr|rtl)(\s|$)/.test(document.documentElement.className);
+  function chromeUebersetzer(von, nach) {
+    if (_chromeAktiv) { try { _chromeAktiv.zu(); } catch (_) {} }
+    const stat = { zeichen: 0, anfragen: 0, ohne: 0, modell: 'Chrome (Google)' };
+    const html = document.documentElement, langVorher = html.getAttribute('lang');
+    const markiert = [];
+    const markiere = el => { if (el === flaeche || el.nodeType !== 1 || el.tagName === 'SCRIPT' || el.hasAttribute('data-wfp-tr')) return; el.setAttribute('data-wfp-tr', el.getAttribute('translate') == null ? '' : el.getAttribute('translate')); el.setAttribute('translate', 'no'); markiert.push(el); };
+    const flaeche = document.createElement('div');
+    flaeche.id = 'wfp-chrome'; flaeche.setAttribute('translate', 'yes'); flaeche.setAttribute('lang', von);
+    flaeche.style.cssText = 'position:fixed;left:0;right:0;bottom:0;height:46vh;z-index:2147483000;background:#fffdf5;border-top:3px solid #E0231B;box-shadow:0 -6px 20px rgba(0,0,0,.25);display:flex;flex-direction:column;font:14px/1.35 system-ui,sans-serif;color:#111';
+    flaeche.innerHTML = '<div translate="no" data-kopf style="padding:10px 12px;background:#fff3cd;border-bottom:1px solid #e6d9a8"><b data-anl></b><div data-st style="font-size:12px;color:#555;margin-top:4px"></div><button type="button" data-halt style="margin-top:6px;padding:6px 10px;border:1px solid #999;border-radius:8px;background:#fff">⏹ Abbrechen</button></div><div data-liste style="overflow:auto;padding:8px 12px;flex:1"></div>';
+    const anl = flaeche.querySelector('[data-anl]'), st = flaeche.querySelector('[data-st]'), liste = flaeche.querySelector('[data-liste]');
+    const ANL = 'In Chrome oben rechts ⋮ → „Übersetzen" antippen und ' + NAME_DE[nach] + ' wählen. Danach läuft alles von selbst.';
+    let halt = false, warte = null;
+    flaeche.querySelector('[data-halt]').onclick = () => fn.halt();
+    const beob = new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(markiere)));
+    let offen = false;
+    function auf() {
+      if (offen) return; offen = true;
+      [...document.body.children].forEach(markiere);
+      beob.observe(document.body, { childList: true });
+      html.setAttribute('lang', von);
+      document.body.appendChild(flaeche);
+      _chromeAktiv = fn;
+    }
+    const schlaf = ms => new Promise((r, j) => { const t = setTimeout(r, ms); warte = () => { clearTimeout(t); j(new Error('Angehalten')); }; });
+    const hatText = t => /\p{L}/u.test(t);
+    const fertigEl = (el, orig) => !hatText(orig) || !!el.querySelector('font') || el.textContent.replace(/\s+/g, ' ').trim() !== orig;
+    const fn = async texte => {
+      if (halt) throw new Error('Angehalten');
+      auf();
+      liste.innerHTML = '';
+      const els = texte.map(t => { const p = document.createElement('p'); p.style.margin = '0 0 6px'; p.textContent = t; liste.appendChild(p); return p; });
+      const orig = texte.map(t => String(t).replace(/\s+/g, ' ').trim());
+      stat.anfragen++; stat.zeichen += texte.reduce((n, t) => n + t.length, 0);
+      let letzt = Date.now(), vorher = -1, gescrollt = false;
+      for (;;) {
+        if (!chromeAn()) { anl.textContent = ANL; st.textContent = 'Warte auf Chromes Übersetzung … (Läuft die App im eigenen Fenster und fehlt „Übersetzen", die Seite im Chrome-Tab öffnen.)'; letzt = Date.now(); await schlaf(400); continue; }
+        const fertig = els.filter((el, i) => fertigEl(el, orig[i])).length;
+        anl.textContent = 'Chrome übersetzt nach ' + NAME_DE[nach] + ' …';
+        st.textContent = fertig + ' von ' + els.length + ' Absätzen dieser Seite übersetzt.';
+        if (fertig === els.length) { await schlaf(250); break; }
+        if (fertig !== vorher) { vorher = fertig; letzt = Date.now(); gescrollt = false; }
+        const still = Date.now() - letzt;
+        if (still > 8000 && !gescrollt) { const e = els.find((el, i) => !fertigEl(el, orig[i])); if (e) e.scrollIntoView({ block: 'center' }); gescrollt = true; }
+        if (still > 30000) { st.textContent = 'Chrome übersetzt nicht weiter. Falls nötig ⋮ → „Übersetzen" erneut antippen.'; if (still > 45000) break; }
+        await schlaf(300);
+      }
+      return els.map((el, i) => { if (fertigEl(el, orig[i])) return el.textContent.replace(/\s+/g, ' ').trim(); stat.ohne++; return texte[i]; });
+    };
+    fn.stat = stat; fn.art = 'chrome';
+    fn.halt = () => { if (halt) return; halt = true; if (warte) warte(); if (fn.beimHalt) fn.beimHalt(); };   // beimHalt: der Aufrufer merkt sich den Abbruch
+    fn.zu = () => {
+      flaeche.remove();
+      if (langVorher == null) html.removeAttribute('lang'); else html.setAttribute('lang', langVorher);
+      if (_chromeAktiv === fn) _chromeAktiv = null;
+      // Die Markierung bleibt, solange Chrome übersetzt anzeigt — sonst würde es die App übersetzen.
+      const frei = () => { beob.disconnect(); offen = false; markiert.splice(0).forEach(el => { const v = el.getAttribute('data-wfp-tr'); el.removeAttribute('data-wfp-tr'); if (v) el.setAttribute('translate', v); else el.removeAttribute('translate'); }); };
+      if (!chromeAn()) return frei();
+      const w = new MutationObserver(() => { if (!chromeAn()) { w.disconnect(); frei(); } });
+      w.observe(html, { attributes: true, attributeFilter: ['class'] });
+    };
+    return fn;
+  }
+
   function kiPrompt(von, nach) {
     return 'Übersetze jeden Eintrag der Liste "t" aus dem ' + NAME_DE[von] + 'en ins ' + NAME_DE[nach] + 'e. '
       + 'Die Einträge sind Absätze EINER Dokumentseite, in Lesereihenfolge; nutze sie gegenseitig als Zusammenhang. '
@@ -224,10 +299,24 @@
     const system = kiPrompt(von, nach);
     // 429 und Überlast (5xx, 529) werden bis zu dreimal wiederholt — bei 400 Seiten
     // trifft man das Kontingent sonst mitten im Lauf. 401 bricht sofort ab.
+    // Ein Tempo-Limit (Mistral: wenige Anfragen je Sekunde/Minute, gemessen am 2026-09-25
+    // bei Klaus: 429 „Rate limit exceeded" trotz Guthaben) wird ABGEWARTET: Abstand
+    // zwischen Anfragen, bis zu fünf Wiederholungen über gut zwei Minuten, und eine
+    // Wartezeit, die der Anbieter nennt (Retry-After), gilt vor der eigenen.
+    const ABSTAND = 1200, WIEDERHOL = [3000, 10000, 20000, 40000, 60000];
+    let naechste = 0;
     async function frage(liste) {
       for (let v = 0; ; v++) {
+        const pause = naechste - Date.now(); if (pause > 0) await warte(pause);
+        naechste = Date.now() + ABSTAND;
         try { return await frage1(liste); }
-        catch (e) { if (v >= 3 || !/^(Zu viele|Fehler 5|Überlast)/.test(e.message)) throw e; await warte([2000, 6000, 15000][v]); }
+        catch (e) {
+          if (v >= WIEDERHOL.length || !/^(Zu viele|Fehler 5|Überlast)/.test(e.message)) throw e;
+          const ms = Math.min(120000, Math.max(WIEDERHOL[v], e.warte || 0));
+          stat.wartete = (stat.wartete || 0) + ms;
+          if (fn.meldeWarten) fn.meldeWarten(ms, v + 1, WIEDERHOL.length);
+          await warte(ms);
+        }
       }
     }
     async function frage1(liste) {
@@ -237,14 +326,14 @@
       if (a.kind === 'anthropic') {
         const r = await fetch(a.base, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
           body: JSON.stringify({ model: modell, max_tokens: 8000, system, messages: [{ role: 'user', content: nutz }] }) });
-        if (!r.ok) throw new Error(await fehler(r));
+        if (!r.ok) throw await fehlerObj(r);
         const j = await r.json(); text = (j.content || []).map(c => c.text || '').join('');
         if (j.stop_reason === 'max_tokens') throw new Error('Antwort abgeschnitten');
         if (j.usage) { stat.tokenEin += j.usage.input_tokens || 0; stat.tokenAus += j.usage.output_tokens || 0; }
       } else {
         const body = { model: modell, max_tokens: 8000, temperature: 0.2, messages: [{ role: 'system', content: system }, { role: 'user', content: nutz }], response_format: { type: 'json_object' } };
         const r = await fetch(a.base + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key }, body: JSON.stringify(body) });
-        if (!r.ok) throw new Error(await fehler(r));
+        if (!r.ok) throw await fehlerObj(r);
         const j = await r.json(); text = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
         if (j.choices && j.choices[0] && j.choices[0].finish_reason === 'length') throw new Error('Antwort abgeschnitten');
         if (j.usage) { stat.tokenEin += j.usage.prompt_tokens || 0; stat.tokenAus += j.usage.completion_tokens || 0; }
@@ -253,12 +342,20 @@
       if (!Array.isArray(t) || t.length !== liste.length) throw new Error('KI lieferte ' + (Array.isArray(t) ? t.length : 0) + ' statt ' + liste.length + ' Einträgen');
       return t.map(x => String(x == null ? '' : x));
     }
+    async function fehlerObj(r) {
+      const e = new Error(await fehler(r));
+      const ra = r.headers && r.headers.get('retry-after'); const sek = ra != null ? Number(ra) : NaN;
+      if (isFinite(sek) && sek > 0) e.warte = sek * 1000;
+      return e;
+    }
     async function fehler(r) {
       let t = ''; try { t = await r.text(); } catch (_) {}
       let m = t; try { const j = JSON.parse(t); m = (j.error && (j.error.message || j.error.type)) || j.message || t; } catch (_) {}
       if (r.status === 401) return 'Schlüssel ungültig (401)';
       if (r.status === 529 || r.status === 503) return 'Überlast beim Anbieter (' + r.status + ')';
-      if (r.status === 429) return 'Zu viele Anfragen oder Kontingent erschöpft (429). ' + String(m).slice(0, 120);
+      if (r.status === 429) return /rate.?limit|too many|requests per/i.test(String(m))
+        ? 'Zu viele Anfragen in kurzer Zeit (429, Tempo-Limit des Kontos). ' + String(m).slice(0, 120)
+        : 'Zu viele Anfragen oder Kontingent erschöpft (429). ' + String(m).slice(0, 120);
       return 'Fehler ' + r.status + ': ' + String(m).slice(0, 200);
     }
     // In Stücken bis ~5000 Zeichen; stimmt die Anzahl nicht, einzeln nachfragen.
@@ -433,5 +530,5 @@
   }
 
   window.WFP = window.WFP || {};
-  window.WFP.Uebersetzung = { zeichenNormal, SPRACHEN, NAME_DE, KI_TEXTMODELL, bloecke, browserDa, browserVerfuegbar, browserUebersetzer, kiUebersetzer, lauf, rueck, schriftLaden, pdfBauen, anzeige, farben, ocrStarten };
+  window.WFP.Uebersetzung = { zeichenNormal, SPRACHEN, NAME_DE, KI_TEXTMODELL, bloecke, browserDa, browserVerfuegbar, browserUebersetzer, chromeUebersetzer, chromeAn, kiUebersetzer, lauf, rueck, schriftLaden, pdfBauen, anzeige, farben, ocrStarten };
 })();

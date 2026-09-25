@@ -60,6 +60,13 @@ Textfarbe an dieselbe Stelle. Zwischenstand je Seite in IndexedDB
   Stand. Ist mindestens eine Seite fertig, entsteht „[RU, Teil N von M]" (Rest im
   Original, `doc.teil`); der vollständige Lauf ersetzt es. Vorher stand das Übersetzte
   nur im Speicher und war nicht zu sehen.
+- **🌐 Mit Chrome übersetzen** (Klaus 2026-09-25, `chromeUebersetzer`): Android-Chrome
+  hat keine Translator-API, aber ⋮ → Übersetzen übersetzt echten Text. Die App stellt die
+  Absätze einer Seite auf eine Fläche (`#wfp-chrome`, translate="yes"), wartet auf
+  `translated-ltr` an <html>, liest je Absatz (`<font>`-Hülle oder geänderter Text).
+  Die übrige App bekommt `translate="no"` (Marke `data-wfp-tr`), bis Chrome wieder das
+  Original zeigt. Keine Gegenprobe. Headless gibt es Chromes Übersetzung nicht —
+  `tests/chrome.mjs` stellt sie nach; am Tablet ist sie ungemessen.
 - `npm run messen` misst 400 Seiten + 10 Scans (nicht Teil von `npm test`).
 - **Behördenformular** (`tests/behoerde.mjs`): Felder kommen übersetzt mit
   (`quellFeld` → Feld im Original), Rückweg „↩ Einträge ins Original" legt eine
