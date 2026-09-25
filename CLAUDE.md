@@ -73,11 +73,30 @@ Textfarbe an dieselbe Stelle. Zwischenstand je Seite in IndexedDB
   `tests/chrome.mjs` stellt sie nach; am Tablet ist sie ungemessen.
 - **🌐 In Chrome öffnen** (Klaus 2026-09-25): im installierten App-Fenster fehlt oft
   „Übersetzen", und die Adresse kennt kaum jemand. Knöpfe im Dialog und auf der Fläche
-  (nur `display-mode: standalone`): In Chrome öffnen (Android: `intent://…;package=com.android.chrome;S.browser_fallback_url=…`,
+  (nur `display-mode: standalone`): In Chrome öffnen (Android: `intent://…;package=com.android.chrome;end`,
   sonst neuer Tab) · Teilen · Adresse kopieren. Die Adresse trägt `?ue=<ids>&von&nach&weg=chrome`;
   `chromeTabRueckweg()` öffnet damit im Tab denselben Übersetzer wieder — das Ergebnis wird
-  ein PDF, nicht die übersetzte App-Oberfläche. Ob Chrome und die installierte App auf dem
+  ein PDF, nicht die übersetzte App-Oberfläche.
+  Der Android-Sprung trägt **kein** `S.browser_fallback_url` mehr (Klaus 2026-09-25: „springt
+  kurz auf, dann Fehlermeldung" — der Rückfall lud die Adresse im App-Fenster). Die Adresse
+  wird VOR dem Sprung kopiert; bleibt die App nach 1,8 s sichtbar, erklärt ein Dialog das
+  Einfügen in Chrome. Am Tablet ungemessen; headless nimmt Chromium nach `intent:` keine
+  Mausklicks mehr an (die Probe klickt dort über das Element). Ob Chrome und die installierte App auf dem
   Tablet denselben Speicher sehen, ist ungemessen; fehlen die Dokumente, sagt der Tab das.
+- **Aufbau auf der Seite** (Klaus 2026-09-25: „Textüberlagerung, Logos und Zahlen abgedeckt"),
+  geprüft in `tests/layout.mjs` (erfundenes Formular, Stellvertreter +34 % länger):
+  Stücke ohne Buchstaben/Ziffern und Absätze mit weniger als 2 Buchstaben (Logo „M",
+  Kreis-Ziffern) werden nicht übersetzt · ein Zeichen links vor der Zeile (Kreis, Kästchen)
+  beginnt einen neuen Absatz, der Rand eines Kastens nicht (`breite()` + `leereZeile()` im
+  Seitenprüfer) · kurze erste Zeile in größerer Schrift = Kasten-Überschrift · abgedeckt
+  wird nur über den Zeilen (`b[12]`), nicht das ganze Absatz-Rechteck · freier Platz rechts
+  und unten (`b[10]`, `b[11]`) wird genutzt, BEVOR die Schrift kleiner wird · gleiche
+  Originalgröße in derselben Spalte oder Ankreuz-Zeile bekommt dieselbe Größe (nicht unter
+  70 % des Originals).
+- **Bilder mit Text auf Seiten MIT Textebene** (`bildFlaechen`): größere Bilder werden bei
+  3-facher Größe per Texterkennung gelesen und übersetzt — vorher nur ganz textlose Seiten.
+  Das ist Klaus' Idee „das Bild in der anderen Sprache": der Text im Bild wird übersetzt
+  darübergelegt. Logos/Symbole (< 4 % der Seite, < 80×60 pt) bleiben unberührt.
 - `npm run messen` misst 400 Seiten + 10 Scans (nicht Teil von `npm test`).
 - **Behördenformular** (`tests/behoerde.mjs`): Felder kommen übersetzt mit
   (`quellFeld` → Feld im Original), Rückweg „↩ Einträge ins Original" legt eine

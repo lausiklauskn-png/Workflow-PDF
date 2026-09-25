@@ -32,7 +32,8 @@
       else felder[f.page].push(`<input class="f t" style="${st}" title="${t}" value="${esc(wert)}">`);
     }
     const s0 = seiten[0] || { w: 595.28, h: 841.89 };
-    return `<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    const sprache = /^[a-z]{2}$/.test((doc.uebersetzung && doc.uebersetzung.nach) || '') ? doc.uebersetzung.nach : 'de';
+    return `<!DOCTYPE html><html lang="${sprache}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(doc.name || 'Formular')}</title><style>
 @page{size:${s0.w}pt ${s0.h}pt;margin:0}
 body{margin:0;background:#e8e8ea;font-family:Helvetica,Arial,sans-serif}

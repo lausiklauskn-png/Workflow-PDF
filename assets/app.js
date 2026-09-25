@@ -931,7 +931,9 @@
             const name = dateiName(S.doc.name) + ' (zum Ausfuellen).html';
             laden(name, new TextEncoder().encode(html), 'text/html');
             if (navigator.canShare) { try { const file = new File([html], name, { type: 'text/html' }); if (navigator.canShare({ files: [file] })) (d.querySelectorAll('[data-teilen]').forEach(x => x.remove()), b.insertAdjacentHTML('afterend', '<button class="knopf" data-teilen>📤 Teilen …</button>'), b.nextElementSibling.onclick = () => navigator.share({ files: [file], title: S.doc.name }).catch(() => {})); } catch (_) {} }
-            toast('✅ HTML gespeichert — im Browser öffnen, ausfüllen, dann „Als PDF speichern".');
+            // Ohne Felder ist darin nichts auszufüllen — das nicht still als Erfolg melden (Klaus 2026-09-25)
+            if (!S.doc.fields.length) toast('⚠️ HTML gespeichert — aber dieses Dokument hat keine Felder, darin lässt sich nichts ausfüllen. Erst „🔍 Felder erkennen" oder Felder setzen, dann neu ausgeben.');
+            else toast('✅ HTML gespeichert — im Browser öffnen, ausfüllen, dann „Als PDF speichern".');
             return;
           }
           // Kyrillische Einträge (oder ein Formular zum Ausfüllen auf Russisch) brauchen
@@ -1060,19 +1062,45 @@
   function chromeTabAdresse(ids, von, nach) {
     const u = new URL(location.pathname, location.origin);
     u.searchParams.set('ue', ids.join(',')); u.searchParams.set('von', von); u.searchParams.set('nach', nach); u.searchParams.set('weg', 'chrome');
-    const intent = 'intent://' + u.host + u.pathname + u.search + '#Intent;scheme=' + u.protocol.replace(':', '') + ';package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(u.href) + ';end';
+    // OHNE S.browser_fallback_url (Klaus 2026-09-25: „das Feld springt kurz auf, dann kommt
+    // die Fehlermeldung"). Lehnt Chrome den Sprung aus dem App-Fenster ab, lud der Rückfall
+    // die Adresse IM App-Fenster — der Knopf sah aus, als täte er etwas, und alles war weg.
+    // Ohne Rückfall bleibt die Seite stehen, und die App zeigt den Weg über die Zwischenablage.
+    const intent = 'intent://' + u.host + u.pathname + u.search + '#Intent;scheme=' + u.protocol.replace(':', '') + ';package=com.android.chrome;end';
     return { url: u.href, intent };
   }
   const istAndroid = () => /Android/i.test(navigator.userAgent);
+  // Chrome hat den Sprung nicht angenommen: der Weg, der immer geht (Klaus: kopieren + einfügen).
+  function chromeHinweis(url, kopiert) {
+    dialog(`<h2>Chrome hat sich nicht geöffnet</h2><p data-chromehinweis>${kopiert ? 'Die Adresse liegt schon in der Zwischenablage. ' : ''}So geht es: 1. Chrome öffnen · 2. oben in die Adresszeile tippen · 3. lange drücken und „Einfügen" · 4. öffnen. Die Dokumente sind dort da, der Übersetzer öffnet sich von selbst.</p>
+      <input readonly data-adr style="width:100%;font-size:12px;padding:6px;border:1px solid #bbb;border-radius:6px">
+      <div class="zeile"><button class="knopf" data-kopie>📋 Nochmal kopieren</button><button class="knopf rot" data-hinok>OK</button></div>`, (d, zu) => {
+      const f = d.querySelector('[data-adr]'); f.value = url; f.onfocus = () => f.select();
+      d.querySelector('[data-kopie]').onclick = async () => { try { await navigator.clipboard.writeText(url); toast('📋 Adresse kopiert.'); } catch (_) { f.focus(); } };
+      d.querySelector('[data-hinok]').onclick = zu;
+    });
+  }
+
   function chromeTabKnoepfe(el, lage, vorher) {   // lage() → { ids, von, nach }
     const k = (txt, titel) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'knopf klein'; b.textContent = txt; b.title = titel; b.style.cssText = 'padding:6px 10px;border:1px solid #999;border-radius:8px;background:#fff;font-size:13px'; el.appendChild(b); return b; };
     k('🌐 In Chrome öffnen', 'Öffnet dieselben Dokumente im Chrome-Browser. Dort ⋮ → „Übersetzen" — das Ergebnis wird ein PDF wie hier.').onclick = async () => {
       const l = lage(); if (!l.ids.length) return toast('Kein Dokument gewählt.');
       const a = chromeTabAdresse(l.ids, l.von, l.nach);
       window.__wfpdfChromeTab = a;   // für die Probe
+      // Zuerst kopieren, solange der Tipp noch „frisch" ist — danach geht es nicht mehr.
+      let kopiert = false;
+      try { await navigator.clipboard.writeText(a.url); kopiert = true; } catch (_) {}
       if (vorher) try { await vorher(); } catch (_) {}
       try { await speichernJetzt(); } catch (_) {}
-      if (istAndroid()) location.href = a.intent; else window.open(a.url, '_blank', 'noopener');
+      if (!istAndroid()) { window.open(a.url, '_blank', 'noopener'); return; }
+      let weg = false; const merk = () => { if (document.visibilityState === 'hidden') weg = true; };
+      document.addEventListener('visibilitychange', merk);
+      try { location.href = a.intent; } catch (_) {}
+      setTimeout(() => {
+        document.removeEventListener('visibilitychange', merk);
+        if (weg) return;   // Chrome hat übernommen
+        chromeHinweis(a.url, kopiert);
+      }, 1800);
     };
     if (navigator.share) k('📤 Teilen …', 'Teilen mit Chrome oder einem anderen Browser').onclick = async () => {
       const l = lage(); if (!l.ids.length) return toast('Kein Dokument gewählt.');
