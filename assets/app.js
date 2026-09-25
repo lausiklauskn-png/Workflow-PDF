@@ -1057,26 +1057,29 @@
      ⋮ → „Übersetzen", und die Adresse der App kennt kaum jemand. Die Adresse trägt
      Dokumente und Sprachen mit; der Chrome-Tab öffnet damit denselben Übersetzer
      wieder (Rückweg), und das Ergebnis wird ein PDF wie hier — nicht die übersetzte
-     App-Oberfläche. Auf Android erzwingt die intent-Adresse die Chrome-App; anderswo
-     kennt der Browser das Schema nicht und würde wegnavigieren, dort also ein neuer Tab. */
+     App-Oberfläche. Auf Android: kopieren + Anleitung (siehe CHROME_STARTEN), anderswo
+     ein neuer Tab. */
   function chromeTabAdresse(ids, von, nach) {
     const u = new URL(location.pathname, location.origin);
     u.searchParams.set('ue', ids.join(',')); u.searchParams.set('von', von); u.searchParams.set('nach', nach); u.searchParams.set('weg', 'chrome');
-    // OHNE S.browser_fallback_url (Klaus 2026-09-25: „das Feld springt kurz auf, dann kommt
-    // die Fehlermeldung"). Lehnt Chrome den Sprung aus dem App-Fenster ab, lud der Rückfall
-    // die Adresse IM App-Fenster — der Knopf sah aus, als täte er etwas, und alles war weg.
-    // Ohne Rückfall bleibt die Seite stehen, und die App zeigt den Weg über die Zwischenablage.
-    const intent = 'intent://' + u.host + u.pathname + u.search + '#Intent;scheme=' + u.protocol.replace(':', '') + ';package=com.android.chrome;end';
-    return { url: u.href, intent };
+    return { url: u.href };
   }
+  /* Chrome OHNE Adresse starten. Eine Adresse unter /Workflow-PDF/ lässt sich aus der
+     installierten App nicht in Chrome öffnen: der Geltungsbereich der App ist „./", und
+     Android gibt jeden Link dorthin an die installierte App zurück — auch einen, der
+     ausdrücklich an Chrome gerichtet ist (Klaus 2026-09-25, zweimal: „zuck, zuck, und
+     dann ist immer noch der Workflow da"). Ohne Adresse gibt es nichts zurückzugeben. */
+  const CHROME_STARTEN = 'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.android.chrome;end';
   const istAndroid = () => /Android/i.test(navigator.userAgent);
-  // Chrome hat den Sprung nicht angenommen: der Weg, der immer geht (Klaus: kopieren + einfügen).
-  function chromeHinweis(url, kopiert) {
-    dialog(`<h2>Chrome hat sich nicht geöffnet</h2><p data-chromehinweis>${kopiert ? 'Die Adresse liegt schon in der Zwischenablage. ' : ''}So geht es: 1. Chrome öffnen · 2. oben in die Adresszeile tippen · 3. lange drücken und „Einfügen" · 4. öffnen. Die Dokumente sind dort da, der Übersetzer öffnet sich von selbst.</p>
+  // Der Weg, der am Tablet trägt (Klaus: „das Kopieren funktioniert"): kopieren + einfügen.
+  function chromeHinweis(url, kopiert, android) {
+    dialog(`<h2>In Chrome öffnen</h2><p data-chromehinweis>${kopiert ? '✅ Die Adresse liegt in der Zwischenablage. ' : ''}So geht es: 1. Chrome öffnen · 2. oben in die Adresszeile tippen · 3. lange drücken und „Einfügen" · 4. öffnen. Die Dokumente sind dort da, der Übersetzer öffnet sich von selbst.</p>
+      <p class="hinweis">Direkt hinüberspringen geht aus der installierten App nicht: Android schickt jede Adresse dieser App an die App zurück.</p>
       <input readonly data-adr style="width:100%;font-size:12px;padding:6px;border:1px solid #bbb;border-radius:6px">
-      <div class="zeile"><button class="knopf" data-kopie>📋 Nochmal kopieren</button><button class="knopf rot" data-hinok>OK</button></div>`, (d, zu) => {
+      <div class="zeile">${android ? '<button class="knopf" data-chromestart>🌐 Chrome starten</button>' : ''}<button class="knopf" data-kopie>📋 Nochmal kopieren</button><button class="knopf rot" data-hinok>OK</button></div>`, (d, zu) => {
       const f = d.querySelector('[data-adr]'); f.value = url; f.onfocus = () => f.select();
       d.querySelector('[data-kopie]').onclick = async () => { try { await navigator.clipboard.writeText(url); toast('📋 Adresse kopiert.'); } catch (_) { f.focus(); } };
+      if (d.querySelector('[data-chromestart]')) d.querySelector('[data-chromestart]').onclick = () => { window.__wfpdfChromeStart = CHROME_STARTEN; try { location.href = CHROME_STARTEN; } catch (_) {} };
       d.querySelector('[data-hinok]').onclick = zu;
     });
   }
@@ -1093,14 +1096,7 @@
       if (vorher) try { await vorher(); } catch (_) {}
       try { await speichernJetzt(); } catch (_) {}
       if (!istAndroid()) { window.open(a.url, '_blank', 'noopener'); return; }
-      let weg = false; const merk = () => { if (document.visibilityState === 'hidden') weg = true; };
-      document.addEventListener('visibilitychange', merk);
-      try { location.href = a.intent; } catch (_) {}
-      setTimeout(() => {
-        document.removeEventListener('visibilitychange', merk);
-        if (weg) return;   // Chrome hat übernommen
-        chromeHinweis(a.url, kopiert);
-      }, 1800);
+      chromeHinweis(a.url, kopiert, true);
     };
     if (navigator.share) k('📤 Teilen …', 'Teilen mit Chrome oder einem anderen Browser').onclick = async () => {
       const l = lage(); if (!l.ids.length) return toast('Kein Dokument gewählt.');
