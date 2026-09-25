@@ -256,7 +256,7 @@
     return 'Du siehst eine Seite eines Formulars. Rot umrandet und nummeriert sind Stellen, die eine Bilderkennung als mögliche Eingabefelder gefunden hat (' + kand.length + ' Stück). '
       + 'Aufgabe: 1) Sage für JEDE Nummer, ob dort wirklich etwas eingetragen oder angekreuzt wird, und wenn ja, welche Beschriftung aus dem Formular dazugehört und welche Art es ist. '
       + 'Bei Ja/Nein-Kästchen nenne die Frage mit, z. B. "Unfallzeugen: Ja". '
-      + '2) Liste zusätzlich Eingabestellen, die NICHT rot markiert sind, mit Koordinaten in Prozent der Bildbreite und -höhe (0 bis 100, linke obere Ecke). '
+      + '2) Liste zusätzlich Eingabestellen, die NICHT rot markiert sind (die Koordinaten müssen die Eingabefläche selbst treffen, z. B. die graue Fläche oder den Platz über der Linie — NIE die gedruckte Beschriftung daneben oder darüber), mit Koordinaten in Prozent der Bildbreite und -höhe (0 bis 100, linke obere Ecke). '
       + 'Antworte AUSSCHLIESSLICH mit JSON in dieser Form: '
       + '{"text":"der gesamte gedruckte Text der Seite","felder":[{"nr":1,"typ":"text|datum|kaestchen|email|internetadresse|unterschrift","bezeichnung":"...","inhalt":""}],"keinFeld":[5],"zusaetzlich":[{"typ":"text","bezeichnung":"...","x":0,"y":0,"b":0,"h":0}]} '
       + 'Steht in einem Eingabefeld bereits etwas (ausgefüllt, gestempelt, angekreuzt), gib es unter "inhalt" wortgetreu wieder (bei Kästchen true/false); die Beschriftung des Feldes gehört NICHT in "inhalt".';

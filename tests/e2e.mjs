@@ -90,7 +90,7 @@ await page.route('https://api.anthropic.com/**', async route => {
   const bild = body.messages?.[0]?.content?.find(c => c.type === 'image');
   if (bild) kiBild = bild.source.data;
   const antwort = kiNummern ? { text: 'Graues Formular', felder: [{ nr: 1, typ: 'text', bezeichnung: 'KI eins' }, { nr: 3, typ: 'kaestchen', bezeichnung: 'KI drei' }],
-      keinFeld: [2], zusaetzlich: [{ typ: 'text', bezeichnung: 'In Pixeln', x: 700, y: 1500, b: 350, h: 40 }] }
+      keinFeld: [2], zusaetzlich: [{ typ: 'text', bezeichnung: 'In Pixeln', x: 700, y: 1500, b: 350, h: 40 }, { typ: 'text', bezeichnung: 'Auf der Beschriftung', x: 423, y: 295, b: 420, h: 26 }] }
     : { text: 'Anmeldung Testformular\nName:', felder: [
     { typ: 'text', bezeichnung: 'Vollständiger Name', x: 19.5, y: 14.2, b: 47, h: 2.4 },       // absichtlich etwas daneben
     { typ: 'kaestchen', bezeichnung: 'Newsletter', x: 10.4, y: 41.9, b: 2.2, h: 1.6 },
@@ -294,6 +294,7 @@ try {
   ok('KI (Nummern): „keinFeld" nimmt einen Kandidaten heraus', K.filter(f => f.label !== 'In Pixeln').length === offGrau - 1, [K.length, offGrau]);
   const px = K.find(f => f.label === 'In Pixeln');
   ok('KI: Pixel-Koordinaten werden in Prozent umgerechnet', px && Math.abs(px.x - 50) < 0.5 && px.y > 50 && px.y < 95, px);
+  ok('KI: frei gesetztes Feld auf der Beschriftung über einer Fläche wird verworfen', !K.some(f => f.label === 'Auf der Beschriftung'), K.map(f => [f.label, f.y.toFixed(1)]));
   ok('KI bekommt das Bild mit den markierten Stellen', !!kiBild && kiBild.length > 1000);
 
   // 12. Ausfüllen: Tippen trotz Bildschirmtastatur (Fenster wird niedriger)
@@ -337,6 +338,12 @@ try {
   await page.setInputFiles('#inDatei', standPfad);
   await page.waitForFunction(() => window.__wfpdf.S.doc && window.__wfpdf.S.doc.fields.some(f => f.value === 'Getippt'), null, { timeout: 15000 });
   ok('Arbeitsstand eingelesen: Einträge wieder da, älterer Browserstand ersetzt', await page.evaluate(async () => (await WFP.DB.all('docs')).filter(d => d.name === 'Grauformular').length === 1));
+
+  // 13b. Schon vorhandenes, leeres Feld liest bei erneuter Erkennung seinen Inhalt
+  const vnId = await page.evaluate(() => { const f = window.__wfpdf.S.doc.fields.find(f => f.type === 'text' && f.geprueft && Math.abs(f.y - (841.89 - 704) / 841.89 * 100) < 0.6 && f.x < 35); f.value = ''; delete f.decken; return f.id; });
+  await page.click('#mBearbeiten'); { await page.click('#edErkennen'); await page.click('[data-off]'); await page.waitForTimeout(400); await page.waitForFunction(() => !document.querySelector('.fortschritt')); }
+  const vnW = await page.evaluate(id => { const f = window.__wfpdf.S.doc.fields.find(f => f.id === id); return f && f.value; }, vnId);
+  ok('vorhandenes leeres Feld übernimmt den Text in der Fläche', vnW === 'Max Muster', [vnId, vnW, await page.locator('#edErkennen').isVisible()]);
 
   // 14a. Felder erkennen in der Bibliothek: Dokumente einzeln wählen, nichts vorgewählt
   if (await page.locator('#edZurueck').isVisible()) await page.click('#edZurueck');

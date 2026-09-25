@@ -800,6 +800,15 @@
         });
         ER.beschrifte(felder, items);
         inhaltUebernehmen(felder, items, x, c.width, c.height);
+        // schon vorhandene, noch leere Felder lesen ihren Inhalt ebenfalls
+        const leer = d.fields.filter(f => f.page === i && f.type !== 'unterschrift' && f.type !== 'qr' && !f.value);
+        inhaltUebernehmen(leer, items, x, c.width, c.height);
+        for (const f of leer) {
+          if (f.type === 'check') { if (f.angekreuzt) f.value = true; }
+          else if (f.inhalt) { f.value = f.inhalt; f.decken = f.decken || '#ffffff'; if (f.inhalt.includes('\n')) f.mehrzeilig = true; }
+          else delete f.decken;
+          delete f.inhalt; delete f.angekreuzt;
+        }
         if (!d.pages[i].text && items.length) d.pages[i].text = tc.items.map(t => t.str + (t.hasEOL ? '\n' : ' ')).join('').trim();
       } catch (_) {}
       const iou = (a, b) => { const ix = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)), iy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y)); const s = ix * iy; return s / (a.w * a.h + b.w * b.h - s || 1); };
@@ -807,6 +816,11 @@
       let nr = 0;
       for (const f of felder) {
         if (vorhanden.some(v => iou(v, f) > 0.25)) continue;
+        if (f.quelle === 'ki' && !f.eingerastet && vorhanden.concat(felder.filter(g => g !== f && (g.quelle !== 'ki' || g.eingerastet))).some(v => {
+          const ov = Math.min(f.x + f.w, v.x + v.w) - Math.max(f.x, v.x);
+          const unten = v.y - (f.y + f.h);
+          return ov > 0.5 * Math.min(f.w, v.w) && unten > -f.h && unten < 1.0;
+        })) continue;
         nr++;
         const typ = typAusLabel(f);
         vorhanden.push(f);
