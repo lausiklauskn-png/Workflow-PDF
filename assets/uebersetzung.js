@@ -341,7 +341,7 @@
     let halt = false, warte = null;
     flaeche.querySelector('[data-halt]').onclick = () => fn.halt();
     if (typeof opt.tab === 'function') { try { opt.tab(flaeche.querySelector('[data-tab]')); } catch (_) {} }
-    const WARTE = opt.tab ? 'Warte auf Chromes Übersetzung … Fehlt „Übersetzen" (im installierten App-Fenster oft der Fall): „🌐 In Chrome öffnen" tippen — dort geht es mit denselben Seiten weiter.' : 'Warte auf Chromes Übersetzung … (Läuft die App im eigenen Fenster und fehlt „Übersetzen", die Seite im Chrome-Tab öffnen.)';
+    const WARTE = opt.tab ? 'Warte auf Chromes Übersetzung … Fehlt „Übersetzen" (im installierten App-Fenster oft der Fall): „🌐 In Chrome öffnen" tippen — dort geht es mit denselben Seiten weiter.' : 'Warte auf Chromes Übersetzung … Im installierten App-Fenster gibt es ⋮ → „Übersetzen" nicht — dann ⏹ Abbrechen und einen anderen Weg wählen (Übersetzer im Browser oder KI).';
     const beob = new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(markiere)));
     let offen = false;
     function auf() {
