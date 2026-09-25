@@ -91,7 +91,7 @@ await page.route('https://api.anthropic.com/**', async route => {
   const bild = body.messages?.[0]?.content?.find(c => c.type === 'image');
   if (bild) kiBild = bild.source.data;
   const antwort = kiNummern ? { text: 'Graues Formular', felder: [{ nr: 1, typ: 'text', bezeichnung: 'KI eins' }, { nr: 3, typ: 'kaestchen', bezeichnung: 'KI drei' }],
-      keinFeld: [2], zusaetzlich: [{ typ: 'text', bezeichnung: 'In Pixeln', x: 700, y: 1500, b: 350, h: 40 }, { typ: 'text', bezeichnung: 'Auf der Beschriftung', x: 423, y: 295, b: 420, h: 26 }] }
+      keinFeld: [2], zusaetzlich: [{ typ: 'text', bezeichnung: 'In Pixeln', x: 700, y: 1500, b: 350, h: 40 }, { typ: 'text', bezeichnung: 'Auf der Beschriftung', x: 423, y: 295, b: 420, h: 26 }, { typ: 'text', bezeichnung: 'KI eins', x: 100, y: 1800, b: 300, h: 30 }] }
     : { text: 'Anmeldung Testformular\nName:', felder: [
     { typ: 'text', bezeichnung: 'Vollständiger Name', x: 19.5, y: 14.2, b: 47, h: 2.4 },       // absichtlich etwas daneben
     { typ: 'kaestchen', bezeichnung: 'Newsletter', x: 10.4, y: 41.9, b: 2.2, h: 1.6 },
@@ -302,6 +302,7 @@ try {
   const px = K.find(f => f.label === 'In Pixeln');
   ok('KI: Pixel-Koordinaten werden in Prozent umgerechnet', px && Math.abs(px.x - 50) < 0.5 && px.y > 50 && px.y < 95, px);
   ok('KI: frei gesetztes Feld auf der Beschriftung über einer Fläche wird verworfen', !K.some(f => f.label === 'Auf der Beschriftung'), K.map(f => [f.label, f.y.toFixed(1)]));
+  ok('KI: frei gesetztes Feld mit derselben Bezeichnung wie ein vorhandenes wird verworfen', K.filter(f => f.label === 'KI eins').length === 1, K.filter(f => f.label === 'KI eins').map(f => f.y.toFixed(1)));
   ok('KI bekommt das Bild mit den markierten Stellen', !!kiBild && kiBild.length > 1000);
 
   // 12. Ausfüllen: Tippen trotz Bildschirmtastatur (Fenster wird niedriger)
