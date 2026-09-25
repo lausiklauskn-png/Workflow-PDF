@@ -2,10 +2,10 @@
    Cacht die SCHALE (App-Dateien), niemals Dokumente: die liegen in IndexedDB.
    Wer eine Datei aus SCHALE ändert, erhöht CACHE_VERSION — sonst liefert der
    Worker die alte Fassung weiter. */
-const CACHE_VERSION = 'workfloh-pdf-v14';
+const CACHE_VERSION = 'workfloh-pdf-v15';
 const SCHALE = [
   './', './index.html', './impressum.html', './manifest.webmanifest',
-  './assets/style.css?v=8', './assets/db.js?v=2', './assets/erkennung.js?v=4', './assets/blatt.js?v=1', './assets/export.js?v=6', './assets/html-export.js?v=1', './assets/uebersetzung.js?v=2', './assets/app.js?v=14',
+  './assets/style.css?v=8', './assets/db.js?v=2', './assets/erkennung.js?v=4', './assets/blatt.js?v=1', './assets/export.js?v=6', './assets/html-export.js?v=1', './assets/uebersetzung.js?v=3', './assets/app.js?v=15',
   './vendor/pdfjs/pdf.min.js', './vendor/pdfjs/pdf.worker.min.js', './vendor/pdf-lib.min.js', './vendor/qrcode.js', './vendor/fontkit.umd.min.js', './vendor/fonts/NotoSans-Regular.ttf',
   './icons/w-floh-160.png', './icons/favicon-32.png?v=1', './icons/favicon-64.png?v=1',
   './icons/icon-192.png?v=1', './icons/icon-512.png?v=1', './icons/icon-512-maskable.png?v=1', './icons/apple-touch-icon.png?v=1'

@@ -286,7 +286,7 @@
     const pdf = await pdfjsLib.getDocument({ data: opt.bytes.slice(0) }).promise;
     const n = pdf.numPages;
     const stand = opt.stand && opt.stand.seiten && opt.stand.seiten.length === n ? opt.stand : { seiten: new Array(n).fill(null) };
-    const t0 = Date.now(); let neu = 0, abgebrochen = false, ocrWorker = null, ocrSeiten = 0, ocrFehler = '';
+    const t0 = Date.now(); let neu = 0, abgebrochen = false, fehler = '', ocrWorker = null, ocrSeiten = 0, ocrFehler = '';
     try {
       for (let i = 0; i < n; i++) {
         if (stand.seiten[i]) continue;
@@ -311,7 +311,12 @@
         b.forEach(x => x.push(...farben(bild, scale, x)));
         bild.width = bild.height = 0; bild = null;
         const texte = r.bloecke.map(b => b.t);
-        const u = texte.length ? (await opt.uebersetzer(texte)).map(zeichenNormal) : [];
+        // Scheitert der Übersetzer (Kontingent, 429, Netz), bleibt das Übersetzte
+        // gespeichert, und der Lauf meldet den Grund, statt ihn zu werfen —
+        // sonst ginge die Teilübersetzung für den Aufrufer verloren.
+        let u;
+        try { u = texte.length ? (await opt.uebersetzer(texte)).map(zeichenNormal) : []; }
+        catch (e) { fehler = (e && e.message) || String(e); break; }
         stand.seiten[i] = { b, u, gedreht: r.gedreht, t: r.t, ocr };
         neu++;
         if (opt.speichere) await opt.speichere(stand);
@@ -319,7 +324,7 @@
       }
     } finally { try { pdf.destroy(); } catch (_) {} if (ocrWorker) { try { await ocrWorker.terminate(); } catch (_) {} } }
     const fertig = stand.seiten.filter(Boolean).length;
-    return { stand, n, fertig, abgebrochen: abgebrochen || fertig < n, ms: Date.now() - t0, neu, ocrSeiten, ocrFehler };
+    return { stand, n, fertig, abgebrochen: abgebrochen || fertig < n, fehler, ms: Date.now() - t0, neu, ocrSeiten, ocrFehler };
   }
 
   // Gegenprobe: dieselben Absätze, Übersetzung zurück — ohne die Seiten neu zu lesen
