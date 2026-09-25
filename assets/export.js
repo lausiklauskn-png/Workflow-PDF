@@ -178,6 +178,16 @@
     }
     if (ersetztGesamt) hinweise.push(ersetztGesamt + ' Zeichen ließen sich mit der PDF-Standardschrift nicht darstellen und wurden durch „?" ersetzt.');
     if (form && modus !== 'fest') { try { form.updateFieldAppearances(font); } catch (_) {} }
+    // Standard-Ressourcen des Formulars (/DR, /DA). pdf-lib lässt sie weg; Programme,
+    // die beim Ausfüllen das Feldbild neu zeichnen (Acrobat, Android-Anzeigen),
+    // finden die Schrift sonst nicht und zeigen den Text nicht an.
+    if (form && modus !== 'fest') {
+      try {
+        const af = form.acroForm.dict;
+        af.set(PDFLib.PDFName.of('DR'), pdf.context.obj({ Font: { Helvetica: font.ref } }));
+        af.set(PDFLib.PDFName.of('DA'), PDFLib.PDFString.of('/Helvetica 0 Tf 0 g'));
+      } catch (_) {}
+    }
     pdf.setTitle(doc.name || 'Workfloh PDF');
     pdf.setProducer('Workfloh PDF');
     pdf.setCreator('Workflow PDF (lausiklauskn-png.github.io/Workflow-PDF)');

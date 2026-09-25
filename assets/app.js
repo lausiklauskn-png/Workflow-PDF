@@ -871,7 +871,7 @@
     dialog(`<h2>⬇ PDF ausgeben</h2>
       ${n ? `<p class="ki-hinweis">🤖 ${n} Vorschläge sind noch nicht geprüft. Sie werden mit ausgegeben.</p>` : ''}
       <button class="wahl" data-m="fest"><b>📄 Festes PDF</b><span>Die eingetragenen Inhalte werden Teil der Seite. Zum Verschicken, Ablegen, Drucken.</span></button>
-      <button class="wahl" data-m="ausfuellbar"><b>📝 Ausfüllbares PDF</b><span>Echte PDF-Formularfelder, vorbelegt mit deinen Einträgen. Der Empfänger kann sie ändern und speichern.</span></button>
+      <button class="wahl" data-m="ausfuellbar"><b>📝 Ausfüllbares PDF</b><span>Echte PDF-Formularfelder, vorbelegt mit deinen Einträgen. Der Empfänger kann sie ändern und speichern. Ausfüllen geht in Adobe Acrobat Reader oder Chrome am Computer; die PDF-Anzeige von „Dateien" oder Google Drive am Handy zeigt oft nur die Kästchen — dafür gibt es die HTML-Fassung.</span></button>
       <button class="wahl" data-m="vorlage"><b>📝 Leere ausfüllbare Vorlage</b><span>Echte Formularfelder, alle leer. Der Empfänger füllt selbst aus.</span></button>
       <button class="wahl" data-m="html"><b>🌐 Zum Ausfüllen im Browser (HTML)</b><span>Eine Datei, die sich in jedem Browser öffnet und dort ausfüllen lässt — auch wo die PDF-Anzeige keine Formularfelder kann. Danach im Browser „Als PDF speichern".</span></button>
       <button class="wahl" data-m="druck"><b>🖨 Ansehen / Drucken</b><span>Öffnet das feste PDF in der PDF-Anzeige des Geräts.</span></button>
