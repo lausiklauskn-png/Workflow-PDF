@@ -18,7 +18,9 @@
   const ERSATZ = { '–': '-', '—': '-', '„': '"', '“': '"', '”': '"', '‚': "'", '‘': "'", '’': "'", '…': '...', ' ': ' ', '→': '->', '✓': 'x', '✔': 'x' };
   function saeubern(font, s) {
     let out = '', ersetzt = 0;
-    for (const ch of String(s || '')) {
+    // Zerlegte Umlaute (u + U+0308) zu einem Zeichen, sonst wird aus „ü" ein „u?"
+    s = String(s || '').replace(/[\uFB00-\uFB06]/g, c => ({ 'ﬀ': 'ff', 'ﬁ': 'fi', 'ﬂ': 'fl', 'ﬃ': 'ffi', 'ﬄ': 'ffl', 'ﬅ': 'st', 'ﬆ': 'st' })[c] || c).normalize('NFC');
+    for (const ch of s) {
       const c = ERSATZ[ch] != null ? ERSATZ[ch] : ch;
       if (c === '\n' || c === '\r') { out += c; continue; }
       try { font.widthOfTextAtSize(c, 10); out += c; } catch (_) { out += '?'; ersetzt++; }
@@ -68,10 +70,28 @@
     return n;
   }
 
-  async function exportieren(doc, bytes, modus) {
+  // WinAnsi reicht? (Helvetica kann Umlaute, aber kein Kyrillisch)
+  function brauchtUnicode(font, s) {
+    for (const ch of String(s || '')) { if (ERSATZ[ch] != null || ch === '\n' || ch === '\r') continue; try { font.widthOfTextAtSize(ch, 10); } catch (_) { return true; } }
+    return false;
+  }
+  /* opt.schrift: Bytes einer Unicode-Schrift (Noto Sans) + window.fontkit.
+     Dann werden Einträge, die Helvetica nicht kann (Kyrillisch), in dieser Schrift
+     gesetzt statt durch „?" ersetzt. opt.unicodeFelder: auch LEERE Textfelder
+     bekommen sie (Formular zum Ausfüllen auf Russisch) — dann ganz eingebettet,
+     sonst fehlten beim Tippen Zeichen. Ohne opt: unverändert Helvetica. */
+  async function exportieren(doc, bytes, modus, opt) {
     const { PDFDocument, StandardFonts, rgb, degrees } = PDFLib;
+    opt = opt || {};
     const pdf = await PDFDocument.load(bytes, { ignoreEncryption: true });
     const font = await pdf.embedFont(StandardFonts.Helvetica);
+    let fontU = null;
+    const fuerFeld = modus !== 'fest' && !!opt.unicodeFelder;
+    const unicodeNoetig = fuerFeld || doc.fields.some(f => f.type !== 'check' && f.type !== 'qr' && f.type !== 'unterschrift' && modus !== 'vorlage' && brauchtUnicode(font, f.value));
+    if (unicodeNoetig && opt.schrift && window.fontkit) {
+      try { pdf.registerFontkit(window.fontkit); fontU = await pdf.embedFont(opt.schrift, { subset: modus === 'fest' }); } catch (_) { fontU = null; }
+    }
+    const fontFuer = s => (fontU && (fuerFeld || brauchtUnicode(font, s))) ? fontU : font;
     const pages = pdf.getPages();
     const hinweise = [];
     let ersetztGesamt = 0;
@@ -139,15 +159,16 @@
           continue;
         }
         if (!wert) continue;
-        const { text, ersetzt } = saeubern(font, wert); ersetztGesamt += ersetzt;
-        const { size, zeilen } = passendeGroesse(font, text, bw, bh, !!f.mehrzeilig);
+        const fnt = fontFuer(wert);
+        const { text, ersetzt } = saeubern(fnt, wert); ersetztGesamt += ersetzt;
+        const { size, zeilen } = passendeGroesse(fnt, text, bw, bh, !!f.mehrzeilig);
         const zeilenH = size * 1.18;
         const blockH = zeilen.length * zeilenH;
         const oben = f.mehrzeilig ? Math.max(0, (bh - blockH) / 2) : 0;
         zeilen.forEach((z, i) => {
           const base = f.mehrzeilig ? oben + (i + 1) * zeilenH - size * 0.22 : bh / 2 + size * 0.34;
           const a = p(1, base);
-          page.drawText(z, { x: a[0], y: a[1], size, font, color: rgb(0, 0, 0.12), rotate: degrees(winkel) });
+          page.drawText(z, { x: a[0], y: a[1], size, font: fnt, color: rgb(0, 0, 0.12), rotate: degrees(winkel) });
         });
         continue;
       }
@@ -157,26 +178,28 @@
       // pdf-lib dreht das Widget-Rechteck selbst um seinen Anker (x, y). Deshalb:
       // Breite/Höhe in Anzeige-Richtung, Anker = linke untere Ecke der ANZEIGE.
       const anker = p(0, bh);
-      const opt = { x: anker[0], y: anker[1], width: bw, height: bh, rotate: degrees(((winkel % 360) + 360) % 360), backgroundColor: rgb(0.91, 0.94, 1), borderColor: rgb(0.45, 0.58, 0.9), borderWidth: 0.6 };
+      const wopt = { x: anker[0], y: anker[1], width: bw, height: bh, rotate: degrees(((winkel % 360) + 360) % 360), backgroundColor: rgb(0.91, 0.94, 1), borderColor: rgb(0.45, 0.58, 0.9), borderWidth: 0.6 };
       if (f.type === 'check') {
         const cb = form.createCheckBox(name);
         // Kästchen ohne Füllung: sonst deckt der Hintergrund einen gedruckten Haken ab
-        cb.addToPage(page, Object.assign({}, opt, { backgroundColor: undefined }));
+        cb.addToPage(page, Object.assign({}, wopt, { backgroundColor: undefined }));
         if (modus === 'ausfuellbar' && wert) cb.check();
         continue;
       }
       const tf = form.createTextField(name);
       if (f.mehrzeilig) tf.enableMultiline();
       let gross = Math.max(5, Math.min(12, bh * (f.mehrzeilig ? 0.34 : 0.62)));
+      const fnt = fontFuer(modus === 'ausfuellbar' ? wert : '');
       if (modus === 'ausfuellbar' && wert) {
-        const { text, ersetzt } = saeubern(font, wert); ersetztGesamt += ersetzt;
+        const { text, ersetzt } = saeubern(fnt, wert); ersetztGesamt += ersetzt;
         tf.setText(text);
-        gross = Math.min(gross, passendeGroesse(font, text, bw, bh, !!f.mehrzeilig).size);
+        gross = Math.min(gross, passendeGroesse(fnt, text, bw, bh, !!f.mehrzeilig).size);
       }
-      tf.addToPage(page, Object.assign({ font }, opt));   // erst danach gibt es einen /DA-Eintrag
+      tf.addToPage(page, Object.assign({ font: fnt }, wopt));   // erst danach gibt es einen /DA-Eintrag
       tf.setFontSize(gross);
+      if (fnt !== font) { try { tf.updateAppearances(fnt); } catch (_) {} }
     }
-    if (ersetztGesamt) hinweise.push(ersetztGesamt + ' Zeichen ließen sich mit der PDF-Standardschrift nicht darstellen und wurden durch „?" ersetzt.');
+    if (ersetztGesamt) hinweise.push(ersetztGesamt + ' Zeichen ließen sich mit der PDF-Standardschrift nicht darstellen und wurden durch „?" ersetzt.' + (unicodeNoetig && !fontU ? ' (Die Schrift für Kyrillisch war nicht geladen.)' : ''));
     if (form && modus !== 'fest') { try { form.updateFieldAppearances(font); } catch (_) {} }
     // Standard-Ressourcen des Formulars (/DR, /DA). pdf-lib lässt sie weg; Programme,
     // die beim Ausfüllen das Feldbild neu zeichnen (Acrobat, Android-Anzeigen),
@@ -184,7 +207,8 @@
     if (form && modus !== 'fest') {
       try {
         const af = form.acroForm.dict;
-        af.set(PDFLib.PDFName.of('DR'), pdf.context.obj({ Font: { Helvetica: font.ref } }));
+        const dr = { Helvetica: font.ref }; if (fontU) dr[fontU.name] = fontU.ref;   // Schlüssel = Name in /DA
+        af.set(PDFLib.PDFName.of('DR'), pdf.context.obj({ Font: dr }));
         af.set(PDFLib.PDFName.of('DA'), PDFLib.PDFString.of('/Helvetica 0 Tf 0 g'));
       } catch (_) {}
     }
@@ -201,7 +225,8 @@
     const pdf = await PDFDocument.create();
     for (const b of bilder) {
       const img = await pdf.embedJpg(b.bytes);
-      const breite = 595.28, hoehe = breite * img.height / img.width;
+      // b.seite: A4 (hoch/quer), wenn das Foto aufs Blatt gebracht wurde (assets/blatt.js)
+      const breite = b.seite ? b.seite[0] : 595.28, hoehe = b.seite ? b.seite[1] : breite * img.height / img.width;
       const page = pdf.addPage([breite, hoehe]);
       page.drawImage(img, { x: 0, y: 0, width: breite, height: hoehe });
     }

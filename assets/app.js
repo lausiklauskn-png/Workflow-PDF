@@ -147,7 +147,7 @@
       const v = offeneVorschlaege(d), ord = S.ordner.find(x => x.id === d.folderId);
       return `<div class="dok" data-id="${d.id}">
         <button class="dok-bild" data-auf style="background-image:url('${d.thumb || ''}')" title="Öffnen">
-          <span class="marken">${v ? `<span class="marke-klein ki">🤖 ${v} zu prüfen</span>` : ''}${d.quelle === 'foto' ? '<span class="marke-klein">📷 Foto</span>' : ''}${d.uebersetzung ? `<span class="marke-klein">🌐 ${h((d.uebersetzung.von || '').toUpperCase())}→${h((d.uebersetzung.nach || '').toUpperCase())}${d.uebersetzung.gegenprobe ? ' Gegenprobe' : ''}</span>` : ''}</span></button>
+          <span class="marken">${v ? `<span class="marke-klein ki">🤖 ${v} zu prüfen</span>` : ''}${d.quelle === 'foto' ? '<span class="marke-klein">📷 Foto</span>' : ''}${d.uebersetzung ? `<span class="marke-klein">🌐 ${h((d.uebersetzung.von || '').toUpperCase())}→${h((d.uebersetzung.nach || '').toUpperCase())}${d.uebersetzung.gegenprobe ? ' Gegenprobe' : ''}</span>` : ''}${d.ausgefuellt ? `<span class="marke-klein">↩ ausgefüllt aus ${h((d.ausgefuellt.aus || '').toUpperCase())}</span>` : ''}</span></button>
         <div class="dok-info"><div class="dok-name" title="${h(d.name)}">${h(d.name)}</div>
           <div class="dok-meta">${d.pages.length} Seite${d.pages.length === 1 ? '' : 'n'} · ${d.fields.length} Feld${d.fields.length === 1 ? '' : 'er'}${ord && S.aktOrdner === 'alle' ? ' · 🗂️ ' + h(ord.name) : ''}</div></div>
         <div class="dok-akt"><button data-auf title="Öffnen">✏️</button><button data-verschieben title="In Ordner verschieben">🗂️</button><button data-kopie title="Duplizieren (z. B. als Vorlage)">⧉</button><button data-loeschen title="Löschen">🗑</button></div></div>`;
@@ -195,6 +195,9 @@
 
   // Foto verkleinern statt abweisen (Lehre aus den Rezeptbüchern): die Kamera
   // entscheidet die Auflösung, nicht der Nutzer. Lange Kante ≤ 2400 px, JPEG.
+  // Seit 2026-09-25: das Blatt im Foto wird gesucht und auf A4 gerade gezogen
+  // (assets/blatt.js) — ein Brief vom Amt soll ausgedruckt so groß sein wie
+  // vorher. Beide Fassungen werden behalten, damit man umschalten kann.
   async function bildNormalisieren(file) {
     let bmp = null;
     try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch (_) {
@@ -206,9 +209,17 @@
     const f = Math.min(1, 2400 / Math.max(w0, h0));
     const c = document.createElement('canvas'); c.width = Math.round(w0 * f); c.height = Math.round(h0 * f);
     const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(bmp, 0, 0, c.width, c.height);
-    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.88));
-    return { bytes: new Uint8Array(await blob.arrayBuffer()), vorschau: c.toDataURL('image/jpeg', 0.5) };
+    const BL = window.WFP && WFP.Blatt;
+    if (!BL) { const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.88)); return { bytes: new Uint8Array(await blob.arrayBuffer()), vorschau: c.toDataURL('image/jpeg', 0.5) }; }
+    const fund = BL.finden(c);
+    const fassung = async cv => ({ bytes: new Uint8Array(await (await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.88))).arrayBuffer()), vorschau: cv.toDataURL('image/jpeg', 0.5), seite: cv.width > cv.height ? [BL.A4.h, BL.A4.w] : [BL.A4.w, BL.A4.h] });
+    const ganz = await fassung(BL.aufA4(c));
+    const gerade = fund.sicher ? await fassung(BL.entzerren(c, fund.ecken, fund.quer)) : null;
+    const b = Object.assign({}, gerade || ganz, { blatt: { erkannt: !!gerade, grund: fund.grund || '', anteil: Math.round(fund.anteil * 100) / 100 }, fassungen: { gerade, ganz }, gewaehlt: gerade ? 'gerade' : 'ganz' });
+    window.__wfpdfBlatt = { erkannt: !!gerade, grund: fund.grund || '', ecken: fund.ecken, quelle: [c.width, c.height] };
+    return b;
   }
+  function fassungWaehlen(b, welche) { const v = b.fassungen && b.fassungen[welche]; if (!v) return; Object.assign(b, v); b.gewaehlt = welche; }
 
   async function seitenInfo(pdf) {
     const pages = [];
@@ -352,6 +363,7 @@
     if (!file) return;
     try {
       const b = await bildNormalisieren(file);
+      if (!S.aufnahme.length) S.aufnahmeUe = ziel === 'uebersetzung';   // kein alter Merker aus einer abgebrochenen Aufnahme
       if (ziel === 'anhang' && S.doc) { await seitenAnhaengen([await EX.bilderZuPdf([b])]); return; }
       S.aufnahme.push(b); aufnahmeDialog();
     } catch (e) { toast('⚠️ ' + (e.message || e)); }
@@ -361,17 +373,20 @@
     if (_aufZu) _aufZu();
     _aufZu = dialog(`<h2>📷 Formular fotografieren</h2>
       <p class="hinweis">Blatt gerade und gut beleuchtet aufnehmen. Weitere Seiten einfach dazunehmen.</p>
-      <div class="aufnahme-bilder">${S.aufnahme.map((b, i) => `<div style="background-image:url('${b.vorschau}')"><button data-weg="${i}" title="Seite entfernen">✕</button></div>`).join('')}</div>
+      <div class="aufnahme-bilder">${S.aufnahme.map((b, i) => `<div style="background-image:url('${b.vorschau}')"><button data-weg="${i}" title="Seite entfernen">✕</button>${b.fassungen && b.fassungen.gerade ? `<button class="blatt-um" data-um="${i}" title="Zwischen gerade gezogenem Blatt und ganzem Foto umschalten">${b.gewaehlt === 'gerade' ? '✂ Blatt · A4' : '▢ ganzes Foto'}</button>` : `<span class="blatt-um" title="${h((b.blatt && b.blatt.grund) || '')}">▢ Blatt nicht erkannt</span>`}</div>`).join('')}</div>
+      <p class="hinweis">Das Blatt wird im Foto gesucht und auf <b>A4</b> gerade gezogen — ausgedruckt (Drucker auf „Tatsächliche Größe / 100 %") ist es so groß wie das Papier, mit seinem Rand. Wird der Rand nicht sicher erkannt, bleibt das ganze Foto auf A4 und nichts wird abgeschnitten. Tipp: Blatt auf einen dunklen Untergrund legen.</p>
       <div class="zeile"><button class="knopf" data-x>Verwerfen</button><button class="knopf" data-mehr>📷 Weitere Seite</button><button class="knopf rot" data-ok>✓ Dokument erstellen (${S.aufnahme.length} Seite${S.aufnahme.length === 1 ? '' : 'n'})</button></div>`,
       (d, zu) => {
+        d.querySelectorAll('[data-um]').forEach(b => b.onclick = () => { const a = S.aufnahme[+b.dataset.um]; fassungWaehlen(a, a.gewaehlt === 'gerade' ? 'ganz' : 'gerade'); aufnahmeDialog(); });
         d.querySelectorAll('[data-weg]').forEach(b => b.onclick = () => { S.aufnahme.splice(+b.dataset.weg, 1); if (S.aufnahme.length) aufnahmeDialog(); else { zu(); _aufZu = null; } });
-        d.querySelector('[data-x]').onclick = () => { S.aufnahme = []; zu(); _aufZu = null; };
-        d.querySelector('[data-mehr]').onclick = () => { S.aufnahmeZiel = 'neu'; $('inKamera').click(); };
+        d.querySelector('[data-x]').onclick = () => { S.aufnahme = []; S.aufnahmeUe = false; zu(); _aufZu = null; };
+        d.querySelector('[data-mehr]').onclick = () => { S.aufnahmeZiel = S.aufnahmeUe ? 'uebersetzung' : 'neu'; $('inKamera').click(); };
         d.querySelector('[data-ok]').onclick = async () => {
           zu(); _aufZu = null;
-          const bilder = S.aufnahme; S.aufnahme = [];
+          const bilder = S.aufnahme; S.aufnahme = []; const fuerUe = S.aufnahmeUe; S.aufnahmeUe = false;
           try {
             const bytes = await EX.bilderZuPdf(bilder);
+            if (fuerUe) { await ueFotoAblegen(bytes); return; }
             const folderId = S.ordner.some(o => o.id === S.aktOrdner) ? S.aktOrdner : null;
             const name = 'Foto-Formular ' + new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
             const doc = await neuesDok(name, bytes, 'foto', folderId);
@@ -382,20 +397,29 @@
   }
 
   /* ---------- Editor ---------- */
+  // Öffnen ist asynchron (PDF laden): wer inzwischen zurück tippt oder ein anderes
+  // Dokument öffnet, darf nicht von einem verspäteten Öffnen überholt werden.
+  let _oeffnenNr = 0;
   async function oeffneDok(id) {
+    const nr = ++_oeffnenNr;
     const d = await DB.get('docs', id); const b = await DB.getFile(id);
+    if (nr !== _oeffnenNr) return;
     if (!d || !b) { toast('⚠️ Dokument nicht gefunden'); return; }
     if (S.pdf) { try { S.pdf.destroy(); } catch (_) {} }
     S.doc = d; S.bytes = b; S.sel = null; S.platzieren = null; S.zoom = 1;
     S.modus = d.fields.length && !offeneVorschlaege(d) ? 'ausfuellen' : 'bearbeiten';
-    try { S.pdf = await pdfjsLib.getDocument({ data: b.slice(0) }).promise; }
-    catch (e) { toast('⚠️ PDF lässt sich nicht öffnen: ' + (e.message || e)); return; }
+    let pdf;
+    try { pdf = await pdfjsLib.getDocument({ data: b.slice(0) }).promise; }
+    catch (e) { if (nr === _oeffnenNr) toast('⚠️ PDF lässt sich nicht öffnen: ' + (e.message || e)); return; }
+    if (nr !== _oeffnenNr || S.doc !== d) { try { pdf.destroy(); } catch (_) {} return; }
+    S.pdf = pdf;
     $('sc-bib').classList.remove('on'); $('sc-ed').classList.add('on');
     $('edName').value = d.name; $('kopfSub').textContent = d.name;
     history.pushState({ ed: 1 }, '', '#dok');
     zeichneSeiten(); zeichneModus();
   }
   async function schliesseEditor(ohneHistory) {
+    _oeffnenNr++;
     await speichernJetzt();
     $('sc-ed').classList.remove('on'); $('sc-bib').classList.add('on');
     $('kopfSub').textContent = 'Formulare einlesen · Felder setzen · PDF ausgeben';
@@ -827,6 +851,9 @@
           return { str: t.str, x: tr[4] / c.width * 100, y: (tr[5] - fh) / c.height * 100, w: t.width * vp.scale / c.width * 100, h: fh / c.height * 100 };
         });
         ER.beschrifte(felder, items);
+        // Übersetztes Dokument: unter der Übersetzung liegt der Originaltext abgedeckt —
+        // er ist kein Inhalt eines Feldes und darf nicht als Eintrag gelesen werden.
+        if (d.uebersetzung) { felder.forEach(f => { delete f.inhalt; delete f.angekreuzt; }); items.length = 0; }
         inhaltUebernehmen(felder, items, x, c.width, c.height);
         // schon vorhandene, noch leere Felder lesen ihren Inhalt ebenfalls
         const leer = d.fields.filter(f => f.page === i && f.type !== 'unterschrift' && f.type !== 'qr' && !f.value);
@@ -873,6 +900,13 @@
   }
 
   /* ---------- Export ---------- */
+  // Seitengröße nennen: ausgedruckt soll ein Brief so groß sein wie das Papier
+  function formatText(d) {
+    const p = d && d.pages && d.pages[0]; if (!p) return '';
+    const mm = v => Math.round(v / 72 * 25.4);
+    const w = mm(p.w), hh = mm(p.h), a4 = (Math.abs(w - 210) <= 1 && Math.abs(hh - 297) <= 1) ? 'A4 hoch' : (Math.abs(w - 297) <= 1 && Math.abs(hh - 210) <= 1) ? 'A4 quer' : '';
+    return `📏 Seitengröße: ${a4 ? a4 + ' · ' : ''}${w} × ${hh} mm — die Ausgabe behält sie. Beim Drucken „Tatsächliche Größe / 100 %" wählen, nicht „An Seite anpassen", dann ist der Ausdruck so groß wie das Original, mit demselben Rand.`;
+  }
   function exportDialog() {
     const n = offeneVorschlaege(S.doc);
     dialog(`<h2>⬇ PDF ausgeben</h2>
@@ -882,9 +916,12 @@
       <button class="wahl" data-m="vorlage"><b>📝 Leere ausfüllbare Vorlage</b><span>Echte Formularfelder, alle leer. Der Empfänger füllt selbst aus.</span></button>
       <button class="wahl" data-m="html"><b>🌐 Zum Ausfüllen im Browser (HTML)</b><span>Eine Datei, die sich in jedem Browser öffnet und dort ausfüllen lässt — auch wo die PDF-Anzeige keine Formularfelder kann. Danach im Browser „Als PDF speichern".</span></button>
       <button class="wahl" data-m="druck"><b>🖨 Ansehen / Drucken</b><span>Öffnet das feste PDF in der PDF-Anzeige des Geräts.</span></button>
+      ${rueckwegMoeglich(S.doc) ? `<button class="wahl" data-rueckweg><b>↩ Einträge ins Original (${h((S.doc.uebersetzung.von || '').toUpperCase())})</b><span>Die Einträge zurückübersetzen und in eine Kopie des Originals „${h(S.doc.uebersetzung.von.toUpperCase())}" an dieselben Stellen setzen.</span></button>` : ''}
+      <p class="hinweis" data-format>${formatText(S.doc)}</p>
       <p class="hinweis">QR-Codes stehen in allen Fassungen als festes Bild auf der Seite. Datum, E-Mail und Internetadresse sind im ausfüllbaren PDF gewöhnliche Textfelder.</p>
       <div class="zeile"><button class="knopf" data-x>Schließen</button></div>`, (d, zu) => {
       d.querySelector('[data-x]').onclick = zu;
+      if (d.querySelector('[data-rueckweg]')) d.querySelector('[data-rueckweg]').onclick = () => { zu(); rueckwegDialog(S.doc.id); };
       d.querySelectorAll('[data-m]').forEach(b => b.onclick = async () => {
         const m = b.dataset.m; b.disabled = true;
         try {
@@ -897,7 +934,11 @@
             toast('✅ HTML gespeichert — im Browser öffnen, ausfüllen, dann „Als PDF speichern".');
             return;
           }
-          const { bytes, hinweise } = await EX.exportieren(S.doc, S.bytes, m === 'druck' ? 'fest' : m);
+          // Kyrillische Einträge (oder ein Formular zum Ausfüllen auf Russisch) brauchen
+          // eine Unicode-Schrift — die Standardschrift machte daraus „?".
+          const kyr = !!(S.doc.uebersetzung && S.doc.uebersetzung.nach === 'ru') || S.doc.fields.some(f => typeof f.value === 'string' && /[^\u0000-\u024F\u2000-\u206F€]/.test(f.value));
+          let schrift = null; if (kyr) { try { schrift = await UE.schriftLaden('vendor/'); } catch (_) {} }
+          const { bytes, hinweise } = await EX.exportieren(S.doc, S.bytes, m === 'druck' ? 'fest' : m, { schrift, unicodeFelder: !!(S.doc.uebersetzung && S.doc.uebersetzung.nach === 'ru') });
           const zusatz = { fest: '', ausfuellbar: ' (ausfuellbar)', vorlage: ' (Vorlage)', druck: '' }[m];
           if (m === 'druck') {
             const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
@@ -947,18 +988,20 @@
     dialog(`<h2>🌐 Übersetzen</h2>
       <p>Ein eigener Bereich: die Originale kommen in einen eigenen, frei benannten Ordner (z. B. „Handbücher", „Verträge"), die Übersetzungen in eigene Ordner je Sprache. Nichts mischt sich mit deinen bearbeiteten Formularen, und das Original bleibt unberührt.</p>
       <button class="wahl" data-uo><b>🗂️ Ordner vom Gerät übersetzen</b><span>Alle PDFs eines Ordners, beliebig viele Seiten. Jede Seite wird einzeln übersetzt und sofort gespeichert.</span></button>
-      <button class="wahl" data-ud><b>📄 Einzelne PDFs übersetzen</b><span>Eine oder mehrere PDF-Dateien wählen.</span></button>
+      <button class="wahl" data-ud><b>📄 Einzelne PDFs oder Bilder übersetzen</b><span>Eine oder mehrere PDF-Dateien oder Fotos (JPG, PNG) wählen. Bei Fotos wird das Blatt gesucht und auf A4 gerade gezogen.</span></button>
+      <button class="wahl" data-uk><b>📷 Brief fotografieren</b><span>Papierbrief (z. B. vom Amt) Seite für Seite aufnehmen. Das Blatt wird auf A4 gerade gezogen — ausgedruckt wieder so groß wie das Papier. Die Texterkennung liest ihn auf dem Gerät.</span></button>
       ${quellen.length ? `<p style="margin-top:12px"><b>… oder einen Ordner, der schon hier liegt:</b></p>${quellen.map(o => `<button class="wahl" data-o="${o.id}"><b>${o.bereich === 'uebersetzung' ? '🌐 ' : '🗂️ '}${h(o.name)}</b><span>${S.docs.filter(d => d.folderId === o.id && !d.uebersetzung).length} Dokumente</span></button>`).join('')}` : ''}
       <div class="zeile"><button class="knopf" data-x>Abbrechen</button></div>`, (dl, zu) => {
       dl.querySelector('[data-x]').onclick = zu;
       dl.querySelector('[data-uo]').onclick = () => { zu(); $('inUeOrdner').click(); };
       dl.querySelector('[data-ud]').onclick = () => { zu(); $('inUeDateien').click(); };
+      dl.querySelector('[data-uk]').onclick = () => { zu(); S.aufnahmeZiel = 'uebersetzung'; S.aufnahmeUe = true; $('inKamera').click(); };
       dl.querySelectorAll('[data-o]').forEach(b => b.onclick = () => { zu(); S.aktOrdner = b.dataset.o; zeichneBibliothek(); uebersetzenDialog(S.docs.filter(d => d.folderId === b.dataset.o && !d.uebersetzung).map(d => d.id), true); });
     });
   }
   async function ueEinlesen(dateien, ordnerName) {
-    const pdfs = Array.from(dateien || []).filter(istPdf);
-    if (!pdfs.length) return toast('Keine PDF-Datei gefunden.');
+    const pdfs = Array.from(dateien || []).filter(f => istPdf(f) || istBild(f));
+    if (!pdfs.length) return toast('Keine PDF- oder Bilddatei gefunden.');
     let name = await eingabe('Ordner benennen', 'Name für diesen Übersetzungs-Ordner (z. B. Handbücher, Verträge) — später änderbar', ordnerName || '');
     if (!name) return;
     // Nie in einen gewöhnlichen Ordner mischen: gleicher Name → eigener Zusatz
@@ -967,6 +1010,18 @@
     if (neu && neu.length) uebersetzenDialog(neu.map(d => d.id), true);
   }
 
+  // Fotografierter Brief → eigener Übersetzungs-Ordner (frei benannt), dann Übersetzen-Fenster
+  async function ueFotoAblegen(bytes) {
+    const stempel = new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    let name = await eingabe('Ordner benennen', 'Name für den Übersetzungs-Ordner (z. B. Briefe vom Amt) — später änderbar', 'Briefe');
+    if (!name) return;
+    if (S.ordner.some(o => o.name === name && o.bereich !== 'uebersetzung')) name += ' (Übersetzung)';
+    let o = S.ordner.find(x => x.name === name && x.bereich === 'uebersetzung');
+    if (!o) { o = { id: uid(), name, bereich: 'uebersetzung', createdAt: jetzt() }; await DB.put('folders', o); }
+    const doc = await neuesDok('Brief ' + stempel, bytes, 'foto', o.id);
+    S.aktOrdner = o.id; await ladeBibliothek(); hops();
+    uebersetzenDialog([doc.id], true);
+  }
   async function uebersetzenDialog(ids, alleGewaehlt) {
     const docs = [];
     for (const id of ids) { const d = S.docs.find(x => x.id === id) || await DB.get('docs', id); if (d) docs.push(d); }
@@ -974,7 +1029,8 @@
     dialog(`<h2>🌐 Übersetzen</h2>
       <p class="hinweis">Jede Seite wird auf derselben Seite übersetzt: Bilder, Grafiken und Aufbau des Originals bleiben, nur der Text wird an seiner Stelle ersetzt — in der Farbe des Originals. Gescannte Seiten liest die Texterkennung (OCR) auf dem Gerät. Seitenumbrüche bleiben, das Original bleibt unberührt. Die Ergebnisse kommen in eigene Ordner je Sprache („… · RU"), getrennt von den Originalen; alle Ordner lassen sich umbenennen.</p>
       ${mehrere ? `<p><b>Welche Dokumente?</b> <button class="knopf klein" data-alle>Alle</button></p>` : ''}
-      <div class="erk-liste">${docs.map((d, i) => `<label class="erk-dok"><input type="checkbox" data-dok="${h(d.id)}"${!mehrere || (alleGewaehlt && !d.uebersetzung) ? ' checked' : ''}> ${h(d.name)} <span class="hinweis">· ${d.pages.length} S.${d.uebersetzung ? ' · schon eine Übersetzung' : ''}</span></label>`).join('')}</div>
+      <div class="erk-liste">${docs.map((d, i) => `<label class="erk-dok"><input type="checkbox" data-dok="${h(d.id)}"${!mehrere || (alleGewaehlt && !d.uebersetzung) ? ' checked' : ''}> ${h(d.name)} <span class="hinweis">· ${d.pages.length} S.${d.uebersetzung ? ' · schon eine Übersetzung' : ''}${!d.uebersetzung ? ' · ' + (d.fields.filter(f => f.geprueft).length ? d.fields.filter(f => f.geprueft).length + ' Felder kommen übersetzt mit' : 'keine Felder') : ''}</span>${!d.uebersetzung && !d.fields.filter(f => f.geprueft).length ? ` <button class="knopf klein" data-feld="${h(d.id)}" title="Rahmen zum Ausfüllen (Text, Datum, Kästchen, Unterschrift) im Original setzen — sie kommen dann übersetzt mit">✏️ erst Felder setzen</button>` : ''}</label>`).join('')}</div>
+      <p class="hinweis">Formular zum Ausfüllen (z. B. vom Amt)? Die Rahmen zum Ausfüllen am besten <b>im Original</b> setzen („✏️ erst Felder setzen", oder „🔍 Felder erkennen") — dann kommen sie übersetzt an dieselbe Stelle mit. Nach dem Ausfüllen holt „⬇ PDF ausgeben → ↩ Einträge ins Original" die Einträge zurück.</p>
       <div class="ue-sprachen"><div><label>von</label>${sprachWahl('von', EINST.ueVon)}</div><div class="ue-pfeil">→</div><div><label>nach</label>${sprachWahl('nach', EINST.ueNach)}</div></div>
       <label style="font-weight:400"><input type="checkbox" data-rueck${EINST.ueRueck !== false ? ' checked' : ''}> Gegenprobe: danach zurück in die Ausgangssprache übersetzen und daneben ablegen</label>
       <p class="hinweis" data-zahl></p>
@@ -996,6 +1052,7 @@
         if (v === 'fehlt' || v === 'unavailable') dl.querySelector('[data-weg="browser"]').disabled = true;
       };
       dl.querySelectorAll('[data-dok]').forEach(c => c.onchange = stat);
+      dl.querySelectorAll('[data-feld]').forEach(b => b.onclick = e => { e.preventDefault(); zu(); oeffneDok(b.dataset.feld); toast('✏️ Rahmen setzen: oben die Art wählen (Text, Datum, Kästchen, Unterschrift …), dann auf die Stelle tippen. Danach „🌐 Übersetzen" am Ordner.'); });
       dl.querySelector('[data-von]').onchange = dl.querySelector('[data-nach]').onchange = stat;
       if (dl.querySelector('[data-alle]')) dl.querySelector('[data-alle]').onclick = () => { const alle = gewaehlt().length < docs.length; dl.querySelectorAll('[data-dok]').forEach(c => c.checked = alle); stat(); };
       stat();
@@ -1005,30 +1062,121 @@
         const g = gewaehlt(); if (!g.length) return toast('Kein Dokument gewählt.');
         EINST.ueVon = von(); EINST.ueNach = nach(); EINST.ueRueck = dl.querySelector('[data-rueck]').checked; einstSpeichern();
         const weg = b.dataset.weg;
-        let hin = null, zurueck = null;
-        try {
-          if (weg === 'browser') {
-            // Aus dem Tipp heraus erzeugen: lädt der Browser ein Sprachpaket, verlangt er eine Nutzer-Geste.
-            b.disabled = true; b.querySelector('span').textContent = 'Übersetzer wird vorbereitet …';
-            hin = await UE.browserUebersetzer(EINST.ueVon, EINST.ueNach, p => { b.querySelector('span').textContent = 'Sprachpaket lädt … ' + Math.round(p * 100) + ' %'; });
-            if (EINST.ueRueck) zurueck = await UE.browserUebersetzer(EINST.ueNach, EINST.ueVon);
-          } else {
-            zu();
-            if (!kiBereit()) { einstellungen(); return; }
-            const okKey = 'ue:' + EINST.anbieter;
-            if (!EINST.kiOk[okKey]) {
-              const ok = await frage('Text an die KI senden?', `<p>Der Text der gewählten Seiten wird an <b>${h(a.label)}</b> übertragen (Verarbeitung: ${h(a.region)}) und dort übersetzt. Enthält er persönliche Angaben, gehen diese mit. Abgerechnet wird über deinen Schlüssel.</p><p class="hinweis">Diese Frage kommt je Anbieter einmal. Ohne Bestätigung verlässt nichts das Gerät.</p>`, 'Senden');
-              if (!ok) return; EINST.kiOk[okKey] = true; einstSpeichern();
-            }
-            const cfg = { anbieter: EINST.anbieter, schluessel: EINST.schluessel[EINST.anbieter], modell: EINST.uebModell[EINST.anbieter] };
-            hin = UE.kiUebersetzer(cfg, EINST.ueVon, EINST.ueNach);
-            if (EINST.ueRueck) zurueck = UE.kiUebersetzer(cfg, EINST.ueNach, EINST.ueVon);
-          }
-        } catch (e) { toast('⚠️ Übersetzer lässt sich nicht starten: ' + (e.message || e)); b.disabled = false; return; }
+        let u;
+        try { u = await uebersetzerErzeugen(weg, EINST.ueVon, EINST.ueNach, EINST.ueRueck, b, zu); }
+        catch (e) { toast('⚠️ Übersetzer lässt sich nicht starten: ' + (e.message || e)); b.disabled = false; return; }
+        if (!u) return;
         zu();
-        uebersetzeViele(g.map(d => d.id), EINST.ueVon, EINST.ueNach, hin, zurueck, weg);
+        uebersetzeViele(g.map(d => d.id), EINST.ueVon, EINST.ueNach, u.hin, u.zurueck, weg);
       });
     });
+  }
+
+  /* Übersetzer erzeugen — EINE Stelle für Hinweg, Gegenprobe und Rückweg der Einträge.
+     Browser: aus dem Tipp heraus (ein Sprachpaket darf nur aus einer Nutzer-Geste
+     geladen werden). KI: Freigabe je Anbieter einmal. null = abgebrochen. */
+  async function uebersetzerErzeugen(weg, von, nach, mitRueck, knopf, zu) {
+    if (weg === 'browser') {
+      const sp = knopf && knopf.querySelector('span');
+      if (knopf) knopf.disabled = true; if (sp) sp.textContent = 'Übersetzer wird vorbereitet …';
+      const hin = await UE.browserUebersetzer(von, nach, p => { if (sp) sp.textContent = 'Sprachpaket lädt … ' + Math.round(p * 100) + ' %'; });
+      const zurueck = mitRueck ? await UE.browserUebersetzer(nach, von) : null;
+      return { hin, zurueck };
+    }
+    if (zu) zu();
+    if (!kiBereit()) { einstellungen(); return null; }
+    const a = ER.ANBIETER[EINST.anbieter]; const okKey = 'ue:' + EINST.anbieter;
+    if (!EINST.kiOk[okKey]) {
+      const ok = await frage('Text an die KI senden?', `<p>Der Text der gewählten Seiten wird an <b>${h(a.label)}</b> übertragen (Verarbeitung: ${h(a.region)}) und dort übersetzt. Enthält er persönliche Angaben, gehen diese mit. Abgerechnet wird über deinen Schlüssel.</p><p class="hinweis">Diese Frage kommt je Anbieter einmal. Ohne Bestätigung verlässt nichts das Gerät.</p>`, 'Senden');
+      if (!ok) return null; EINST.kiOk[okKey] = true; einstSpeichern();
+    }
+    const cfg = { anbieter: EINST.anbieter, schluessel: EINST.schluessel[EINST.anbieter], modell: EINST.uebModell[EINST.anbieter] };
+    return { hin: UE.kiUebersetzer(cfg, von, nach), zurueck: mitRueck ? UE.kiUebersetzer(cfg, nach, von) : null };
+  }
+
+  /* Felder mitnehmen (Klaus 2026-09-25: deutsches Behördenformular → auf Russisch
+     ausfüllen → Einträge zurück ins deutsche Formular). Seiten und Maße bleiben beim
+     Übersetzen gleich, also passen die Prozent-Lagen 1:1. Übersetzt werden die
+     Beschriftung und Text-Einträge; Datum, E-Mail, Internetadresse, QR, Unterschrift
+     und Kästchen gehen unverändert mit. quellFeld merkt das Feld im Original. */
+  const OHNE_UEBERSETZUNG = new Set(['datum', 'email', 'url', 'qr', 'unterschrift', 'check']);
+  async function felderUebersetzen(felder, uebersetzer, mitLabel) {
+    const texte = [], ziel = [];
+    const neu = felder.map(f => Object.assign(JSON.parse(JSON.stringify(f)), { id: uid(), quellFeld: f.quellFeld || f.id }));
+    neu.forEach(f => {
+      if (mitLabel && f.label) { ziel.push([f, 'label']); texte.push(UE.zeichenNormal(f.label)); }
+      if (!OHNE_UEBERSETZUNG.has(f.type) && typeof f.value === 'string' && f.value.trim()) { ziel.push([f, 'value']); texte.push(UE.zeichenNormal(f.value)); }
+    });
+    if (texte.length) {
+      const out = await uebersetzer(texte);
+      out.forEach((t, i) => { const [f, k] = ziel[i]; f[k] = UE.zeichenNormal(t); });
+    }
+    return neu;
+  }
+
+  function rueckwegMoeglich(d) { return !!(d && d.uebersetzung && !d.uebersetzung.gegenprobe && d.uebersetzung.quelle); }
+  // Rückweg: die Einträge des übersetzten Dokuments übersetzt in eine KOPIE des Originals
+  async function rueckwegDialog(id) {
+    await speichernJetzt();
+    const d = await DB.get('docs', id); if (!rueckwegMoeglich(d)) return toast('Dieses Dokument ist keine Übersetzung eines Originals hier.');
+    const src = await DB.get('docs', d.uebersetzung.quelle);
+    if (!src || !await DB.getFile(src.id)) return toast('⚠️ Das Original „' + (d.name || '') + '" liegt nicht mehr in diesem Browser.');
+    const von = d.uebersetzung.nach, nach = d.uebersetzung.von;           // zurück: z. B. RU → DE
+    const eintraege = d.fields.filter(f => f.type === 'check' ? f.value : String(f.value || '').trim()).length;
+    const a = ER.ANBIETER[EINST.anbieter];
+    dialog(`<h2>↩ Einträge ins Original (${h(UE.SPRACHEN[nach])})</h2>
+      <p>Die <b>${eintraege}</b> Einträge aus „${h(d.name)}" werden ins ${h(UE.NAME_DE[nach] || nach)}e übersetzt und in eine <b>Kopie</b> des Originals „${h(src.name)}" eingesetzt — an dieselbe Stelle. Das Original und die Übersetzung bleiben unverändert.</p>
+      <p class="hinweis">Datum, E-Mail, Internetadresse, Unterschrift und Kästchen werden übernommen, nicht übersetzt. Bitte die Einträge danach prüfen — Namen und Adressen bleiben in der Regel stehen, aber jede Übersetzung kann sich irren.</p>
+      <button class="wahl" data-weg="browser"><b>📱 Übersetzer im Browser</b><span data-bstat>prüfe …</span></button>
+      <button class="wahl" data-weg="ki"><b>🤖 Mit KI — ${h(a.label)}</b><span>${kiBereit() ? `Nur die Einträge (nicht die Seiten) gehen an ${h(a.label)}. Vor dem ersten Senden wird gefragt.` : 'Noch kein Schlüssel eingetragen — tippen, um ihn einzutragen.'}</span></button>
+      <div class="zeile"><button class="knopf" data-x>Abbrechen</button></div>`, async (dl, zu) => {
+      dl.querySelector('[data-x]').onclick = zu;
+      const v = await UE.browserVerfuegbar(von, nach);
+      dl.querySelector('[data-bstat]').textContent = v === 'fehlt' ? 'Dieser Browser hat keinen eingebauten Übersetzer.' : v === 'unavailable' ? `${UE.SPRACHEN[von]} → ${UE.SPRACHEN[nach]} kann er nicht.` : 'Kostenlos, auf dem Gerät.';
+      if (v === 'fehlt' || v === 'unavailable') dl.querySelector('[data-weg="browser"]').disabled = true;
+      dl.querySelectorAll('[data-weg]').forEach(b => b.onclick = async () => {
+        let u;
+        try { u = await uebersetzerErzeugen(b.dataset.weg, von, nach, false, b, zu); }
+        catch (e) { toast('⚠️ Übersetzer lässt sich nicht starten: ' + (e.message || e)); b.disabled = false; return; }
+        if (!u) return;
+        zu();
+        await rueckwegLaufen(d, src, von, nach, u.hin, b.dataset.weg);
+      });
+    });
+  }
+  async function rueckwegLaufen(d, src, von, nach, uebersetzer, weg) {
+    const fb = fortschritt('Einträge ' + von.toUpperCase() + ' → ' + nach.toUpperCase());
+    try {
+      fb.setze(0.1, 'Einträge werden übersetzt …');
+      // Felder, die es im Original gibt, behalten dessen Beschriftung; im übersetzten
+      // Dokument neu gesetzte Felder bekommen eine übersetzte.
+      const ausQuelle = d.fields.filter(f => f.quellFeld && src.fields.some(q => q.id === f.quellFeld));
+      const neuGesetzt = d.fields.filter(f => !ausQuelle.includes(f));
+      const [ueA, ueN] = [await felderUebersetzen(ausQuelle, uebersetzer, false), await felderUebersetzen(neuGesetzt, uebersetzer, true)];
+      const felder = [];
+      for (const q of src.fields) {
+        const i = ausQuelle.findIndex(f => f.quellFeld === q.id);
+        if (i < 0) { felder.push(Object.assign(JSON.parse(JSON.stringify(q)), { id: uid() })); continue; }
+        const f = ueA[i];
+        felder.push(Object.assign(JSON.parse(JSON.stringify(q)), { id: uid(), x: f.x, y: f.y, w: f.w, h: f.h, value: f.value, mehrzeilig: f.mehrzeilig || q.mehrzeilig, decken: f.decken || q.decken, geprueft: true }));
+      }
+      ueN.forEach(f => { delete f.quellFeld; f.geprueft = true; felder.push(f); });
+      fb.setze(0.8, 'Kopie des Originals wird angelegt …');
+      const bytes = await DB.getFile(src.id);
+      const ziel = await ergebnisOrdner(src, 'aus:' + von, 'ausgefüllt (aus ' + von.toUpperCase() + ')');
+      const n = JSON.parse(JSON.stringify(src));
+      Object.assign(n, { id: uid(), name: src.name + ' [ausgefüllt, aus ' + von.toUpperCase() + ']', folderId: ziel.id, createdAt: jetzt(), updatedAt: jetzt(), fields: felder,
+        ausgefuellt: { aus: von, sprache: nach, uebersetzung: d.id, quelle: src.id, weg, am: jetzt() } });
+      delete n.uebersetzung;
+      await DB.putFile(n.id, bytes); await DB.put('docs', n);
+      fb.zu();
+      await ladeBibliothek();
+      const st = uebersetzer.stat || {};
+      window.__wfpdfRueckweg = { id: n.id, felder: felder.length, zeichen: st.zeichen || 0 };
+      toast('↩ ' + felder.filter(f => f.type === 'check' ? f.value : String(f.value || '').trim()).length + ' Einträge ins Original übertragen — bitte prüfen. Liegt in „' + ziel.name + '".');
+      oeffneDok(n.id);
+    } catch (e) { fb.zu(); console.error(e); toast('⚠️ Übertragen fehlgeschlagen: ' + (e.message || e) + ' — nichts wurde verändert.'); }
+    finally { try { uebersetzer.zu && uebersetzer.zu(); } catch (_) {} }
   }
 
   // Ein-Tipp-Messung für Klaus' Tablet: gibt es den Übersetzer, welche Paare, hat das PDF Text?
@@ -1079,8 +1227,15 @@
         const out = await UE.pdfBauen(bytes, r.stand.seiten, schrift, { titel: d.name + ' [' + nach.toUpperCase() + ']', nach });
         const zielO = await ergebnisOrdner(d, nach, nach.toUpperCase());
         const neu = await neuesDok(d.name + ' [' + nach.toUpperCase() + ']', out.bytes, 'uebersetzung', zielO.id);
-        zeile.ordner = zielO.name;
-        neu.uebersetzung = { von, nach, quelle: d.id, weg, am: jetzt() }; await DB.put('docs', neu);
+        zeile.ordner = zielO.name; zeile.neuId = neu.id;
+        neu.uebersetzung = { von, nach, quelle: d.id, weg, am: jetzt() };
+        // Felder des Originals kommen mit — übersetzt, an derselben Stelle (Formular auf Russisch ausfüllen)
+        const mit = (d.fields || []).filter(f => f.geprueft);
+        if (mit.length) {
+          try { neu.fields = await felderUebersetzen(mit, hin, true); zeile.felder = mit.length; }
+          catch (e) { zeile.hinweise.push('Die Felder ließen sich nicht übersetzen (' + (e.message || e) + ') — bitte im übersetzten Dokument neu erkennen.'); }
+        }
+        await DB.put('docs', neu);
         zeile.groesse = out.bytes.length; zeile.hinweise.push(...out.hinweise);
         if (zurueck) {
           const rid = jobId(d.id, von, nach, true);
@@ -1106,9 +1261,9 @@
     const neuS = bericht.reduce((n, z) => n + (z.neu || 0), 0);
     window.__wfpdfBericht = { bericht, zeichen, tokE, tokA, ms: Date.now() - t0, speicherMB: performance.memory ? performance.memory.usedJSHeapSize / 1048576 : null };
     dialog(`<h2>🌐 Übersetzung ${abbruch ? 'angehalten' : 'fertig'}</h2>
-      <ul>${bericht.map(z => `<li><b>${h(z.name)}</b> · ${z.fertig != null ? z.fertig + ' von ' + z.seiten + ' Seiten' : ''}${z.neu ? ' · ' + (z.ms / z.neu / 1000).toFixed(1) + ' s je neu übersetzter Seite' : ''}${z.groesse ? ' · Ergebnis ' + (z.groesse >= 1048576 ? (z.groesse / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(z.groesse / 1024)) + ' KB') : ''}${z.ordner ? ' · liegt in „' + h(z.ordner) + '"' : ''}${z.hinweise.length ? '<ul>' + z.hinweise.map(x => '<li class="hinweis">' + h(x) + '</li>').join('') + '</ul>' : ''}</li>`).join('')}</ul>
+      <ul>${bericht.map(z => `<li><b>${h(z.name)}</b> · ${z.fertig != null ? z.fertig + ' von ' + z.seiten + ' Seiten' : ''}${z.neu ? ' · ' + (z.ms / z.neu / 1000).toFixed(1) + ' s je neu übersetzter Seite' : ''}${z.groesse ? ' · Ergebnis ' + (z.groesse >= 1048576 ? (z.groesse / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(z.groesse / 1024)) + ' KB') : ''}${z.ordner ? ' · liegt in „' + h(z.ordner) + '"' : ''}${z.felder ? ' · ' + z.felder + ' Felder übersetzt mitgenommen' : ''}${z.neuId ? ` <button class="knopf klein" data-oeffne="${h(z.neuId)}">✏️ Öffnen: Felder setzen / ausfüllen</button>` : ''}${z.hinweise.length ? '<ul>' + z.hinweise.map(x => '<li class="hinweis">' + h(x) + '</li>').join('') + '</ul>' : ''}</li>`).join('')}</ul>
       <p class="hinweis">Gemessen: ${neuS} Seiten in ${((Date.now() - t0) / 1000).toFixed(0)} s · ${zeichen.toLocaleString('de-DE')} Zeichen übersetzt${tokE || tokA ? ` · ${tokE.toLocaleString('de-DE')} Token hin, ${tokA.toLocaleString('de-DE')} Token zurück (${h(hin.stat.modell || '')}) — den Preis je Token nennt der Anbieter` : ''}${performance.memory ? ' · Speicher ' + (performance.memory.usedJSHeapSize / 1048576).toFixed(0) + ' MB' : ''}.</p>
-      <div class="zeile"><button class="knopf rot" data-x>OK</button></div>`, (dl, zu) => dl.querySelector('[data-x]').onclick = zu);
+      <div class="zeile"><button class="knopf rot" data-x>OK</button></div>`, (dl, zu) => { dl.querySelector('[data-x]').onclick = zu; dl.querySelectorAll('[data-oeffne]').forEach(b => b.onclick = () => { zu(); oeffneDok(b.dataset.oeffne); }); });
     if (!abbruch) hops();
   }
 
@@ -1162,7 +1317,7 @@
   }
   function hilfe() {
     dialog(`<h2>So geht's</h2><ol>
-      <li><b>Einlesen:</b> PDF oder Bild wählen, ein Papierformular fotografieren oder einen ganzen Ordner einlesen. Dateien lassen sich auch auf die Seite ziehen.</li>
+      <li><b>Einlesen:</b> PDF oder Bild wählen, ein Papierformular fotografieren oder einen ganzen Ordner einlesen. Dateien lassen sich auch auf die Seite ziehen. Bei Fotos wird das Blatt gesucht und auf A4 gerade gezogen — ausgedruckt („Tatsächliche Größe / 100 %") so groß wie das Papier.</li>
       <li><b>Felder erkennen:</b> 🤖 findet Linien, Rahmen, graue Eingabeflächen und Kästchen — offline oder mit KI. Das sind Vorschläge (orange gestrichelt).</li>
       <li><b>Prüfen und korrigieren:</b> unter „✏️ Felder bearbeiten" Felder verschieben, am roten Punkt vergrößern, Bezeichnung und Art ändern. „✓ Passt" bestätigt einen Vorschlag.</li>
       <li><b>Eigene Felder:</b> Art wählen (Text, Datum, Kästchen, E-Mail, Internetadresse, QR-Code, Unterschrift) und auf die Stelle tippen.</li>

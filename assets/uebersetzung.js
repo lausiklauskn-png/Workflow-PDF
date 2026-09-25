@@ -52,6 +52,22 @@
     for (const o of Object.keys(nachRichtung).map(Number)) out.push(...gruppieren(nachRichtung[o], o));
     return { bloecke: out, gedreht, w: vp.width, h: vp.height, t: vp.transform.slice() };
   }
+  /* Umlaute & Co. (Lehre aus den Rezeptbüchern: Umlaute kamen falsch an).
+     PDFs liefern „ü" oft ZERLEGT: „u" + kombinierendes Trema (U+0308), oder als
+     eigenes Trema-Zeichen „¨" daneben, manchmal durch eine Lücke getrennt. Die
+     Standardschrift macht daraus „u?", ein Übersetzer liest „Mu ller". Dazu
+     Ligaturen (ﬁ, ﬂ) und weiche Trennstriche. Alles wird VOR dem Übersetzen und
+     auf jedem Rückweg auf eine Form gebracht (NFC). Gilt auch für ё/й. */
+  const LIG = { 'ﬀ': 'ff', 'ﬁ': 'fi', 'ﬂ': 'fl', 'ﬃ': 'ffi', 'ﬄ': 'ffl', 'ﬅ': 'st', 'ﬆ': 'st' };
+  function zeichenNormal(s) {
+    return String(s == null ? '' : s)
+      .replace(/[\uFB00-\uFB06]/g, c => LIG[c] || c)
+      .replace(/\u00AD/g, '')
+      .replace(/([AaEeIiOoUuYyЕеИиІі])[ \u00A0]?[\u00A8\u0308]/g, '$1\u0308')     // u¨ · u ¨ · u + U+0308
+      .replace(/[\u00A8][ \u00A0]?([AaEeIiOoUuYyЕеИиІі])/g, '$1\u0308')         // ¨u (Trema vor dem Buchstaben gesetzt)
+      .replace(/([Ии])[ \u00A0]?[\u02D8\u0306]/g, '$1\u0306')                   // и˘ → й
+      .normalize('NFC');
+  }
   function gruppieren(teile, o) {
     // Zeilen: gleiche Grundlinie, dicht nebeneinander
     teile.sort((a, b) => a.y - b.y || a.x - b.x);
@@ -91,7 +107,7 @@
       const erste = b.zeilen[0], letzte = b.zeilen[b.zeilen.length - 1];
       const size = b.zeilen.reduce((m, z) => m + z.fh, 0) / b.zeilen.length;
       const y = erste.y - erste.fh * 1.02, unten = letzte.y + letzte.fh * 0.28;
-      return { t: text.replace(/\s+/g, ' ').trim(), x: +b.x.toFixed(2), y: +y.toFixed(2), w: +b.w.toFixed(2), h: +(unten - y).toFixed(2), s: +size.toFixed(2), z: b.zeilen.length, o };
+      return { t: zeichenNormal(text).replace(/\s+/g, ' ').trim(), x: +b.x.toFixed(2), y: +y.toFixed(2), w: +b.w.toFixed(2), h: +(unten - y).toFixed(2), s: +size.toFixed(2), z: b.zeilen.length, o };
     }).filter(b => /[\p{L}]/u.test(b.t));
   }
 
@@ -295,7 +311,7 @@
         b.forEach(x => x.push(...farben(bild, scale, x)));
         bild.width = bild.height = 0; bild = null;
         const texte = r.bloecke.map(b => b.t);
-        const u = texte.length ? await opt.uebersetzer(texte) : [];
+        const u = texte.length ? (await opt.uebersetzer(texte)).map(zeichenNormal) : [];
         stand.seiten[i] = { b, u, gedreht: r.gedreht, t: r.t, ocr };
         neu++;
         if (opt.speichere) await opt.speichere(stand);
@@ -316,7 +332,7 @@
     for (let i = 0; i < n; i++) {
       const s = r.seiten[i]; if (!s || s.u) continue;
       if (opt && opt.abbruch && opt.abbruch()) break;
-      s.u = stand.seiten[i].u.length ? await uebersetzer(stand.seiten[i].u) : [];
+      s.u = stand.seiten[i].u.length ? (await uebersetzer(stand.seiten[i].u)).map(zeichenNormal) : [];
       if (opt && opt.speichere) await opt.speichere(r);
       if (opt && opt.melde) opt.melde(r.seiten.filter(x => x && x.u).length, n);
     }
@@ -412,5 +428,5 @@
   }
 
   window.WFP = window.WFP || {};
-  window.WFP.Uebersetzung = { SPRACHEN, NAME_DE, KI_TEXTMODELL, bloecke, browserDa, browserVerfuegbar, browserUebersetzer, kiUebersetzer, lauf, rueck, schriftLaden, pdfBauen, anzeige, farben, ocrStarten };
+  window.WFP.Uebersetzung = { zeichenNormal, SPRACHEN, NAME_DE, KI_TEXTMODELL, bloecke, browserDa, browserVerfuegbar, browserUebersetzer, kiUebersetzer, lauf, rueck, schriftLaden, pdfBauen, anzeige, farben, ocrStarten };
 })();

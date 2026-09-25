@@ -153,6 +153,8 @@ button{cursor:pointer}
 .aufnahme-bilder{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;margin:10px 0}
 .aufnahme-bilder div{position:relative;aspect-ratio:3/4;background:#eee center/cover;border-radius:8px;border:1px solid var(--linie)}
 .aufnahme-bilder button{position:absolute;right:4px;top:4px;border:0;border-radius:50%;width:26px;height:26px;background:rgba(0,0,0,.6);color:#fff}
+.aufnahme-bilder div{background-size:contain;background-repeat:no-repeat}
+.aufnahme-bilder .blatt-um{position:absolute;left:4px;right:4px;bottom:4px;top:auto;width:auto;height:auto;border-radius:6px;padding:3px 4px;font-size:.72rem;background:rgba(0,0,0,.65);color:#fff;text-align:center;line-height:1.2}
 .dlg ol,.dlg ul{padding-left:1.2em;margin:.4em 0}
 .dlg li{margin:.25em 0}
 
