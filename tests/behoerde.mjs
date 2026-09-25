@@ -210,6 +210,36 @@ try {
   const deEn = await page.evaluate(async () => WFP.DB.get('docs', window.__wfpdfRueckweg.id));
   ok('EN → DE: Geburtsort = London, Name = Müller, Ordner „ausgefüllt (aus EN)"', deEn.fields.find(x => x.label === 'Geburtsort').value === 'London' && deEn.fields.find(x => x.label === 'Name').value === 'Müller' && deEn.ausgefuellt.aus === 'en');
 
+  // 4b. Rückweg im installierten App-Fenster auf Android (Klaus 2026-09-25: „ich kann von da
+  //     aus nur abbrechen"). Dort gibt es ⋮ → „Übersetzen" nicht; die Chrome-Fläche wäre eine
+  //     Sackgasse. Also: Adresse kopieren + Anleitung, und der Chrome-Tab öffnet denselben Rückweg.
+  await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(page.url()).origin });
+  await page.evaluate(id => window.__wfpdf.oeffneDok(id), en.id);
+  await page.waitForFunction(id => window.__wfpdf.S.doc && window.__wfpdf.S.doc.id === id, en.id);
+  await page.evaluate(() => {
+    window.__mmAlt = window.matchMedia; const o = window.matchMedia.bind(window);
+    window.matchMedia = q => /standalone/.test(q) ? { matches: true, media: q, addEventListener() {}, removeEventListener() {} } : o(q);
+    Object.defineProperty(navigator, 'userAgent', { get: () => 'Mozilla/5.0 (Linux; Android 14; SM-X710) AppleWebKit/537.36 Chrome/140 Safari/537.36', configurable: true });
+  });
+  await page.click('#edExport'); await page.waitForSelector('.dlg [data-rueckweg]');
+  await page.click('.dlg [data-rueckweg]'); await page.waitForSelector('.dlg [data-weg="chrome"]');
+  ok('App-Fenster: Rückweg nennt, dass „Übersetzen" dort fehlt, und bietet „In Chrome öffnen"', await page.evaluate(() => /eigenen Fenster/.test(document.querySelector('.dlg [data-weg="chrome"]').textContent) && /In Chrome öffnen/.test(document.querySelector('.dlg [data-tabreihe]')?.textContent || '')));
+  await page.click('.dlg [data-weg="chrome"]');
+  await page.waitForSelector('.dlg [data-chromehinweis]', { timeout: 3000 }).catch(() => {});
+  const rw = await page.evaluate(async () => ({ hinweis: !!document.querySelector('.dlg [data-chromehinweis]'), flaeche: !!document.getElementById('wfp-chrome'), adr: (window.__wfpdfChromeTab || {}).url, ab: await navigator.clipboard.readText().catch(() => '') }));
+  ok('… „Mit Chrome übersetzen" führt dort NICHT in die Sackgasse (keine Fläche), sondern gleich zur Anleitung', rw.hinweis && !rw.flaeche, rw);
+  const rwU = rw.adr ? new URL(rw.adr) : null;
+  ok("… Adresse trägt den Rückweg (rueck=<Übersetzung>, weg=chrome) und liegt in der Zwischenablage", rwU && rwU.searchParams.get("rueck") === en.id && rwU.searchParams.get("weg") === "chrome" && !rwU.searchParams.has("ue") && rw.ab === rw.adr, rw);
+  await page.evaluate(() => { document.querySelector('.dlg [data-hinok]')?.click(); window.matchMedia = window.__mmAlt; delete navigator.userAgent; });
+  // Der Tab: gleicher Speicher → derselbe Rückweg, Chrome-Weg hervorgehoben
+  const tab = await ctx.newPage();
+  await tab.goto(rw.adr); await tab.waitForSelector('.dlg [data-ausapp]', { timeout: 15000 }).catch(() => {});
+  const tz = await tab.evaluate(() => ({ aus: /Einträge ins Original/.test(document.querySelector('.dlg h2')?.textContent || '') && !!document.querySelector('.dlg [data-ausapp]'), mark: document.querySelector('.dlg [data-weg="chrome"]')?.style.outlineStyle, url: location.href, tabs: !!document.querySelector('.dlg [data-tabreihe]') }));
+  ok('Chrome-Tab öffnet „↩ Einträge ins Original" mit hervorgehobenem Chrome-Weg, Adresse sauber, ohne „In Chrome öffnen"', tz.aus && tz.mark === 'solid' && !/rueck=/.test(tz.url) && !tz.tabs, tz);
+  await tab.goto(new URL('index.html?rueck=gibtsnicht&weg=chrome', rw.adr).href); await tab.waitForTimeout(1500);
+  ok('… unbekanntes Dokument: ehrliche Meldung statt leerem Dialog', await tab.evaluate(() => /nicht da/.test(document.getElementById('toast').textContent) && !document.querySelector('.dlg [data-ausapp]')));
+  await tab.close();
+
   // 5. Papierbrief fotografieren → Blatt auf A4
   await page.click('#edZurueck');
   const t2 = Date.now();

@@ -1059,11 +1059,15 @@
      wieder (Rückweg), und das Ergebnis wird ein PDF wie hier — nicht die übersetzte
      App-Oberfläche. Auf Android: kopieren + Anleitung (siehe CHROME_STARTEN), anderswo
      ein neuer Tab. */
-  function chromeTabAdresse(ids, von, nach) {
+  // lage: { ids, von, nach } (Seiten übersetzen) oder { rueck: id } (Einträge ins Original)
+  function chromeTabAdresse(l) {
     const u = new URL(location.pathname, location.origin);
-    u.searchParams.set('ue', ids.join(',')); u.searchParams.set('von', von); u.searchParams.set('nach', nach); u.searchParams.set('weg', 'chrome');
+    if (l.rueck) u.searchParams.set('rueck', l.rueck);
+    else { u.searchParams.set('ue', l.ids.join(',')); u.searchParams.set('von', l.von); u.searchParams.set('nach', l.nach); }
+    u.searchParams.set('weg', 'chrome');
     return { url: u.href };
   }
+  const leer = l => !l.rueck && !(l.ids && l.ids.length);
   /* Chrome OHNE Adresse starten. Eine Adresse unter /Workflow-PDF/ lässt sich aus der
      installierten App nicht in Chrome öffnen: der Geltungsbereich der App ist „./", und
      Android gibt jeden Link dorthin an die installierte App zurück — auch einen, der
@@ -1084,33 +1088,42 @@
     });
   }
 
-  function chromeTabKnoepfe(el, lage, vorher) {   // lage() → { ids, von, nach }
+  async function inChromeOeffnen(l, vorher) {
+    if (leer(l)) return toast('Kein Dokument gewählt.');
+    const a = chromeTabAdresse(l);
+    window.__wfpdfChromeTab = a;   // für die Probe
+    // Zuerst kopieren, solange der Tipp noch „frisch" ist — danach geht es nicht mehr.
+    let kopiert = false;
+    try { await navigator.clipboard.writeText(a.url); kopiert = true; } catch (_) {}
+    if (vorher) try { await vorher(); } catch (_) {}
+    try { await speichernJetzt(); } catch (_) {}
+    if (!istAndroid()) { window.open(a.url, '_blank', 'noopener'); return; }
+    chromeHinweis(a.url, kopiert, true);
+  }
+  function chromeTabKnoepfe(el, lage, vorher) {   // lage() → { ids, von, nach } oder { rueck }
     const k = (txt, titel) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'knopf klein'; b.textContent = txt; b.title = titel; b.style.cssText = 'padding:6px 10px;border:1px solid #999;border-radius:8px;background:#fff;font-size:13px'; el.appendChild(b); return b; };
-    k('🌐 In Chrome öffnen', 'Öffnet dieselben Dokumente im Chrome-Browser. Dort ⋮ → „Übersetzen" — das Ergebnis wird ein PDF wie hier.').onclick = async () => {
-      const l = lage(); if (!l.ids.length) return toast('Kein Dokument gewählt.');
-      const a = chromeTabAdresse(l.ids, l.von, l.nach);
-      window.__wfpdfChromeTab = a;   // für die Probe
-      // Zuerst kopieren, solange der Tipp noch „frisch" ist — danach geht es nicht mehr.
-      let kopiert = false;
-      try { await navigator.clipboard.writeText(a.url); kopiert = true; } catch (_) {}
-      if (vorher) try { await vorher(); } catch (_) {}
-      try { await speichernJetzt(); } catch (_) {}
-      if (!istAndroid()) { window.open(a.url, '_blank', 'noopener'); return; }
-      chromeHinweis(a.url, kopiert, true);
-    };
+    k('🌐 In Chrome öffnen', 'Öffnet dieselben Dokumente im Chrome-Browser. Dort ⋮ → „Übersetzen" — das Ergebnis wird ein PDF wie hier.').onclick = () => inChromeOeffnen(lage(), vorher);
     if (navigator.share) k('📤 Teilen …', 'Teilen mit Chrome oder einem anderen Browser').onclick = async () => {
-      const l = lage(); if (!l.ids.length) return toast('Kein Dokument gewählt.');
-      try { await navigator.share({ title: 'Workfloh PDF · Übersetzen', url: chromeTabAdresse(l.ids, l.von, l.nach).url }); } catch (_) {}
+      const l = lage(); if (leer(l)) return toast('Kein Dokument gewählt.');
+      try { await navigator.share({ title: 'Workfloh PDF · Übersetzen', url: chromeTabAdresse(l).url }); } catch (_) {}
     };
     k('📋 Adresse kopieren', 'Adresse in die Zwischenablage, dann in Chrome einfügen').onclick = async () => {
-      const l = lage(); if (!l.ids.length) return toast('Kein Dokument gewählt.');
-      const url = chromeTabAdresse(l.ids, l.von, l.nach).url;
+      const l = lage(); if (leer(l)) return toast('Kein Dokument gewählt.');
+      const url = chromeTabAdresse(l).url;
       try { await navigator.clipboard.writeText(url); toast('📋 Adresse kopiert — in Chrome oben einfügen.'); } catch (_) { await eingabe('Adresse', 'Kopieren und in Chrome einfügen', url); }
     };
   }
   // Beim Start: Aufruf aus „In Chrome öffnen" → Übersetzer mit denselben Dokumenten wieder öffnen.
   async function chromeTabRueckweg() {
-    const q = new URLSearchParams(location.search); if (!q.has('ue')) return;
+    const q = new URLSearchParams(location.search);
+    if (q.has('rueck')) {   // „↩ Einträge ins Original" aus der App in Chrome geöffnet
+      const id = q.get('rueck');
+      const u = new URL(location.href); ['rueck', 'weg'].forEach(n => u.searchParams.delete(n)); history.replaceState(null, '', u.pathname + u.search + u.hash);
+      if (!(S.docs.some(d => d.id === id) || await DB.get('docs', id))) return toast('⚠️ Das Dokument ist in diesem Browser nicht da — hier ist der Speicher getrennt von der App. Die Einträge in der App mit „📱 Übersetzer im Browser" oder „🤖 KI" zurückholen.');
+      S.ausApp = true;
+      return rueckwegDialog(id, { chromeTab: true });
+    }
+    if (!q.has('ue')) return;
     const ids = String(q.get('ue') || '').split(',').filter(Boolean), von = q.get('von'), nach = q.get('nach');
     const u = new URL(location.href); ['ue', 'von', 'nach', 'weg'].forEach(n => u.searchParams.delete(n)); history.replaceState(null, '', u.pathname + u.search + u.hash);
     if (UE.SPRACHEN[von] && UE.SPRACHEN[nach] && von !== nach) { EINST.ueVon = von; EINST.ueNach = nach; einstSpeichern(); }
@@ -1177,10 +1190,16 @@
   /* Übersetzer erzeugen — EINE Stelle für Hinweg, Gegenprobe und Rückweg der Einträge.
      Browser: aus dem Tipp heraus (ein Sprachpaket darf nur aus einer Nutzer-Geste
      geladen werden). KI: Freigabe je Anbieter einmal. null = abgebrochen. */
+  // lage: die Dokumente (Liste von Kennungen) oder ein fertiges { rueck: id } für „In Chrome öffnen"
   async function uebersetzerErzeugen(weg, von, nach, mitRueck, knopf, zu, ids) {
     if (weg === 'chrome') {   // keine Gegenprobe: Chrome übersetzt nur in EINE Richtung zugleich
       const opt = {};
-      if (ids && ids.length && matchMedia('(display-mode: standalone)').matches) opt.tab = el => chromeTabKnoepfe(el, () => ({ ids, von, nach }), () => { if (hin.halt) hin.halt(); });
+      const lage = Array.isArray(ids) ? (ids.length ? { ids, von, nach } : null) : ids;
+      // Android, installiertes App-Fenster: dort gibt es ⋮ → „Übersetzen" nicht (Klaus
+      // 2026-09-25: „ich kann von da aus nur abbrechen"). Die Fläche wäre eine Sackgasse —
+      // also gleich der Weg, der trägt: Adresse kopieren, Anleitung, Chrome starten.
+      if (lage && matchMedia('(display-mode: standalone)').matches && istAndroid()) { if (zu) zu(); await inChromeOeffnen(lage); return null; }
+      if (lage && matchMedia('(display-mode: standalone)').matches) opt.tab = el => chromeTabKnoepfe(el, () => lage, () => { if (hin.halt) hin.halt(); });
       const hin = UE.chromeUebersetzer(von, nach, opt);
       return { hin, zurueck: null };
     }   // keine Gegenprobe: Chrome übersetzt nur in EINE Richtung zugleich
@@ -1224,7 +1243,9 @@
 
   function rueckwegMoeglich(d) { return !!(d && d.uebersetzung && !d.uebersetzung.gegenprobe && d.uebersetzung.quelle); }
   // Rückweg: die Einträge des übersetzten Dokuments übersetzt in eine KOPIE des Originals
-  async function rueckwegDialog(id) {
+  async function rueckwegDialog(id, opt) {
+    opt = opt || {};
+    const fenster = matchMedia('(display-mode: standalone)').matches;
     await speichernJetzt();
     const d = await DB.get('docs', id); if (!rueckwegMoeglich(d)) return toast('Dieses Dokument ist keine Übersetzung eines Originals hier.');
     const src = await DB.get('docs', d.uebersetzung.quelle);
@@ -1236,16 +1257,20 @@
       <p>Die <b>${eintraege}</b> Einträge aus „${h(d.name)}" werden ins ${h(UE.NAME_DE[nach] || nach)}e übersetzt und in eine <b>Kopie</b> des Originals „${h(src.name)}" eingesetzt — an dieselbe Stelle. Das Original und die Übersetzung bleiben unverändert.</p>
       <p class="hinweis">Datum, E-Mail, Internetadresse, Unterschrift und Kästchen werden übernommen, nicht übersetzt. Bitte die Einträge danach prüfen — Namen und Adressen bleiben in der Regel stehen, aber jede Übersetzung kann sich irren.</p>
       <button class="wahl" data-weg="browser"><b>📱 Übersetzer im Browser</b><span data-bstat>prüfe …</span></button>
-      <button class="wahl" data-weg="chrome"><b>🌐 Mit Chrome übersetzen (Google)</b><span>Kostenlos. Die Einträge erscheinen unten, du tippst in Chrome ⋮ → „Übersetzen" und wählst ${h(UE.NAME_DE[nach])}. Der Text geht dabei an Google.</span></button>
+      ${opt.chromeTab ? `<p class="hinweis" data-ausapp style="background:#fff3cd;padding:8px;border-radius:8px"><b>Aus der App in Chrome geöffnet.</b> Tippe „🌐 Mit Chrome übersetzen", danach in Chrome ⋮ → „Übersetzen" → ${h(UE.SPRACHEN[nach])}. Die ausgefüllte Kopie liegt danach in der Bibliothek.</p>` : ''}
+      <button class="wahl" data-weg="chrome"><b>🌐 Mit Chrome übersetzen (Google)</b><span>Kostenlos. Die Einträge erscheinen unten, du tippst in Chrome ⋮ → „Übersetzen" und wählst ${h(UE.NAME_DE[nach])}. Der Text geht dabei an Google.${fenster ? ' Die App läuft gerade im eigenen Fenster — dort gibt es ⋮ → „Übersetzen" nicht. Dann „🌐 In Chrome öffnen" (darunter): dieselben Einträge öffnen sich in Chrome.' : ''}</span></button>
+      ${fenster ? '<div class="zeile" data-tabreihe style="flex-wrap:wrap;gap:6px;margin:-4px 0 8px"></div>' : ''}
       <button class="wahl" data-weg="ki"><b>🤖 Mit KI — ${h(a.label)}</b><span>${kiBereit() ? `Nur die Einträge (nicht die Seiten) gehen an ${h(a.label)}. Vor dem ersten Senden wird gefragt.` : 'Noch kein Schlüssel eingetragen — tippen, um ihn einzutragen.'}</span></button>
       <div class="zeile"><button class="knopf" data-x>Abbrechen</button></div>`, async (dl, zu) => {
       dl.querySelector('[data-x]').onclick = zu;
       const v = await UE.browserVerfuegbar(von, nach);
       dl.querySelector('[data-bstat]').textContent = v === 'fehlt' ? 'Dieser Browser hat keinen eingebauten Übersetzer.' : v === 'unavailable' ? `${UE.SPRACHEN[von]} → ${UE.SPRACHEN[nach]} kann er nicht.` : 'Kostenlos, auf dem Gerät.';
       if (v === 'fehlt' || v === 'unavailable') dl.querySelector('[data-weg="browser"]').disabled = true;
+      if (dl.querySelector('[data-tabreihe]')) chromeTabKnoepfe(dl.querySelector('[data-tabreihe]'), () => ({ rueck: id }));
+      if (opt.chromeTab) { const cb = dl.querySelector('[data-weg="chrome"]'); cb.style.outline = '3px solid #E0231B'; cb.scrollIntoView({ block: 'center' }); }
       dl.querySelectorAll('[data-weg]').forEach(b => b.onclick = async () => {
         let u;
-        try { u = await uebersetzerErzeugen(b.dataset.weg, von, nach, false, b, zu); }
+        try { u = await uebersetzerErzeugen(b.dataset.weg, von, nach, false, b, zu, { rueck: id }); }
         catch (e) { toast('⚠️ Übersetzer lässt sich nicht starten: ' + (e.message || e)); b.disabled = false; return; }
         if (!u) return;
         zu();

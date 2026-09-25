@@ -84,6 +84,11 @@ Textfarbe an dieselbe Stelle. Zwischenstand je Seite in IndexedDB
   sofort, „🌐 Chrome starten" öffnet Chrome OHNE Adresse (`CHROME_STARTEN`). Das Starten ist am
   Tablet ungemessen; Kopieren + Einfügen hat Klaus bestätigt. Ob Chrome und die App denselben
   Speicher sehen, ist ungemessen; fehlen die Dokumente, sagt der Tab das.
+  **Im App-Fenster auf Android öffnet „Mit Chrome übersetzen" die Fläche gar nicht erst**
+  (Klaus 2026-09-25: „ich kann von da aus nur abbrechen") — dort gibt es ⋮ → „Übersetzen"
+  nicht. Es geht sofort zu Kopieren + Anleitung. Auch der **Rückweg** („↩ Einträge ins
+  Original") hat diesen Weg: Adresse `?rueck=<Übersetzung>&weg=chrome`, der Tab öffnet
+  denselben Rückweg (`tests/behoerde.mjs` 4b).
 - **Aufbau auf der Seite** (Klaus 2026-09-25: „Textüberlagerung, Logos und Zahlen abgedeckt"),
   geprüft in `tests/layout.mjs` (erfundenes Formular, Stellvertreter +34 % länger):
   Stücke ohne Buchstaben/Ziffern und Absätze mit weniger als 2 Buchstaben (Logo „M",
