@@ -220,17 +220,18 @@ try {
     window.__mmAlt = window.matchMedia; const o = window.matchMedia.bind(window);
     window.matchMedia = q => /standalone/.test(q) ? { matches: true, media: q, addEventListener() {}, removeEventListener() {} } : o(q);
     Object.defineProperty(navigator, 'userAgent', { get: () => 'Mozilla/5.0 (Linux; Android 14; SM-X710) AppleWebKit/537.36 Chrome/140 Safari/537.36', configurable: true });
+    window.__geteilt = []; navigator.share = d => { window.__geteilt.push(d); return new Promise(() => {}); };
   });
   await page.click('#edExport'); await page.waitForSelector('.dlg [data-rueckweg]');
   await page.click('.dlg [data-rueckweg]'); await page.waitForSelector('.dlg [data-weg="chrome"]');
-  ok('App-Fenster: Rückweg nennt, dass „Übersetzen" dort fehlt, und bietet „In Chrome öffnen"', await page.evaluate(() => /eigenen Fenster/.test(document.querySelector('.dlg [data-weg="chrome"]').textContent) && /In Chrome öffnen/.test(document.querySelector('.dlg [data-tabreihe]')?.textContent || '')));
+  ok("App-Fenster: Rückweg nennt, dass „Übersetzen“ dort fehlt, und bietet „Mit Browser öffnen zum Übersetzen“", await page.evaluate(() => /eigenen Fenster/.test(document.querySelector('.dlg [data-weg="chrome"]').textContent) && /Mit Browser öffnen zum Übersetzen/.test(document.querySelector(".dlg [data-tabreihe]")?.textContent || '')));
   await page.click('.dlg [data-weg="chrome"]');
-  await page.waitForSelector('.dlg [data-chromehinweis]', { timeout: 3000 }).catch(() => {});
-  const rw = await page.evaluate(async () => ({ hinweis: !!document.querySelector('.dlg [data-chromehinweis]'), flaeche: !!document.getElementById('wfp-chrome'), adr: (window.__wfpdfChromeTab || {}).url, ab: await navigator.clipboard.readText().catch(() => '') }));
-  ok('… „Mit Chrome übersetzen" führt dort NICHT in die Sackgasse (keine Fläche), sondern gleich zur Anleitung', rw.hinweis && !rw.flaeche, rw);
+  await page.waitForFunction(() => window.__geteilt.length, null, { timeout: 3000 }).catch(() => {});
+  const rw = await page.evaluate(async () => ({ geteilt: window.__geteilt.map(d => d.url), flaeche: !!document.getElementById('wfp-chrome'), adr: (window.__wfpdfChromeTab || {}).url }));
+  ok('… „Mit Chrome übersetzen" führt dort NICHT in die Sackgasse (keine Fläche), sondern gleich ins Teilen-Fenster', rw.geteilt.length === 1 && !rw.flaeche, rw);
   const rwU = rw.adr ? new URL(rw.adr) : null;
-  ok("… Adresse trägt den Rückweg (rueck=<Übersetzung>, weg=chrome) und liegt in der Zwischenablage", rwU && rwU.searchParams.get("rueck") === en.id && rwU.searchParams.get("weg") === "chrome" && !rwU.searchParams.has("ue") && rw.ab === rw.adr, rw);
-  await page.evaluate(() => { document.querySelector('.dlg [data-hinok]')?.click(); window.matchMedia = window.__mmAlt; delete navigator.userAgent; });
+  ok("… geteilt wird der Rückweg (rueck=<Übersetzung>, weg=chrome)", rwU && rwU.searchParams.get("rueck") === en.id && rwU.searchParams.get("weg") === "chrome" && !rwU.searchParams.has("ue") && rw.geteilt[0] === rw.adr, rw);
+  await page.evaluate(() => { window.matchMedia = window.__mmAlt; delete navigator.userAgent; });
   // Der Tab: gleicher Speicher → derselbe Rückweg, Chrome-Weg hervorgehoben
   const tab = await ctx.newPage();
   await tab.goto(rw.adr); await tab.waitForSelector('.dlg [data-ausapp]', { timeout: 15000 }).catch(() => {});
