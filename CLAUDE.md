@@ -52,7 +52,7 @@ Textfarbe an dieselbe Stelle. Zwischenstand je Seite in IndexedDB
 
 - `assets/uebersetzung.js` ist **host-neutral** und wird byte-1:1 in die WorkFlohs
   kopiert (`assets/wfpdf/`) — nur hier ändern, dann dort neu kopieren.
-- **Kyrillisch** braucht fontkit + Noto Sans (`vendor/`), als Teilmenge eingebettet.
+- **Kyrillisch** braucht fontkit + Noto Sans (`vendor/`), **ganz** eingebettet (`subset:false`, siehe oben).
 - **Texterkennung** `vendor/tesseract/` (21 MB, nicht im Installations-Vorrat) —
   die WorkFlohs laden sie von hier (`/Workflow-PDF/vendor/`). **Nicht umbenennen.**
 - Headless-Chromium hat **keinen** `Translator` (gemessen) — die Probe stellt ihn;
@@ -88,6 +88,22 @@ Textfarbe an dieselbe Stelle. Zwischenstand je Seite in IndexedDB
 - **`assets/blatt.js`** (byte-1:1 in die WorkFlohs): Blatt im Foto finden, auf A4
   entzerren. Unsicher → NICHT schneiden, ganzes Foto auf A4. `bilderZuPdf` nimmt
   `b.seite` als Seitengröße.
+
+## 📘 Handbuch und Beispiel-Formular (Klaus 2026-09-25)
+
+`beispiele/Workfloh-PDF-Benutzerhandbuch.pdf` (14 Seiten) und
+`beispiele/Beispiel-Amtsformular-Bewohnerparkausweis.pdf` (erfunden, Stadt Musterstadt).
+Zum Nachlesen UND als Testmaterial fürs Übersetzen, ohne eigene Daten ins Netz zu geben:
+Bilder, Farbkästen, Tabellen, Zweispalter, Querformat, eine gescannte Seite ohne Textebene.
+
+- **Gebaut, nicht von Hand:** `node tools/handbuch-bauen.mjs` (Inhalt in
+  `tools/handbuch-inhalt.js`, Formular in `tools/handbuch-formular.js`). Die Bildschirmfotos
+  nimmt es an der echten App auf — wer die Oberfläche ändert, baut das Handbuch neu.
+- Nur Zeichen der Standardschrift (WinAnsi): keine Emojis, keine Pfeile.
+- In der App: Hilfe → „📘 Handbuch öffnen" / „📄 Beispiel-Formular", und
+  🌐 Übersetzen → „📘 Beispiele zum Ausprobieren" (`beispieleLaden()`, Ordner „Beispiele",
+  nichts doppelt). Nicht im Installations-Vorrat; der Worker legt sie beim ersten Abruf ab.
+  Das Handbuch nennt diesen Weg wörtlich — `tests/beispiele.mjs` hält beide zusammen.
 
 ## Netzweit
 
