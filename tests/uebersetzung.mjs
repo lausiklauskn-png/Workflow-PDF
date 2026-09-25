@@ -125,7 +125,7 @@ await ctx.addInitScript(({ DE_RU, RU_DE, RU_EN }) => {
   self.Translator = {
     availability: async ({ sourceLanguage: a, targetLanguage: b }) => (a === b ? 'unavailable' : 'available'),
     create: async ({ sourceLanguage: a, targetLanguage: b }) => ({
-      translate: async t => { window.__ueCalls.push(a + '>' + b + ':' + t); if (window.__ueDelay) await new Promise(r => setTimeout(r, window.__ueDelay)); const w = W[a + '>' + b] || {}; return w[t] != null ? w[t] : '[' + b + '] ' + t; },
+      translate: async t => { if (window.__ueFehlerAb && window.__ueCalls.length + 1 >= window.__ueFehlerAb) throw new Error('Zu viele Anfragen oder Kontingent erschöpft (429). gestellt'); window.__ueCalls.push(a + '>' + b + ':' + t); if (window.__ueDelay) await new Promise(r => setTimeout(r, window.__ueDelay)); const w = W[a + '>' + b] || {}; return w[t] != null ? w[t] : '[' + b + '] ' + t; },
       destroy() {}
     })
   };
@@ -333,7 +333,13 @@ try {
   await page.waitForFunction(() => /angehalten/.test(document.querySelector('.dlg h2')?.textContent || ''), null, { timeout: 20000 });
   const stand = await page.evaluate(async () => { const j = (await WFP.DB.all('files')).find(f => String(f.id).startsWith('ue:')); return j ? j.job.seiten.filter(Boolean).length : -1; });
   ok('Abbrechen hält nach der laufenden Seite an, Zwischenstand gespeichert', stand >= 2 && stand < 6, stand);
-  ok('bei Abbruch kein halbes Ergebnis-PDF angelegt', !(await lies('Lang [EN]')));
+  // Klaus 2026-09-25: „es wird zwar gesagt, dass ein Teil übersetzt wurde … die
+  // Teilübersetzung wird nicht angezeigt." Seitdem liegt ein Teil-PDF bereit.
+  ok('bei Abbruch kein vollständiges Ergebnis angelegt', !(await lies('Lang [EN]')));
+  const tl = await lies('Lang [EN, Teil ' + stand + ' von 6]');
+  ok('… aber ein Teil-PDF „[EN, Teil N von 6]" mit allen 6 Seiten', tl && tl.seiten.length === 6 && tl.d.teil && tl.d.teil.fertig === stand, tl && tl.d.name);
+  ok('… fertige Seiten übersetzt, der Rest steht im Original', tl && tl.seiten.slice(0, stand).every((s, i) => text(s).includes('[en] Absatz auf Seite ' + (i + 1) + '.')) && !text(tl.seiten[5]).includes('[en]') && text(tl.seiten[5]).includes('Absatz auf Seite 6.'), tl && tl.seiten.map(text));
+  ok('… und der Bericht bietet es zum Öffnen an', /Teilübersetzung öffnen/.test(await page.textContent('.dlg')));
   await page.click('.dlg [data-x]');
   await page.evaluate(() => { window.__ueCalls = []; window.__ueDelay = 0; });
   await page.click('[data-ueb]'); await page.waitForSelector('.dlg [data-dok]');
@@ -345,7 +351,25 @@ try {
   ok('Fortsetzen übersetzt nur die fehlenden Seiten', neuCalls === 6 - stand, { neuCalls, stand });
   const lg = await lies('Lang [EN]');
   ok('… und das Ergebnis hat alle 6 Seiten, jede an ihrem Platz übersetzt', lg && lg.seiten.length === 6 && lg.seiten.every((s, i) => text(s).includes('[en] Absatz auf Seite ' + (i + 1) + '.')), lg && lg.seiten.map(text));
+  ok('… und das Teil-PDF ist durch das vollständige ersetzt', await page.evaluate(async () => !(await WFP.DB.all('docs')).some(d => /^Lang \[EN, Teil/.test(d.name))));
   await page.click('.dlg [data-x]');
+
+  // 5b. Der Übersetzer bricht mitten im Lauf ab (Kontingent erschöpft) — Teilergebnis sichtbar
+  await page.evaluate(() => { window.__ueCalls = []; window.__ueFehlerAb = 3; });
+  await page.click('[data-ueb]'); await page.waitForSelector('.dlg [data-dok]');
+  await page.locator('.dlg [data-dok]').nth(li).check();
+  await page.selectOption('.dlg [data-von]', 'de'); await page.selectOption('.dlg [data-nach]', 'ru');
+  await page.click('.dlg [data-weg="browser"]');
+  await page.waitForFunction(() => /unvollständig/.test(document.querySelector('.dlg h2')?.textContent || ''), null, { timeout: 30000 });
+  const berK = await page.textContent('.dlg');
+  ok('Kontingent erschöpft: Bericht nennt den Grund und „2 von 6 Seiten"', /Kontingent/.test(berK) && /2 von 6 Seiten/.test(berK), berK.slice(0, 600));
+  const tk = await lies('Lang [RU, Teil 2 von 6]');
+  ok('… Teil-PDF mit 2 übersetzten Seiten liegt bereit', tk && tk.seiten.length === 6 && text(tk.seiten[1]).includes('[ru] Absatz auf Seite 2.') && !text(tk.seiten[2]).includes('[ru]'), tk && tk.seiten.map(text));
+  await page.click('.dlg [data-oeffne]');
+  await page.waitForSelector('#sc-ed.on');
+  ok('… und „Teilübersetzung öffnen" zeigt es im Editor', await page.evaluate(() => window.__wfpdf.S.doc && /Teil 2 von 6/.test(window.__wfpdf.S.doc.name)));
+  await page.click('#edZurueck');
+  await page.evaluate(() => { window.__ueFehlerAb = 0; });
 
   const echt = konsole.filter(k => !/status of 429/.test(k));   // die 429 ist gestellt
   ok('keine Fehler in der Konsole (außer der gestellten 429)', echt.length === 0, echt);

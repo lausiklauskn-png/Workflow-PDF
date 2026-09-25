@@ -55,6 +55,11 @@ Textfarbe an dieselbe Stelle. Zwischenstand je Seite in IndexedDB
   am Gerät misst der Knopf „🔎 Messen" im Übersetzen-Dialog.
 - Unter der Übersetzung bleibt der Originaltext im PDF (abgedeckt); die Gegenprobe
   übersetzt deshalb die gespeicherten Übersetzungen zurück, statt neu zu lesen.
+- **Teilergebnis bei Abbruch** (Klaus 2026-09-25): `lauf()` wirft bei einem Fehler des
+  Übersetzers (429/Kontingent, Netz) NICHT, sondern meldet `fehler` mit gespeichertem
+  Stand. Ist mindestens eine Seite fertig, entsteht „[RU, Teil N von M]" (Rest im
+  Original, `doc.teil`); der vollständige Lauf ersetzt es. Vorher stand das Übersetzte
+  nur im Speicher und war nicht zu sehen.
 - `npm run messen` misst 400 Seiten + 10 Scans (nicht Teil von `npm test`).
 - **Behördenformular** (`tests/behoerde.mjs`): Felder kommen übersetzt mit
   (`quellFeld` → Feld im Original), Rückweg „↩ Einträge ins Original" legt eine

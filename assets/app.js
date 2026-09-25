@@ -1222,13 +1222,27 @@
         zeile.ocr = r.ocrSeiten;
         if (r.ocrFehler) zeile.hinweise.push('Texterkennung für gescannte Seiten nicht verfügbar (' + r.ocrFehler + ') — diese Seiten bleiben unübersetzt.');
         zeile.ms = r.ms; zeile.neu = r.neu; zeile.fertig = r.fertig;
-        if (r.abgebrochen) { zeile.hinweise.push(`Angehalten nach ${r.fertig} von ${r.n} Seiten — „🌐 Übersetzen" mit denselben Sprachen setzt dort fort.`); bericht.push(zeile); break; }
+        if (r.fehler) zeile.hinweise.push('Der Übersetzer hat abgebrochen: ' + r.fehler + (/429|Kontingent/.test(r.fehler) ? ' — das Kontingent des Anbieters ist für den Moment erschöpft; später erneut starten.' : ''));
+        // Teilergebnis: fertige Seiten übersetzt, der Rest im Original — damit das
+        // bisher Übersetzte zu SEHEN ist (vorher stand es nur im Speicher).
+        const teil = r.abgebrochen || !!r.fehler;
+        if (teil && !r.fertig) { zeile.hinweise.push('Noch keine Seite übersetzt — es gibt kein Teilergebnis.'); bericht.push(zeile); break; }
+        const altTeile = (await DB.all('docs')).filter(x => x.teil && x.uebersetzung && x.uebersetzung.quelle === d.id && x.uebersetzung.nach === nach && !x.uebersetzung.gegenprobe);
+        for (const x of altTeile) { await DB.del('docs', x.id); await DB.del('files', x.id); }
         fb.setze((k + 1) / ids.length, vor + 'PDF wird gebaut …');
-        const out = await UE.pdfBauen(bytes, r.stand.seiten, schrift, { titel: d.name + ' [' + nach.toUpperCase() + ']', nach });
+        const nameNeu = d.name + ' [' + nach.toUpperCase() + (teil ? ', Teil ' + r.fertig + ' von ' + r.n : '') + ']';
+        const out = await UE.pdfBauen(bytes, r.stand.seiten, schrift, { titel: nameNeu, nach });
         const zielO = await ergebnisOrdner(d, nach, nach.toUpperCase());
-        const neu = await neuesDok(d.name + ' [' + nach.toUpperCase() + ']', out.bytes, 'uebersetzung', zielO.id);
+        const neu = await neuesDok(nameNeu, out.bytes, 'uebersetzung', zielO.id);
         zeile.ordner = zielO.name; zeile.neuId = neu.id;
         neu.uebersetzung = { von, nach, quelle: d.id, weg, am: jetzt() };
+        if (teil) {
+          neu.teil = { fertig: r.fertig, n: r.n };
+          await DB.put('docs', neu);
+          zeile.teil = true; zeile.groesse = out.bytes.length; zeile.hinweise.push(...out.hinweise);
+          zeile.hinweise.push(`Teilübersetzung: ${r.fertig} von ${r.n} Seiten. „🌐 Übersetzen" mit denselben Sprachen setzt fort und ersetzt dieses Teil-PDF durch das vollständige.`);
+          bericht.push(zeile); break;
+        }
         // Felder des Originals kommen mit — übersetzt, an derselben Stelle (Formular auf Russisch ausfüllen)
         const mit = (d.fields || []).filter(f => f.geprueft);
         if (mit.length) {
@@ -1260,8 +1274,8 @@
     const zeichen = st.reduce((n, s) => n + s.zeichen, 0), tokE = st.reduce((n, s) => n + (s.tokenEin || 0), 0), tokA = st.reduce((n, s) => n + (s.tokenAus || 0), 0);
     const neuS = bericht.reduce((n, z) => n + (z.neu || 0), 0);
     window.__wfpdfBericht = { bericht, zeichen, tokE, tokA, ms: Date.now() - t0, speicherMB: performance.memory ? performance.memory.usedJSHeapSize / 1048576 : null };
-    dialog(`<h2>🌐 Übersetzung ${abbruch ? 'angehalten' : 'fertig'}</h2>
-      <ul>${bericht.map(z => `<li><b>${h(z.name)}</b> · ${z.fertig != null ? z.fertig + ' von ' + z.seiten + ' Seiten' : ''}${z.neu ? ' · ' + (z.ms / z.neu / 1000).toFixed(1) + ' s je neu übersetzter Seite' : ''}${z.groesse ? ' · Ergebnis ' + (z.groesse >= 1048576 ? (z.groesse / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(z.groesse / 1024)) + ' KB') : ''}${z.ordner ? ' · liegt in „' + h(z.ordner) + '"' : ''}${z.felder ? ' · ' + z.felder + ' Felder übersetzt mitgenommen' : ''}${z.neuId ? ` <button class="knopf klein" data-oeffne="${h(z.neuId)}">✏️ Öffnen: Felder setzen / ausfüllen</button>` : ''}${z.hinweise.length ? '<ul>' + z.hinweise.map(x => '<li class="hinweis">' + h(x) + '</li>').join('') + '</ul>' : ''}</li>`).join('')}</ul>
+    dialog(`<h2>🌐 Übersetzung ${abbruch ? 'angehalten' : bericht.some(z => z.teil) ? 'unvollständig — Teilergebnis liegt bereit' : 'fertig'}</h2>
+      <ul>${bericht.map(z => `<li><b>${h(z.name)}</b> · ${z.fertig != null ? z.fertig + ' von ' + z.seiten + ' Seiten' : ''}${z.neu ? ' · ' + (z.ms / z.neu / 1000).toFixed(1) + ' s je neu übersetzter Seite' : ''}${z.groesse ? ' · Ergebnis ' + (z.groesse >= 1048576 ? (z.groesse / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(z.groesse / 1024)) + ' KB') : ''}${z.ordner ? ' · liegt in „' + h(z.ordner) + '"' : ''}${z.felder ? ' · ' + z.felder + ' Felder übersetzt mitgenommen' : ''}${z.neuId ? ` <button class="knopf klein" data-oeffne="${h(z.neuId)}">${z.teil ? '👁 Teilübersetzung öffnen' : '✏️ Öffnen: Felder setzen / ausfüllen'}</button>` : ''}${z.hinweise.length ? '<ul>' + z.hinweise.map(x => '<li class="hinweis">' + h(x) + '</li>').join('') + '</ul>' : ''}</li>`).join('')}</ul>
       <p class="hinweis">Gemessen: ${neuS} Seiten in ${((Date.now() - t0) / 1000).toFixed(0)} s · ${zeichen.toLocaleString('de-DE')} Zeichen übersetzt${tokE || tokA ? ` · ${tokE.toLocaleString('de-DE')} Token hin, ${tokA.toLocaleString('de-DE')} Token zurück (${h(hin.stat.modell || '')}) — den Preis je Token nennt der Anbieter` : ''}${performance.memory ? ' · Speicher ' + (performance.memory.usedJSHeapSize / 1048576).toFixed(0) + ' MB' : ''}.</p>
       <div class="zeile"><button class="knopf rot" data-x>OK</button></div>`, (dl, zu) => { dl.querySelector('[data-x]').onclick = zu; dl.querySelectorAll('[data-oeffne]').forEach(b => b.onclick = () => { zu(); oeffneDok(b.dataset.oeffne); }); });
     if (!abbruch) hops();
