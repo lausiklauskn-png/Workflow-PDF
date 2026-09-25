@@ -325,6 +325,13 @@
   // opt.tab(el): der Aufrufer hängt in el Knöpfe „In Chrome öffnen / Teilen / Adresse
   // kopieren" — nur er kennt Adresse und Dokumente (Klaus 2026-09-25: im installierten
   // App-Fenster fehlt oft „Übersetzen", und die Adresse kennt kaum jemand).
+  // Welche Schrift steht da? null = passt (oder zu wenig Text, um es zu sagen)
+  function falscheSchrift(text, nach) {
+    const kyr = (String(text).match(/[\u0400-\u04FF]/g) || []).length, lat = (String(text).match(/[A-Za-zÀ-ÿ]/g) || []).length;
+    if (kyr + lat < 20) return null;
+    if (nach === 'ru') return kyr === 0 ? 'eine Sprache in lateinischer Schrift' : null;
+    return kyr > lat ? 'Russisch (kyrillische Schrift)' : null;
+  }
   function chromeUebersetzer(von, nach, opt) {
     opt = opt || {};
     if (_chromeAktiv) { try { _chromeAktiv.zu(); } catch (_) {} }
@@ -368,7 +375,19 @@
         const fertig = els.filter((el, i) => fertigEl(el, orig[i])).length;
         anl.textContent = 'Chrome übersetzt nach ' + NAME_DE[nach] + ' …';
         st.textContent = fertig + ' von ' + els.length + ' Absätzen dieser Seite übersetzt.';
-        if (fertig === els.length) { await schlaf(250); break; }
+        if (fertig === els.length) {
+          // Übersetzt Chrome in die gewählte Sprache? Chrome merkt sich die letzte Zielsprache —
+          // Klaus 2026-09-25: „auf Englisch gedrückt, und dann war es komplett in Russisch".
+          // Unterscheiden lässt sich die SCHRIFT (kyrillisch · lateinisch), nicht Deutsch von Englisch.
+          const falsch = falscheSchrift(els.map(el => el.textContent).join(' '), nach);
+          if (falsch) {
+            anl.textContent = 'Chrome hat nach ' + falsch + ' übersetzt — gewählt ist ' + NAME_DE[nach] + '. In Chrome ⋮ → „Übersetzen" → die Sprache auf ' + NAME_DE[nach] + ' umstellen.';
+            st.textContent = 'Die App wartet und übernimmt nichts, bis der Text in ' + NAME_DE[nach] + ' dasteht.';
+            anl.setAttribute('data-falsch', '1'); letzt = Date.now(); await schlaf(400); continue;
+          }
+          anl.removeAttribute('data-falsch');
+          await schlaf(250); break;
+        }
         if (fertig !== vorher) { vorher = fertig; letzt = Date.now(); gescrollt = false; }
         const still = Date.now() - letzt;
         if (still > 8000 && !gescrollt) { const e = els.find((el, i) => !fertigEl(el, orig[i])); if (e) e.scrollIntoView({ block: 'center' }); gescrollt = true; }
@@ -722,5 +741,5 @@
   }
 
   window.WFP = window.WFP || {};
-  window.WFP.Uebersetzung = { zeichenNormal, SPRACHEN, NAME_DE, KI_TEXTMODELL, bloecke, browserDa, browserVerfuegbar, browserUebersetzer, chromeUebersetzer, chromeAn, kiUebersetzer, lauf, rueck, schriftLaden, pdfBauen, anzeige, farben, ocrStarten };
+  window.WFP.Uebersetzung = { zeichenNormal, SPRACHEN, NAME_DE, KI_TEXTMODELL, bloecke, browserDa, browserVerfuegbar, browserUebersetzer, chromeUebersetzer, falscheSchrift, chromeAn, kiUebersetzer, lauf, rueck, schriftLaden, pdfBauen, anzeige, farben, ocrStarten };
 })();

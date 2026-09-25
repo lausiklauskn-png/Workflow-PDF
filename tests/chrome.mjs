@@ -45,18 +45,19 @@ await ctx.addInitScript(() => {
   // Stellvertreter für Chromes Seitenübersetzung
   let an = false, beob = null;
   const gesperrt = n => { for (let e = n.nodeType === 1 ? n : n.parentElement; e; e = e.parentElement) { const t = e.getAttribute && e.getAttribute('translate'); if (t === 'no') return true; if (t === 'yes') return false; } return false; };
-  const zu = t => t.trim() === 'Hamburg' ? t : '[ru] ' + t;
+  const kyr = t => t.replace(/[a-zäöüß]/gi, c => 'абвгдежзийклмнопрстуфхцчшщыэюя'[(c.toLowerCase().charCodeAt(0) - 97 + 30) % 30]);   // „Russisch": wirklich kyrillisch
+  const zu = t => t.trim() === 'Hamburg' ? t : (window.__chromeZiel || 'ru') === 'ru' ? '[ру] ' + kyr(t) : '[en] ' + t;   // Chrome übersetzt in die Sprache, die man DORT gewählt hat
   const lauf = wurzel => {
     const w = document.createTreeWalker(wurzel, NodeFilter.SHOW_TEXT); const ns = [];
     for (let n; (n = w.nextNode());) if (n.nodeValue.trim() && !gesperrt(n) && !(n.parentElement && n.parentElement.closest('font,script,style'))) ns.push(n);
-    ns.forEach(n => { const a = document.createElement('font'); a.style.verticalAlign = 'inherit'; const b = document.createElement('font'); b.style.verticalAlign = 'inherit'; b.textContent = zu(n.nodeValue); a.appendChild(b); n.replaceWith(a); });
+    ns.forEach(n => { const a = document.createElement('font'); a.style.verticalAlign = 'inherit'; a.dataset.orig = n.nodeValue; const b = document.createElement('font'); b.style.verticalAlign = 'inherit'; b.textContent = zu(n.nodeValue); a.appendChild(b); n.replaceWith(a); });
   };
   window.__chromeUebersetzen = () => {
     an = true; document.documentElement.classList.add('translated-ltr'); lauf(document.body);
     beob = new MutationObserver(ms => { if (an) ms.forEach(m => m.addedNodes.forEach(x => { if (x.nodeType === 1 || x.nodeType === 3) setTimeout(() => { const w = x.nodeType === 1 ? x : x.parentElement; if (w && w.isConnected) lauf(w); }, 60); })); });
     beob.observe(document.body, { childList: true, subtree: true });
   };
-  window.__chromeOriginal = () => { an = false; if (beob) beob.disconnect(); document.documentElement.classList.remove('translated-ltr'); };
+  window.__chromeOriginal = () => { an = false; if (beob) beob.disconnect(); document.querySelectorAll('font[data-orig]').forEach(a => a.replaceWith(document.createTextNode(a.dataset.orig))); document.documentElement.classList.remove('translated-ltr'); };
 });
 const page = await ctx.newPage();
 const konsole = [];
@@ -105,7 +106,7 @@ try {
     for (let i = 1; i <= pdf.numPages; i++) t.push((await (await pdf.getPage(i)).getTextContent()).items.map(x => x.str).join(' '));
     return { t, von: d.uebersetzung.von, nach: d.uebersetzung.nach, weg: d.uebersetzung.weg };
   });
-  ok('Ergebnis „Chrome [RU]": jede Seite an ihrem Platz, Chromes Text übernommen', erg && erg.t.length === 3 && erg.t[0].includes('[ru] Seite eins wird übersetzt.') && erg.t[2].includes('[ru] Seite drei wird übersetzt.') && erg.t[1].includes('Hamburg'), erg);
+  ok('Ergebnis „Chrome [RU]": jede Seite an ihrem Platz, Chromes Text übernommen', erg && erg.t.length === 3 && erg.t[0].includes('[ру] тдиуд динт цисг ебдстдущу.') && erg.t[2].includes('[ру] тдиуд гсди цисг ебдстдущу.') && erg.t[1].includes('Hamburg'), erg);
   ok('… als Chrome-Weg vermerkt (de → ru)', erg && erg.von === 'de' && erg.nach === 'ru' && erg.weg === 'chrome', erg);
   ok('Fläche wieder weg, <html lang> wieder wie vorher', await page.evaluate(() => !document.getElementById('wfp-chrome') && document.documentElement.lang === 'de'));
   ok('App-Oberfläche blieb deutsch (nichts von Chrome übersetzt)', await page.evaluate(() => !/\[ru\]/.test(document.querySelector('header.kopf').textContent + document.getElementById('modals').textContent.replace(/Chrome \[RU\]/g, ''))));
@@ -114,6 +115,20 @@ try {
   await page.waitForFunction(() => !document.querySelector('[data-wfp-tr]'), null, { timeout: 5000 }).catch(() => {});
   ok('… und fällt, sobald Chrome wieder das Original zeigt', await page.evaluate(() => !document.querySelector('[data-wfp-tr]') && document.querySelector('header.kopf').getAttribute('translate') == null));
   await page.click('.dlg [data-x]');
+
+  // 2b. Eine Übersetzung noch einmal übersetzen (Klaus 2026-25-09: „[EN] [EN]", Russisch und
+  //     Englisch übereinander). Aus dem RU-Ordner gewählt → übersetzt wird das deutsche ORIGINAL.
+  const ruDoc = await page.evaluate(async () => (await WFP.DB.all('docs')).find(d => /Chrome \[RU\]$/.test(d.name)));
+  await page.click(`.ordner-chip[data-o="${ruDoc.folderId}"]`);
+  await page.evaluate(() => { window.__wfpdf.EINST.ueVon = 'ru'; });   // zuletzt „von Russisch" gewählt — die Falle
+  await page.click('[data-ueb]'); await page.waitForSelector('.dlg [data-dok]');
+  const ers = await page.evaluate(() => ({ namen: [...document.querySelectorAll('.dlg [data-dok]')].map(c => c.parentNode.textContent.trim()), hinweis: document.querySelector('.dlg [data-ersetzt]')?.textContent || '' }));
+  const vonNeu = await page.evaluate(() => document.querySelector('.dlg [data-von]').value);
+  ok('Übersetzung gewählt: im Dialog steht das ORIGINAL „Chrome", nicht „Chrome [RU]"', ers.namen.length === 1 && /^Chrome\b/.test(ers.namen[0]) && !/\[RU\]/.test(ers.namen[0]), ers);
+  ok('… mit Hinweis, warum (sonst zwei Sprachen übereinander), und „von" steht auf der Sprache des Originals (Deutsch)', /Original/.test(ers.hinweis) && /zweier Sprachen/.test(ers.hinweis) && vonNeu === 'de', [ers.hinweis, vonNeu]);
+  await page.click('.dlg [data-x]');
+  await page.evaluate(() => { window.__wfpdf.EINST.ueVon = 'de'; });
+  await page.click('.ordner-chip[data-o="alle"]');
 
   // 3. Abbrechen, während die App auf Chrome wartet
   await oeffne('en');
@@ -154,12 +169,20 @@ try {
   await tab.click('.dlg [data-weg="chrome"]');
   await tab.waitForSelector('#wfp-chrome');
   ok('im Chrome-Tab keine „In Chrome öffnen"-Knöpfe (man ist ja schon dort)', await tab.evaluate(() => !document.querySelector('#wfp-chrome [data-tab] button')));
-  await tab.evaluate(() => window.__chromeUebersetzen());
+  // Chrome hat sich die letzte Zielsprache gemerkt (Russisch), gewählt ist Englisch (Klaus 2026-09-25)
+  await tab.evaluate(() => { window.__chromeZiel = 'ru'; window.__chromeUebersetzen(); });
+  await tab.waitForSelector('#wfp-chrome [data-anl][data-falsch]', { timeout: 15000 }).catch(() => {});
+  const falsch = await tab.evaluate(() => ({ anl: document.querySelector('#wfp-chrome [data-anl]')?.textContent || '', st: document.querySelector('#wfp-chrome [data-st]')?.textContent || '' }));
+  ok('Chrome übersetzt in die FALSCHE Sprache: die App sagt es und nennt den Weg (⋮ → Übersetzen → Englisch)', /Russisch/.test(falsch.anl) && /Englisch/.test(falsch.anl) && /umstellen/.test(falsch.anl), falsch);
+  await tab.waitForTimeout(1200);
+  ok('… und übernimmt nichts (noch keine Datei „Chrome [EN]")', await tab.evaluate(async () => !(await WFP.DB.all('docs')).some(d => /Chrome \[EN\]/.test(d.name))));
+  // Nutzer stellt in Chrome auf Englisch um → Chrome übersetzt neu
+  await tab.evaluate(() => { window.__chromeOriginal(); window.__chromeZiel = 'en'; window.__chromeUebersetzen(); });
   await tab.waitForFunction(() => /Übersetzung fertig/.test(document.querySelector('.dlg h2')?.textContent || ''), null, { timeout: 60000 });
   const tb = await tab.textContent('.dlg');
   ok('Ergebnis im Tab wird ein PDF wie in der App, mit Hinweis „Zurück in die App"', /3 von 3 Seiten/.test(tb) && /Zurück in die App/.test(tb), tb.slice(0, 400));
   const en = await page.evaluate(async () => { const d = (await WFP.DB.all('docs')).find(x => x.name === 'Chrome [EN]'); if (!d) return null; const pdf = await pdfjsLib.getDocument({ data: (await WFP.DB.getFile(d.id)).slice(0) }).promise; return (await (await pdf.getPage(1)).getTextContent()).items.map(x => x.str).join(' '); });
-  ok('… und die App sieht es im selben Speicher („Chrome [EN]", Seite 1 übersetzt)', en && en.includes('[ru] Seite eins wird übersetzt.'), en);
+  ok('… und die App sieht es im selben Speicher („Chrome [EN]", Seite 1 übersetzt)', en && en.includes('[en] Seite eins wird übersetzt.'), en);
   await tab.evaluate(() => window.__chromeOriginal());
   // Dokument, das es in diesem Browser nicht gibt → ehrliche Meldung statt leerem Dialog
   await tab.goto(`http://127.0.0.1:${srv.address().port}/index.html?ue=gibtesnicht&von=de&nach=en&weg=chrome`);

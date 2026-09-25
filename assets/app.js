@@ -1148,17 +1148,44 @@
     S.ausApp = true;
     uebersetzenDialog(da, true, { chromeTab: true });
   }
+  /* Eine Übersetzung trägt ZWEI Textschichten: das Original (weiß abgedeckt) und die
+     Übersetzung darüber. Sie noch einmal zu übersetzen liest beide — heraus kam „Модель
+     городаCity Model city" (Klaus 2026-09-25, „[EN] [EN]"). Übersetzt wird deshalb immer
+     das ORIGINAL; fehlt es, sagt die App das, statt gemischten Text zu bauen. */
+  async function originalVon(d) {
+    let q = d, n = 0;
+    while (q && q.uebersetzung && q.uebersetzung.quelle && n++ < 5) {
+      const o = S.docs.find(x => x.id === q.uebersetzung.quelle) || await DB.get('docs', q.uebersetzung.quelle);
+      if (!o || !await DB.getFile(o.id)) return null;
+      q = o;
+    }
+    return q;
+  }
   async function uebersetzenDialog(ids, alleGewaehlt, opt) {
     opt = opt || {};
-    const docs = [];
-    for (const id of ids) { const d = S.docs.find(x => x.id === id) || await DB.get('docs', id); if (d) docs.push(d); }
+    const docs = [], ersetzt = [], ohneOriginal = [];
+    for (const id of ids) {
+      let d = S.docs.find(x => x.id === id) || await DB.get('docs', id); if (!d) continue;
+      if (d.uebersetzung) {
+        const o = await originalVon(d);
+        if (!o) { ohneOriginal.push(d); continue; }
+        if (!ids.includes(o.id)) ersetzt.push({ von: d.name, nach: o.name, sprache: d.uebersetzung.gegenprobe ? d.uebersetzung.nach : d.uebersetzung.von });
+        d = o;
+      }
+      if (!docs.some(x => x.id === d.id)) docs.push(d);
+    }
+    // Die Ausgangssprache ist die des Originals — sonst stünde „von: Deutsch" vor einem Umweg über Russisch.
+    const vonVorgabe = ersetzt.length && UE.SPRACHEN[ersetzt[0].sprache] ? ersetzt[0].sprache : EINST.ueVon;
+    if (!docs.length) return toast('⚠️ „' + (ohneOriginal[0] ? ohneOriginal[0].name : '') + '" ist selbst eine Übersetzung, und ihr Original liegt nicht mehr hier. Eine Übersetzung noch einmal zu übersetzen mischt beide Sprachen — bitte das Original einlesen und das übersetzen.');
     const mehrere = docs.length > 1; const a = ER.ANBIETER[EINST.anbieter];
     dialog(`<h2>🌐 Übersetzen</h2>${opt.chromeTab ? `<p class="hinweis" data-ausapp style="background:#fff3cd;padding:8px;border-radius:8px"><b>Aus der App in Chrome geöffnet.</b> Tippe „🌐 Mit Chrome übersetzen", danach in Chrome ⋮ → „Übersetzen" → ${h(UE.SPRACHEN[EINST.ueNach] || '')}. Das Ergebnis wird ein PDF wie in der App und liegt in der Bibliothek.</p>` : ''}
       <p class="hinweis">Jede Seite wird auf derselben Seite übersetzt: Bilder, Grafiken und Aufbau des Originals bleiben, nur der Text wird an seiner Stelle ersetzt — in der Farbe des Originals. Gescannte Seiten liest die Texterkennung (OCR) auf dem Gerät. Seitenumbrüche bleiben, das Original bleibt unberührt. Die Ergebnisse kommen in eigene Ordner je Sprache („… · RU"), getrennt von den Originalen; alle Ordner lassen sich umbenennen.</p>
+      ${ersetzt.length ? `<p class="hinweis" data-ersetzt style="background:#e8f0fe;padding:8px;border-radius:8px">${ersetzt.map(e => `„${h(e.von)}" ist selbst eine Übersetzung — übersetzt wird ihr <b>Original</b> „${h(e.nach)}" (${h(UE.SPRACHEN[e.sprache] || e.sprache)}). So entsteht sauberer Text statt zweier Sprachen übereinander.`).join('<br>')}</p>` : ''}
+      ${ohneOriginal.length ? `<p class="hinweis" data-ohneoriginal>Weggelassen: ${ohneOriginal.map(d => '„' + h(d.name) + '"').join(', ')} — selbst eine Übersetzung, das Original liegt nicht mehr hier.</p>` : ''}
       ${mehrere ? `<p><b>Welche Dokumente?</b> <button class="knopf klein" data-alle>Alle</button></p>` : ''}
       <div class="erk-liste">${docs.map((d, i) => `<label class="erk-dok"><input type="checkbox" data-dok="${h(d.id)}"${!mehrere || (alleGewaehlt && !d.uebersetzung) ? ' checked' : ''}> ${h(d.name)} <span class="hinweis">· ${d.pages.length} S.${d.uebersetzung ? ' · schon eine Übersetzung' : ''}${!d.uebersetzung ? ' · ' + (d.fields.filter(f => f.geprueft).length ? d.fields.filter(f => f.geprueft).length + ' Felder kommen übersetzt mit' : 'keine Felder') : ''}</span>${!d.uebersetzung && !d.fields.filter(f => f.geprueft).length ? ` <button class="knopf klein" data-feld="${h(d.id)}" title="Rahmen zum Ausfüllen (Text, Datum, Kästchen, Unterschrift) im Original setzen — sie kommen dann übersetzt mit">✏️ erst Felder setzen</button>` : ''}</label>`).join('')}</div>
       <p class="hinweis">Formular zum Ausfüllen (z. B. vom Amt)? Die Rahmen zum Ausfüllen am besten <b>im Original</b> setzen („✏️ erst Felder setzen", oder „🔍 Felder erkennen") — dann kommen sie übersetzt an dieselbe Stelle mit. Nach dem Ausfüllen holt „⬇ PDF ausgeben → ↩ Einträge ins Original" die Einträge zurück.</p>
-      <div class="ue-sprachen"><div><label>von</label>${sprachWahl('von', EINST.ueVon)}</div><div class="ue-pfeil">→</div><div><label>nach</label>${sprachWahl('nach', EINST.ueNach)}</div></div>
+      <div class="ue-sprachen"><div><label>von</label>${sprachWahl('von', vonVorgabe)}</div><div class="ue-pfeil">→</div><div><label>nach</label>${sprachWahl('nach', EINST.ueNach)}</div></div>
       <label style="font-weight:400"><input type="checkbox" data-rueck${EINST.ueRueck !== false ? ' checked' : ''}> Gegenprobe: danach zurück in die Ausgangssprache übersetzen und daneben ablegen</label>
       <p class="hinweis" data-zahl></p>
       <button class="wahl" data-weg="browser"><b>📱 Übersetzer im Browser</b><span data-bstat>prüfe …</span></button>

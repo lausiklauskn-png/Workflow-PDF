@@ -90,6 +90,15 @@ Textfarbe an dieselbe Stelle. Zwischenstand je Seite in IndexedDB
   nicht. Es geht sofort ins Teilen-Fenster. Auch der **Rückweg** („↩ Einträge ins
   Original") hat diesen Weg: Adresse `?rueck=<Übersetzung>&weg=chrome`, der Tab öffnet
   denselben Rückweg (`tests/behoerde.mjs` 4b).
+- **Eine Übersetzung wird nie weiterübersetzt** (Klaus 2026-09-25, „[EN] [EN]" mit Russisch
+  und Englisch auf einer Seite): unter der Übersetzung liegt der abgedeckte Originaltext — wer
+  sie liest, bekommt beide Sprachen. `originalVon()` ersetzt im Übersetzen-Dialog jede gewählte
+  Übersetzung durch ihr Original (`uebersetzung.quelle`) und SAGT das (`data-ersetzt`); „von"
+  folgt der Sprache des Originals. Fehlt das Original, steht `data-ohneoriginal` da.
+- **Chrome merkt sich die Zielsprache** und fragt nicht nach: wer vorher Russisch hatte, bekommt
+  bei „Englisch" wieder Russisch. `falscheSchrift()` prüft die Schrift (kyrillisch ⟷ lateinisch)
+  und übernimmt dann NICHTS, sondern nennt den Weg (⋮ → Übersetzen → Sprache umstellen).
+  DE und EN sind darüber nicht zu unterscheiden — benannte Grenze.
 - **Aufbau auf der Seite** (Klaus 2026-09-25: „Textüberlagerung, Logos und Zahlen abgedeckt"),
   geprüft in `tests/layout.mjs` (erfundenes Formular, Stellvertreter +34 % länger):
   Stücke ohne Buchstaben/Ziffern und Absätze mit weniger als 2 Buchstaben (Logo „M",
