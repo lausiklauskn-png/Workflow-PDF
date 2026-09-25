@@ -125,6 +125,48 @@ try {
   ok('Abbrechen beim Warten: Lauf „angehalten", kein Teil-PDF ohne Seiten, keine falsche Fehlermeldung', /angehalten/.test(b2) && /Noch keine Seite übersetzt/.test(b2) && !/Der Übersetzer hat abgebrochen/.test(b2), b2.slice(0, 400));
   ok('… Fläche entfernt, Sperre an der App wieder frei', await page.evaluate(() => !document.getElementById('wfp-chrome') && !document.querySelector('[data-wfp-tr]')));
 
+  // 4. Installierte App (eigenes Fenster): „In Chrome öffnen" + Rückweg in den Übersetzer
+  await page.click('.dlg [data-x]');
+  await page.evaluate(() => { const o = window.matchMedia.bind(window); window.matchMedia = q => /standalone/.test(q) ? { matches: true, media: q, addEventListener() {}, removeEventListener() {} } : o(q); });
+  await oeffne('en');
+  ok('im App-Fenster: unter „Mit Chrome übersetzen" stehen „In Chrome öffnen" und „Adresse kopieren"', await page.evaluate(() => { const r = document.querySelector('.dlg [data-tabreihe]'); return !!r && /In Chrome öffnen/.test(r.textContent) && /Adresse kopieren/.test(r.textContent); }));
+  await page.click('.dlg [data-weg="chrome"]');
+  await page.waitForSelector('#wfp-chrome [data-tab] button');
+  await page.waitForTimeout(600);
+  ok('… auch auf der Fläche, und der Wartesatz nennt den Knopf', await page.evaluate(() => /In Chrome öffnen/.test(document.querySelector('#wfp-chrome [data-tab]').textContent) && /In Chrome öffnen/.test(document.querySelector('#wfp-chrome [data-st]').textContent)));
+  const tabP = ctx.waitForEvent('page', { timeout: 15000 });
+  await page.click('#wfp-chrome [data-tab] button');
+  const tab = await tabP;
+  tab.on('pageerror', e => konsole.push('Tab: ' + e)); tab.on('console', m => { if (m.type() === 'error') konsole.push('Tab: ' + m.text()); });
+  await tab.route(/^https?:\/\/(?!127\.0\.0\.1)/, r => r.abort());
+  const adr = await page.evaluate(() => window.__wfpdfChromeTab);
+  const docId = await page.evaluate(async () => (await WFP.DB.all('docs')).find(d => d.name === 'Chrome').id);
+  const u = new URL(adr.url);
+  ok('Adresse trägt Dokument, Sprachen und Weg (ue, von=de, nach=en, weg=chrome)', u.searchParams.get('ue') === docId && u.searchParams.get('von') === 'de' && u.searchParams.get('nach') === 'en' && u.searchParams.get('weg') === 'chrome', adr.url);
+  ok('Android-Adresse erzwingt die Chrome-App und hat einen Rückfall', /^intent:\/\/127\.0\.0\.1:\d+\/index\.html\?ue=/.test(adr.intent) && /#Intent;scheme=http;package=com\.android\.chrome;S\.browser_fallback_url=/.test(adr.intent) && adr.intent.endsWith(';end') && decodeURIComponent(adr.intent.split('S.browser_fallback_url=')[1].replace(/;end$/, '')) === adr.url, adr.intent);
+  await page.waitForFunction(() => /angehalten/.test(document.querySelector('.dlg h2')?.textContent || ''), null, { timeout: 15000 }).catch(() => {});
+  ok('der Lauf im App-Fenster hält an, bevor der Tab übernimmt', await page.evaluate(() => /angehalten/.test(document.querySelector('.dlg h2')?.textContent || '') && !document.getElementById('wfp-chrome')));
+  // Der Tab: gleicher Speicher (wie Chrome und die installierte App auf Android)
+  await tab.waitForSelector('.dlg [data-ausapp]', { timeout: 20000 });
+  const tz = await tab.evaluate(() => ({ url: location.search, gewaehlt: [...document.querySelectorAll('.dlg [data-dok]')].filter(c => c.checked).map(c => c.dataset.dok), von: document.querySelector('.dlg [data-von]').value, nach: document.querySelector('.dlg [data-nach]').value, mark: getComputedStyle(document.querySelector('.dlg [data-weg="chrome"]')).outlineStyle }));
+  ok('Rückweg: der Tab öffnet den Übersetzer mit demselben Dokument und denselben Sprachen', tz.gewaehlt.length === 1 && tz.gewaehlt[0] === docId && tz.von === 'de' && tz.nach === 'en', tz);
+  ok('… „Mit Chrome übersetzen" ist hervorgehoben, die Adresse wieder sauber', tz.mark === 'solid' && !/ue=/.test(tz.url), tz);
+  await tab.click('.dlg [data-weg="chrome"]');
+  await tab.waitForSelector('#wfp-chrome');
+  ok('im Chrome-Tab keine „In Chrome öffnen"-Knöpfe (man ist ja schon dort)', await tab.evaluate(() => !document.querySelector('#wfp-chrome [data-tab] button')));
+  await tab.evaluate(() => window.__chromeUebersetzen());
+  await tab.waitForFunction(() => /Übersetzung fertig/.test(document.querySelector('.dlg h2')?.textContent || ''), null, { timeout: 60000 });
+  const tb = await tab.textContent('.dlg');
+  ok('Ergebnis im Tab wird ein PDF wie in der App, mit Hinweis „Zurück in die App"', /3 von 3 Seiten/.test(tb) && /Zurück in die App/.test(tb), tb.slice(0, 400));
+  const en = await page.evaluate(async () => { const d = (await WFP.DB.all('docs')).find(x => x.name === 'Chrome [EN]'); if (!d) return null; const pdf = await pdfjsLib.getDocument({ data: (await WFP.DB.getFile(d.id)).slice(0) }).promise; return (await (await pdf.getPage(1)).getTextContent()).items.map(x => x.str).join(' '); });
+  ok('… und die App sieht es im selben Speicher („Chrome [EN]", Seite 1 übersetzt)', en && en.includes('[ru] Seite eins wird übersetzt.'), en);
+  await tab.evaluate(() => window.__chromeOriginal());
+  // Dokument, das es in diesem Browser nicht gibt → ehrliche Meldung statt leerem Dialog
+  await tab.goto(`http://127.0.0.1:${srv.address().port}/index.html?ue=gibtesnicht&von=de&nach=en&weg=chrome`);
+  await tab.waitForFunction(() => /nicht da/.test(document.getElementById('toast').textContent), null, { timeout: 15000 }).catch(() => {});
+  ok('unbekanntes Dokument: Meldung „in diesem Browser nicht da", kein Dialog', await tab.evaluate(() => /nicht da/.test(document.getElementById('toast').textContent) && !document.querySelector('.dlg [data-ausapp]')));
+  await tab.close();
+
   ok('keine Fehler in der Konsole', konsole.length === 0, konsole);
 } catch (e) {
   rot++; console.log('  ✗ ROT: Abbruch → ' + (e && e.message || e));

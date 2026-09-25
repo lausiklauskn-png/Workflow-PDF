@@ -196,7 +196,11 @@
      sie danach auf Russisch), bis Chrome wieder das Original zeigt. */
   let _chromeAktiv = null;
   const chromeAn = () => /(^|\s)translated-(ltr|rtl)(\s|$)/.test(document.documentElement.className);
-  function chromeUebersetzer(von, nach) {
+  // opt.tab(el): der Aufrufer hängt in el Knöpfe „In Chrome öffnen / Teilen / Adresse
+  // kopieren" — nur er kennt Adresse und Dokumente (Klaus 2026-09-25: im installierten
+  // App-Fenster fehlt oft „Übersetzen", und die Adresse kennt kaum jemand).
+  function chromeUebersetzer(von, nach, opt) {
+    opt = opt || {};
     if (_chromeAktiv) { try { _chromeAktiv.zu(); } catch (_) {} }
     const stat = { zeichen: 0, anfragen: 0, ohne: 0, modell: 'Chrome (Google)' };
     const html = document.documentElement, langVorher = html.getAttribute('lang');
@@ -205,11 +209,13 @@
     const flaeche = document.createElement('div');
     flaeche.id = 'wfp-chrome'; flaeche.setAttribute('translate', 'yes'); flaeche.setAttribute('lang', von);
     flaeche.style.cssText = 'position:fixed;left:0;right:0;bottom:0;height:46vh;z-index:2147483000;background:#fffdf5;border-top:3px solid #E0231B;box-shadow:0 -6px 20px rgba(0,0,0,.25);display:flex;flex-direction:column;font:14px/1.35 system-ui,sans-serif;color:#111';
-    flaeche.innerHTML = '<div translate="no" data-kopf style="padding:10px 12px;background:#fff3cd;border-bottom:1px solid #e6d9a8"><b data-anl></b><div data-st style="font-size:12px;color:#555;margin-top:4px"></div><button type="button" data-halt style="margin-top:6px;padding:6px 10px;border:1px solid #999;border-radius:8px;background:#fff">⏹ Abbrechen</button></div><div data-liste style="overflow:auto;padding:8px 12px;flex:1"></div>';
+    flaeche.innerHTML = '<div translate="no" data-kopf style="padding:10px 12px;background:#fff3cd;border-bottom:1px solid #e6d9a8"><b data-anl></b><div data-st style="font-size:12px;color:#555;margin-top:4px"></div><button type="button" data-halt style="margin-top:6px;padding:6px 10px;border:1px solid #999;border-radius:8px;background:#fff">⏹ Abbrechen</button><div data-tab style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div></div><div data-liste style="overflow:auto;padding:8px 12px;flex:1"></div>';
     const anl = flaeche.querySelector('[data-anl]'), st = flaeche.querySelector('[data-st]'), liste = flaeche.querySelector('[data-liste]');
     const ANL = 'In Chrome oben rechts ⋮ → „Übersetzen" antippen und ' + NAME_DE[nach] + ' wählen. Danach läuft alles von selbst.';
     let halt = false, warte = null;
     flaeche.querySelector('[data-halt]').onclick = () => fn.halt();
+    if (typeof opt.tab === 'function') { try { opt.tab(flaeche.querySelector('[data-tab]')); } catch (_) {} }
+    const WARTE = opt.tab ? 'Warte auf Chromes Übersetzung … Fehlt „Übersetzen" (im installierten App-Fenster oft der Fall): „🌐 In Chrome öffnen" tippen — dort geht es mit denselben Seiten weiter.' : 'Warte auf Chromes Übersetzung … (Läuft die App im eigenen Fenster und fehlt „Übersetzen", die Seite im Chrome-Tab öffnen.)';
     const beob = new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(markiere)));
     let offen = false;
     function auf() {
@@ -232,7 +238,7 @@
       stat.anfragen++; stat.zeichen += texte.reduce((n, t) => n + t.length, 0);
       let letzt = Date.now(), vorher = -1, gescrollt = false;
       for (;;) {
-        if (!chromeAn()) { anl.textContent = ANL; st.textContent = 'Warte auf Chromes Übersetzung … (Läuft die App im eigenen Fenster und fehlt „Übersetzen", die Seite im Chrome-Tab öffnen.)'; letzt = Date.now(); await schlaf(400); continue; }
+        if (!chromeAn()) { anl.textContent = ANL; st.textContent = WARTE; letzt = Date.now(); await schlaf(400); continue; }
         const fertig = els.filter((el, i) => fertigEl(el, orig[i])).length;
         anl.textContent = 'Chrome übersetzt nach ' + NAME_DE[nach] + ' …';
         st.textContent = fertig + ' von ' + els.length + ' Absätzen dieser Seite übersetzt.';
@@ -471,7 +477,7 @@
     const { PDFDocument, rgb, degrees } = PDFLib;
     const pdf = await PDFDocument.load(bytes, { ignoreEncryption: true });
     pdf.registerFontkit(window.fontkit);
-    const font = await pdf.embedFont(schrift, { subset: true });
+    const font = await pdf.embedFont(schrift, { subset: false });
     const pages = pdf.getPages(); const hinweise = [];
     let ersetzt = 0, zuKlein = 0, ohneText = 0, gedreht = 0, offen = 0, ocr = 0;
     const invert = WFP.Export.invert;

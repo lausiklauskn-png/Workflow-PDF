@@ -1022,11 +1022,56 @@
     S.aktOrdner = o.id; await ladeBibliothek(); hops();
     uebersetzenDialog([doc.id], true);
   }
-  async function uebersetzenDialog(ids, alleGewaehlt) {
+  /* „In Chrome öffnen" (Klaus 2026-09-25): im installierten App-Fenster fehlt oft
+     ⋮ → „Übersetzen", und die Adresse der App kennt kaum jemand. Die Adresse trägt
+     Dokumente und Sprachen mit; der Chrome-Tab öffnet damit denselben Übersetzer
+     wieder (Rückweg), und das Ergebnis wird ein PDF wie hier — nicht die übersetzte
+     App-Oberfläche. Auf Android erzwingt die intent-Adresse die Chrome-App; anderswo
+     kennt der Browser das Schema nicht und würde wegnavigieren, dort also ein neuer Tab. */
+  function chromeTabAdresse(ids, von, nach) {
+    const u = new URL(location.pathname, location.origin);
+    u.searchParams.set('ue', ids.join(',')); u.searchParams.set('von', von); u.searchParams.set('nach', nach); u.searchParams.set('weg', 'chrome');
+    const intent = 'intent://' + u.host + u.pathname + u.search + '#Intent;scheme=' + u.protocol.replace(':', '') + ';package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(u.href) + ';end';
+    return { url: u.href, intent };
+  }
+  const istAndroid = () => /Android/i.test(navigator.userAgent);
+  function chromeTabKnoepfe(el, lage, vorher) {   // lage() → { ids, von, nach }
+    const k = (txt, titel) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'knopf klein'; b.textContent = txt; b.title = titel; b.style.cssText = 'padding:6px 10px;border:1px solid #999;border-radius:8px;background:#fff;font-size:13px'; el.appendChild(b); return b; };
+    k('🌐 In Chrome öffnen', 'Öffnet dieselben Dokumente im Chrome-Browser. Dort ⋮ → „Übersetzen" — das Ergebnis wird ein PDF wie hier.').onclick = async () => {
+      const l = lage(); if (!l.ids.length) return toast('Kein Dokument gewählt.');
+      const a = chromeTabAdresse(l.ids, l.von, l.nach);
+      window.__wfpdfChromeTab = a;   // für die Probe
+      if (vorher) try { await vorher(); } catch (_) {}
+      try { await speichernJetzt(); } catch (_) {}
+      if (istAndroid()) location.href = a.intent; else window.open(a.url, '_blank', 'noopener');
+    };
+    if (navigator.share) k('📤 Teilen …', 'Teilen mit Chrome oder einem anderen Browser').onclick = async () => {
+      const l = lage(); if (!l.ids.length) return toast('Kein Dokument gewählt.');
+      try { await navigator.share({ title: 'Workfloh PDF · Übersetzen', url: chromeTabAdresse(l.ids, l.von, l.nach).url }); } catch (_) {}
+    };
+    k('📋 Adresse kopieren', 'Adresse in die Zwischenablage, dann in Chrome einfügen').onclick = async () => {
+      const l = lage(); if (!l.ids.length) return toast('Kein Dokument gewählt.');
+      const url = chromeTabAdresse(l.ids, l.von, l.nach).url;
+      try { await navigator.clipboard.writeText(url); toast('📋 Adresse kopiert — in Chrome oben einfügen.'); } catch (_) { await eingabe('Adresse', 'Kopieren und in Chrome einfügen', url); }
+    };
+  }
+  // Beim Start: Aufruf aus „In Chrome öffnen" → Übersetzer mit denselben Dokumenten wieder öffnen.
+  async function chromeTabRueckweg() {
+    const q = new URLSearchParams(location.search); if (!q.has('ue')) return;
+    const ids = String(q.get('ue') || '').split(',').filter(Boolean), von = q.get('von'), nach = q.get('nach');
+    const u = new URL(location.href); ['ue', 'von', 'nach', 'weg'].forEach(n => u.searchParams.delete(n)); history.replaceState(null, '', u.pathname + u.search + u.hash);
+    if (UE.SPRACHEN[von] && UE.SPRACHEN[nach] && von !== nach) { EINST.ueVon = von; EINST.ueNach = nach; einstSpeichern(); }
+    const da = []; for (const id of ids) if (S.docs.some(d => d.id === id) || await DB.get('docs', id)) da.push(id);
+    if (!da.length) return toast('⚠️ Die Dokumente sind in diesem Browser nicht da — hier ist der Speicher getrennt von der App. Das PDF hier einlesen und „🌐 Übersetzen" tippen.');
+    S.ausApp = true;
+    uebersetzenDialog(da, true, { chromeTab: true });
+  }
+  async function uebersetzenDialog(ids, alleGewaehlt, opt) {
+    opt = opt || {};
     const docs = [];
     for (const id of ids) { const d = S.docs.find(x => x.id === id) || await DB.get('docs', id); if (d) docs.push(d); }
     const mehrere = docs.length > 1; const a = ER.ANBIETER[EINST.anbieter];
-    dialog(`<h2>🌐 Übersetzen</h2>
+    dialog(`<h2>🌐 Übersetzen</h2>${opt.chromeTab ? `<p class="hinweis" data-ausapp style="background:#fff3cd;padding:8px;border-radius:8px"><b>Aus der App in Chrome geöffnet.</b> Tippe „🌐 Mit Chrome übersetzen", danach in Chrome ⋮ → „Übersetzen" → ${h(UE.SPRACHEN[EINST.ueNach] || '')}. Das Ergebnis wird ein PDF wie in der App und liegt in der Bibliothek.</p>` : ''}
       <p class="hinweis">Jede Seite wird auf derselben Seite übersetzt: Bilder, Grafiken und Aufbau des Originals bleiben, nur der Text wird an seiner Stelle ersetzt — in der Farbe des Originals. Gescannte Seiten liest die Texterkennung (OCR) auf dem Gerät. Seitenumbrüche bleiben, das Original bleibt unberührt. Die Ergebnisse kommen in eigene Ordner je Sprache („… · RU"), getrennt von den Originalen; alle Ordner lassen sich umbenennen.</p>
       ${mehrere ? `<p><b>Welche Dokumente?</b> <button class="knopf klein" data-alle>Alle</button></p>` : ''}
       <div class="erk-liste">${docs.map((d, i) => `<label class="erk-dok"><input type="checkbox" data-dok="${h(d.id)}"${!mehrere || (alleGewaehlt && !d.uebersetzung) ? ' checked' : ''}> ${h(d.name)} <span class="hinweis">· ${d.pages.length} S.${d.uebersetzung ? ' · schon eine Übersetzung' : ''}${!d.uebersetzung ? ' · ' + (d.fields.filter(f => f.geprueft).length ? d.fields.filter(f => f.geprueft).length + ' Felder kommen übersetzt mit' : 'keine Felder') : ''}</span>${!d.uebersetzung && !d.fields.filter(f => f.geprueft).length ? ` <button class="knopf klein" data-feld="${h(d.id)}" title="Rahmen zum Ausfüllen (Text, Datum, Kästchen, Unterschrift) im Original setzen — sie kommen dann übersetzt mit">✏️ erst Felder setzen</button>` : ''}</label>`).join('')}</div>
@@ -1035,7 +1080,8 @@
       <label style="font-weight:400"><input type="checkbox" data-rueck${EINST.ueRueck !== false ? ' checked' : ''}> Gegenprobe: danach zurück in die Ausgangssprache übersetzen und daneben ablegen</label>
       <p class="hinweis" data-zahl></p>
       <button class="wahl" data-weg="browser"><b>📱 Übersetzer im Browser</b><span data-bstat>prüfe …</span></button>
-      <button class="wahl" data-weg="chrome"><b>🌐 Mit Chrome übersetzen (Google)</b><span>Kostenlos, ohne Schlüssel und ohne Kontingent. Die App zeigt den Text jeder Seite unten an, du tippst einmal in Chrome ⋮ → „Übersetzen" — danach läuft es Seite für Seite von selbst. Der Text geht dabei an Google.${matchMedia('(display-mode: standalone)').matches ? ' Die App läuft gerade im eigenen Fenster: fehlt dort „Übersetzen", die Seite im Chrome-Tab öffnen.' : ''}</span></button>
+      <button class="wahl" data-weg="chrome"><b>🌐 Mit Chrome übersetzen (Google)</b><span>Kostenlos, ohne Schlüssel und ohne Kontingent. Die App zeigt den Text jeder Seite unten an, du tippst einmal in Chrome ⋮ → „Übersetzen" — danach läuft es Seite für Seite von selbst. Der Text geht dabei an Google.${matchMedia('(display-mode: standalone)').matches ? ' Die App läuft gerade im eigenen Fenster — dort fehlt „Übersetzen" oft. Dann „🌐 In Chrome öffnen" (darunter): derselbe Übersetzer öffnet sich in Chrome.' : ''}</span></button>
+      ${matchMedia('(display-mode: standalone)').matches ? '<div class="zeile" data-tabreihe style="flex-wrap:wrap;gap:6px;margin:-4px 0 8px"></div>' : ''}
       <button class="wahl" data-weg="ki"><b>🤖 Mit KI — ${h(a.label)}</b><span>${kiBereit() ? `Der Text jeder Seite (nicht das Bild) geht an ${h(a.label)}. Kostet je Seite, abgerechnet über deinen Schlüssel. Vor dem ersten Senden wird gefragt.` : 'Noch kein Schlüssel eingetragen — tippen, um ihn in den Einstellungen einzutragen.'}</span></button>
       <details class="ue-mess"><summary>🔎 Messen: was kann dieses Gerät?</summary><div data-mess class="hinweis">Tippen auf „Jetzt messen".</div><button class="knopf klein" data-messen>Jetzt messen</button></details>
       <div class="zeile"><button class="knopf" data-x>Abbrechen</button></div>`, (dl, zu) => {
@@ -1057,6 +1103,8 @@
       dl.querySelector('[data-von]').onchange = dl.querySelector('[data-nach]').onchange = stat;
       if (dl.querySelector('[data-alle]')) dl.querySelector('[data-alle]').onclick = () => { const alle = gewaehlt().length < docs.length; dl.querySelectorAll('[data-dok]').forEach(c => c.checked = alle); stat(); };
       stat();
+      if (dl.querySelector('[data-tabreihe]')) chromeTabKnoepfe(dl.querySelector('[data-tabreihe]'), () => ({ ids: gewaehlt().map(d => d.id), von: von(), nach: nach() }));
+      if (opt.chromeTab) { const cb = dl.querySelector('[data-weg="chrome"]'); cb.style.outline = '3px solid #E0231B'; cb.scrollIntoView({ block: 'center' }); }
       dl.querySelector('[data-messen]').onclick = async () => { dl.querySelector('[data-mess]').innerHTML = '…'; dl.querySelector('[data-mess]').innerHTML = await messen(gewaehlt()); };
       dl.querySelector('[data-x]').onclick = zu;
       dl.querySelectorAll('[data-weg]').forEach(b => b.onclick = async () => {
@@ -1064,7 +1112,7 @@
         EINST.ueVon = von(); EINST.ueNach = nach(); EINST.ueRueck = dl.querySelector('[data-rueck]').checked; einstSpeichern();
         const weg = b.dataset.weg;
         let u;
-        try { u = await uebersetzerErzeugen(weg, EINST.ueVon, EINST.ueNach, EINST.ueRueck, b, zu); }
+        try { u = await uebersetzerErzeugen(weg, EINST.ueVon, EINST.ueNach, EINST.ueRueck, b, zu, g.map(d => d.id)); }
         catch (e) { toast('⚠️ Übersetzer lässt sich nicht starten: ' + (e.message || e)); b.disabled = false; return; }
         if (!u) return;
         zu();
@@ -1076,8 +1124,13 @@
   /* Übersetzer erzeugen — EINE Stelle für Hinweg, Gegenprobe und Rückweg der Einträge.
      Browser: aus dem Tipp heraus (ein Sprachpaket darf nur aus einer Nutzer-Geste
      geladen werden). KI: Freigabe je Anbieter einmal. null = abgebrochen. */
-  async function uebersetzerErzeugen(weg, von, nach, mitRueck, knopf, zu) {
-    if (weg === 'chrome') return { hin: UE.chromeUebersetzer(von, nach), zurueck: null };   // keine Gegenprobe: Chrome übersetzt nur in EINE Richtung zugleich
+  async function uebersetzerErzeugen(weg, von, nach, mitRueck, knopf, zu, ids) {
+    if (weg === 'chrome') {   // keine Gegenprobe: Chrome übersetzt nur in EINE Richtung zugleich
+      const opt = {};
+      if (ids && ids.length && matchMedia('(display-mode: standalone)').matches) opt.tab = el => chromeTabKnoepfe(el, () => ({ ids, von, nach }), () => { if (hin.halt) hin.halt(); });
+      const hin = UE.chromeUebersetzer(von, nach, opt);
+      return { hin, zurueck: null };
+    }   // keine Gegenprobe: Chrome übersetzt nur in EINE Richtung zugleich
     if (weg === 'browser') {
       const sp = knopf && knopf.querySelector('span');
       if (knopf) knopf.disabled = true; if (sp) sp.textContent = 'Übersetzer wird vorbereitet …';
@@ -1285,6 +1338,7 @@
     window.__wfpdfBericht = { bericht, zeichen, tokE, tokA, ms: Date.now() - t0, speicherMB: performance.memory ? performance.memory.usedJSHeapSize / 1048576 : null };
     dialog(`<h2>🌐 Übersetzung ${abbruch ? 'angehalten' : bericht.some(z => z.teil) ? 'unvollständig — Teilergebnis liegt bereit' : 'fertig'}</h2>
       <ul>${bericht.map(z => `<li><b>${h(z.name)}</b> · ${z.fertig != null ? z.fertig + ' von ' + z.seiten + ' Seiten' : ''}${z.neu ? ' · ' + (z.ms / z.neu / 1000).toFixed(1) + ' s je neu übersetzter Seite' : ''}${z.groesse ? ' · Ergebnis ' + (z.groesse >= 1048576 ? (z.groesse / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(z.groesse / 1024)) + ' KB') : ''}${z.ordner ? ' · liegt in „' + h(z.ordner) + '"' : ''}${z.felder ? ' · ' + z.felder + ' Felder übersetzt mitgenommen' : ''}${z.neuId ? ` <button class="knopf klein" data-oeffne="${h(z.neuId)}">${z.teil ? '👁 Teilübersetzung öffnen' : '✏️ Öffnen: Felder setzen / ausfüllen'}</button>` : ''}${z.hinweise.length ? '<ul>' + z.hinweise.map(x => '<li class="hinweis">' + h(x) + '</li>').join('') + '</ul>' : ''}</li>`).join('')}</ul>
+      ${S.ausApp && !abbruch && !matchMedia('(display-mode: standalone)').matches ? '<p class="hinweis" data-zurueckapp><b>Zurück in die App:</b> die Übersetzung liegt hier in der Bibliothek. Die installierte App liest denselben Speicher und zeigt sie beim nächsten Öffnen — diesen Chrome-Tab kannst du dann schließen. Fehlt sie dort, „⬇ PDF" hier im Tab ausgeben.</p>' : ''}
       <p class="hinweis">Gemessen: ${neuS} Seiten in ${((Date.now() - t0) / 1000).toFixed(0)} s · ${zeichen.toLocaleString('de-DE')} Zeichen übersetzt${tokE || tokA ? ` · ${tokE.toLocaleString('de-DE')} Token hin, ${tokA.toLocaleString('de-DE')} Token zurück (${h(hin.stat.modell || '')}) — den Preis je Token nennt der Anbieter` : ''}${performance.memory ? ' · Speicher ' + (performance.memory.usedJSHeapSize / 1048576).toFixed(0) + ' MB' : ''}.</p>
       <div class="zeile"><button class="knopf rot" data-x>OK</button></div>`, (dl, zu) => { dl.querySelector('[data-x]').onclick = zu; dl.querySelectorAll('[data-oeffne]').forEach(b => b.onclick = () => { zu(); oeffneDok(b.dataset.oeffne); }); });
     if (!abbruch) hops();
@@ -1347,7 +1401,7 @@
       <li><b>Ausfüllen:</b> unter „✍️ Ausfüllen" direkt in die Felder schreiben; ein Unterschriftsfeld antippen und mit Stift oder Finger unterschreiben.</li>
       <li><b>Speichern:</b> geschieht laufend im Browser. 💾 Speichern legt zusätzlich eine Arbeitsdatei aufs Gerät — über „📄 PDF oder Bild" wieder einlesen und weitermachen, auch in einem anderen Browser.</li>
       <li><b>Ausgeben:</b> festes PDF, ausfüllbares PDF oder leere ausfüllbare Vorlage.</li>
-      <li><b>Übersetzen:</b> in der Bibliothek „🌐 Übersetzen" — Deutsch, Russisch, Englisch in jede Richtung. Jede Seite wird auf <i>derselben</i> Seite übersetzt, Seitenumbrüche bleiben. Das Ergebnis liegt als neues Dokument im selben Ordner, das Original bleibt unberührt. Mit Gegenprobe (Rückübersetzung) daneben. <b>Kostenlos ohne Schlüssel:</b> „🌐 Mit Chrome übersetzen" — die App zeigt den Text unten an, du tippst in Chrome ⋮ → „Übersetzen" (der Text geht an Google).</li></ol>
+      <li><b>Übersetzen:</b> in der Bibliothek „🌐 Übersetzen" — Deutsch, Russisch, Englisch in jede Richtung. Jede Seite wird auf <i>derselben</i> Seite übersetzt, Seitenumbrüche bleiben. Das Ergebnis liegt als neues Dokument im selben Ordner, das Original bleibt unberührt. Mit Gegenprobe (Rückübersetzung) daneben. <b>Kostenlos ohne Schlüssel:</b> „🌐 Mit Chrome übersetzen" — die App zeigt den Text unten an, du tippst in Chrome ⋮ → „Übersetzen" (der Text geht an Google). Läuft die App installiert im eigenen Fenster und fehlt dort „Übersetzen": „🌐 In Chrome öffnen" — derselbe Übersetzer öffnet sich in Chrome mit denselben Dokumenten, das Ergebnis liegt danach auch in der App.</li></ol>
       <p class="hinweis">Alles bleibt in diesem Browser (DeX-Chrome und Tablet-Chrome sind zwei getrennte Browser). Ins Netz geht nur, was du ausdrücklich an eine KI schickst.</p>
       <div class="zeile"><button class="knopf rot" data-x>Verstanden</button></div>`, (d, zu) => d.querySelector('[data-x]').onclick = zu);
   }
@@ -1424,7 +1478,7 @@
     document.addEventListener('drop', e => { if (!hatDateien(e)) return; e.preventDefault(); tiefe = 0; if (ablage) { ablage.remove(); ablage = null; } if (S.doc) dateienAnhaengen(e.dataTransfer.files); else importDateien(e.dataTransfer.files); });
 
     if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
-    ladeBibliothek().catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
+    ladeBibliothek().then(chromeTabRueckweg).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
     window.__wfpdf = { S, EINST, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele };   // für die Probe
   }
   start();
