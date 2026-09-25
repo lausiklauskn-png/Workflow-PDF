@@ -1035,6 +1035,7 @@
       <label style="font-weight:400"><input type="checkbox" data-rueck${EINST.ueRueck !== false ? ' checked' : ''}> Gegenprobe: danach zurück in die Ausgangssprache übersetzen und daneben ablegen</label>
       <p class="hinweis" data-zahl></p>
       <button class="wahl" data-weg="browser"><b>📱 Übersetzer im Browser</b><span data-bstat>prüfe …</span></button>
+      <button class="wahl" data-weg="chrome"><b>🌐 Mit Chrome übersetzen (Google)</b><span>Kostenlos, ohne Schlüssel und ohne Kontingent. Die App zeigt den Text jeder Seite unten an, du tippst einmal in Chrome ⋮ → „Übersetzen" — danach läuft es Seite für Seite von selbst. Der Text geht dabei an Google.${matchMedia('(display-mode: standalone)').matches ? ' Die App läuft gerade im eigenen Fenster: fehlt dort „Übersetzen", die Seite im Chrome-Tab öffnen.' : ''}</span></button>
       <button class="wahl" data-weg="ki"><b>🤖 Mit KI — ${h(a.label)}</b><span>${kiBereit() ? `Der Text jeder Seite (nicht das Bild) geht an ${h(a.label)}. Kostet je Seite, abgerechnet über deinen Schlüssel. Vor dem ersten Senden wird gefragt.` : 'Noch kein Schlüssel eingetragen — tippen, um ihn in den Einstellungen einzutragen.'}</span></button>
       <details class="ue-mess"><summary>🔎 Messen: was kann dieses Gerät?</summary><div data-mess class="hinweis">Tippen auf „Jetzt messen".</div><button class="knopf klein" data-messen>Jetzt messen</button></details>
       <div class="zeile"><button class="knopf" data-x>Abbrechen</button></div>`, (dl, zu) => {
@@ -1076,6 +1077,7 @@
      Browser: aus dem Tipp heraus (ein Sprachpaket darf nur aus einer Nutzer-Geste
      geladen werden). KI: Freigabe je Anbieter einmal. null = abgebrochen. */
   async function uebersetzerErzeugen(weg, von, nach, mitRueck, knopf, zu) {
+    if (weg === 'chrome') return { hin: UE.chromeUebersetzer(von, nach), zurueck: null };   // keine Gegenprobe: Chrome übersetzt nur in EINE Richtung zugleich
     if (weg === 'browser') {
       const sp = knopf && knopf.querySelector('span');
       if (knopf) knopf.disabled = true; if (sp) sp.textContent = 'Übersetzer wird vorbereitet …';
@@ -1128,6 +1130,7 @@
       <p>Die <b>${eintraege}</b> Einträge aus „${h(d.name)}" werden ins ${h(UE.NAME_DE[nach] || nach)}e übersetzt und in eine <b>Kopie</b> des Originals „${h(src.name)}" eingesetzt — an dieselbe Stelle. Das Original und die Übersetzung bleiben unverändert.</p>
       <p class="hinweis">Datum, E-Mail, Internetadresse, Unterschrift und Kästchen werden übernommen, nicht übersetzt. Bitte die Einträge danach prüfen — Namen und Adressen bleiben in der Regel stehen, aber jede Übersetzung kann sich irren.</p>
       <button class="wahl" data-weg="browser"><b>📱 Übersetzer im Browser</b><span data-bstat>prüfe …</span></button>
+      <button class="wahl" data-weg="chrome"><b>🌐 Mit Chrome übersetzen (Google)</b><span>Kostenlos. Die Einträge erscheinen unten, du tippst in Chrome ⋮ → „Übersetzen" und wählst ${h(UE.NAME_DE[nach])}. Der Text geht dabei an Google.</span></button>
       <button class="wahl" data-weg="ki"><b>🤖 Mit KI — ${h(a.label)}</b><span>${kiBereit() ? `Nur die Einträge (nicht die Seiten) gehen an ${h(a.label)}. Vor dem ersten Senden wird gefragt.` : 'Noch kein Schlüssel eingetragen — tippen, um ihn einzutragen.'}</span></button>
       <div class="zeile"><button class="knopf" data-x>Abbrechen</button></div>`, async (dl, zu) => {
       dl.querySelector('[data-x]').onclick = zu;
@@ -1203,7 +1206,10 @@
   }
 
   async function uebersetzeViele(ids, von, nach, hin, zurueck, weg) {
-    let abbruch = false; const stopp = () => abbruch = true;
+    let abbruch = false; const stopp = () => { abbruch = true; if (hin && hin.halt) hin.halt(); };
+    if (hin) hin.beimHalt = () => { abbruch = true; };
+    let stand = 0, standText = '';   // Tempo-Limit: sichtbar warten statt stehenzubleiben
+    if (hin) hin.meldeWarten = (ms, v, n) => fb.setze(stand, (standText || 'Erste Seite') + ' · Anbieter bremst (Tempo-Limit), warte ' + Math.round(ms / 1000) + ' s — Versuch ' + v + ' von ' + n);   // „⏹ Abbrechen" auf der Chrome-Fläche
     const fb = fortschritt('Übersetzung ' + von.toUpperCase() + ' → ' + nach.toUpperCase(), stopp);
     const bericht = []; const t0 = Date.now();
     let schrift = null;
@@ -1216,13 +1222,16 @@
         const bytes = await DB.getFile(d.id);
         const jid = jobId(d.id, von, nach);
         const alt = await jobLesen(jid);
+        const ohneVor = (hin.stat && hin.stat.ohne) || 0;
         const r = await UE.lauf({ bytes, uebersetzer: hin, stand: alt, abbruch: () => abbruch, ocr: { basis: 'vendor/', von },
           speichere: st => DB.put('files', { id: jid, job: st }),
-          melde: (i, n, info) => fb.setze((k + i / n) / ids.length, info.text ? vor + info.text : `${vor}Seite ${i} von ${n}${info.neu ? ' · ' + (info.ms / info.neu / 1000).toFixed(1) + ' s je Seite' : ''}`) });
+          melde: (i, n, info) => { stand = (k + i / n) / ids.length; standText = info.text ? vor + info.text : `${vor}Seite ${i} von ${n}${info.neu ? ' · ' + (info.ms / info.neu / 1000).toFixed(1) + ' s je Seite' : ''}`; fb.setze(stand, standText); } });
         zeile.ocr = r.ocrSeiten;
         if (r.ocrFehler) zeile.hinweise.push('Texterkennung für gescannte Seiten nicht verfügbar (' + r.ocrFehler + ') — diese Seiten bleiben unübersetzt.');
         zeile.ms = r.ms; zeile.neu = r.neu; zeile.fertig = r.fertig;
-        if (r.fehler) zeile.hinweise.push('Der Übersetzer hat abgebrochen: ' + r.fehler + (/429|Kontingent/.test(r.fehler) ? ' — das Kontingent des Anbieters ist für den Moment erschöpft; später erneut starten.' : ''));
+        if (weg === 'chrome' && k === 0 && EINST.ueRueck) zeile.hinweise.push('Eine Gegenprobe gibt es auf dem Chrome-Weg nicht — Chrome übersetzt die Seite immer nur in eine Sprache.');
+        if (weg === 'chrome' && hin.stat.ohne > ohneVor) zeile.hinweise.push((hin.stat.ohne - ohneVor) + ' Absatz/Absätze hat Chrome nicht übersetzt — sie stehen im Original da.');
+        if (r.fehler && !abbruch) zeile.hinweise.push('Der Übersetzer hat abgebrochen: ' + r.fehler + (/Tempo-Limit/.test(r.fehler) ? ' — dein Konto beim Anbieter erlaubt nur wenige Anfragen je Minute; die App hat über zwei Minuten gewartet. Später fortsetzen, das Limit beim Anbieter erhöhen (Mistral: Admin → Limits) oder „🌐 Mit Chrome übersetzen" nehmen (ohne Limit).' : /429|Kontingent/.test(r.fehler) ? ' — das Kontingent des Anbieters ist für den Moment erschöpft; später erneut starten.' : ''));
         // Teilergebnis: fertige Seiten übersetzt, der Rest im Original — damit das
         // bisher Übersetzte zu SEHEN ist (vorher stand es nur im Speicher).
         const teil = r.abgebrochen || !!r.fehler;
@@ -1338,7 +1347,7 @@
       <li><b>Ausfüllen:</b> unter „✍️ Ausfüllen" direkt in die Felder schreiben; ein Unterschriftsfeld antippen und mit Stift oder Finger unterschreiben.</li>
       <li><b>Speichern:</b> geschieht laufend im Browser. 💾 Speichern legt zusätzlich eine Arbeitsdatei aufs Gerät — über „📄 PDF oder Bild" wieder einlesen und weitermachen, auch in einem anderen Browser.</li>
       <li><b>Ausgeben:</b> festes PDF, ausfüllbares PDF oder leere ausfüllbare Vorlage.</li>
-      <li><b>Übersetzen:</b> in der Bibliothek „🌐 Übersetzen" — Deutsch, Russisch, Englisch in jede Richtung. Jede Seite wird auf <i>derselben</i> Seite übersetzt, Seitenumbrüche bleiben. Das Ergebnis liegt als neues Dokument im selben Ordner, das Original bleibt unberührt. Mit Gegenprobe (Rückübersetzung) daneben.</li></ol>
+      <li><b>Übersetzen:</b> in der Bibliothek „🌐 Übersetzen" — Deutsch, Russisch, Englisch in jede Richtung. Jede Seite wird auf <i>derselben</i> Seite übersetzt, Seitenumbrüche bleiben. Das Ergebnis liegt als neues Dokument im selben Ordner, das Original bleibt unberührt. Mit Gegenprobe (Rückübersetzung) daneben. <b>Kostenlos ohne Schlüssel:</b> „🌐 Mit Chrome übersetzen" — die App zeigt den Text unten an, du tippst in Chrome ⋮ → „Übersetzen" (der Text geht an Google).</li></ol>
       <p class="hinweis">Alles bleibt in diesem Browser (DeX-Chrome und Tablet-Chrome sind zwei getrennte Browser). Ins Netz geht nur, was du ausdrücklich an eine KI schickst.</p>
       <div class="zeile"><button class="knopf rot" data-x>Verstanden</button></div>`, (d, zu) => d.querySelector('[data-x]').onclick = zu);
   }
