@@ -211,6 +211,12 @@ try {
   const druck = await hp.evaluate(() => ({ leiste: getComputedStyle(document.querySelector('.leiste')).display, rand: getComputedStyle(document.querySelector('input.t')).borderTopColor }));
   ok('HTML: beim Drucken ohne Knopfleiste und ohne Feldrahmen', druck.leiste === 'none' && /rgba\(0, 0, 0, 0\)|transparent/.test(druck.rand), druck);
   await hp.close();
+  // Zweimal im selben Dialog ausgeben: nur EIN Teilen-Knopf
+  await page.evaluate(() => { navigator.canShare = () => true; navigator.share = () => Promise.resolve(); });
+  await page.click('#edExport');
+  for (const m of ['ausfuellbar', 'fest']) { const w = page.waitForEvent('download'); await page.click(`[data-m="${m}"]`); await w; }
+  ok('Ausgabe: zweimal ausgeben ergibt EINEN Teilen-Knopf', await page.locator('.dlg [data-teilen]').count() === 1, await page.locator('.dlg [data-teilen]').count());
+  await page.click('.dlg [data-x]');
   ok('Dateinamen tragen die Fassung', /ausfuellbar/.test(aus.name) && /Vorlage/.test(vor.name) && !/\(/.test(fest.name), [aus.name, vor.name, fest.name]);
   const pa = await PDFDocument.load(aus.bytes), pv = await PDFDocument.load(vor.bytes), pf = await PDFDocument.load(fest.bytes);
   const felderA = pa.getForm().getFields(), felderV = pv.getForm().getFields();

@@ -886,7 +886,7 @@
             const html = await WFP.HtmlExport.htmlFormular(S.doc, S.bytes);
             const name = dateiName(S.doc.name) + ' (zum Ausfuellen).html';
             laden(name, new TextEncoder().encode(html), 'text/html');
-            if (navigator.canShare) { try { const file = new File([html], name, { type: 'text/html' }); if (navigator.canShare({ files: [file] })) b.insertAdjacentHTML('afterend', '<button class="knopf" data-teilen>📤 Teilen …</button>'), d.querySelector('[data-teilen]').onclick = () => navigator.share({ files: [file], title: S.doc.name }).catch(() => {}); } catch (_) {} }
+            if (navigator.canShare) { try { const file = new File([html], name, { type: 'text/html' }); if (navigator.canShare({ files: [file] })) (d.querySelectorAll('[data-teilen]').forEach(x => x.remove()), b.insertAdjacentHTML('afterend', '<button class="knopf" data-teilen>📤 Teilen …</button>'), b.nextElementSibling.onclick = () => navigator.share({ files: [file], title: S.doc.name }).catch(() => {})); } catch (_) {} }
             toast('✅ HTML gespeichert — im Browser öffnen, ausfüllen, dann „Als PDF speichern".');
             return;
           }
@@ -899,7 +899,7 @@
           } else {
             const name = dateiName(S.doc.name) + zusatz + '.pdf';
             laden(name, bytes);
-            if (navigator.canShare) { try { const file = new File([bytes], name, { type: 'application/pdf' }); if (navigator.canShare({ files: [file] })) b.insertAdjacentHTML('afterend', '<button class="knopf" data-teilen>📤 Teilen …</button>'), d.querySelector('[data-teilen]').onclick = () => navigator.share({ files: [file], title: S.doc.name }).catch(() => {}); } catch (_) {} }
+            if (navigator.canShare) { try { const file = new File([bytes], name, { type: 'application/pdf' }); if (navigator.canShare({ files: [file] })) (d.querySelectorAll('[data-teilen]').forEach(x => x.remove()), b.insertAdjacentHTML('afterend', '<button class="knopf" data-teilen>📤 Teilen …</button>'), b.nextElementSibling.onclick = () => navigator.share({ files: [file], title: S.doc.name }).catch(() => {})); } catch (_) {} }
           }
           toast('✅ ' + (m === 'druck' ? 'PDF geöffnet' : 'PDF gespeichert') + (hinweise.length ? ' · ' + hinweise.join(' ') : ''));
           hops();
