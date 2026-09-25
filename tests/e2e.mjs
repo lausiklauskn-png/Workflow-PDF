@@ -197,6 +197,20 @@ try {
     return { datei: f, name: dl.suggestedFilename(), bytes: fs.readFileSync(f) };
   }
   const aus = await exportiere('ausfuellbar'), vor = await exportiere('vorlage'), fest = await exportiere('fest');
+  // 7b. HTML zum Ausfüllen im Browser
+  const ht = await exportiere('html'); const htPfad = ht.datei.replace(/\.pdf$/, '.html'); fs.renameSync(ht.datei, htPfad);
+  const hp = await ctx.newPage(); await hp.goto('file://' + htPfad);
+  const hInfo = await hp.evaluate(() => ({ bilder: document.querySelectorAll('.seite img.hg').length, text: document.querySelectorAll('input.t,textarea.f').length, k: document.querySelectorAll('input.k').length, netz: [...document.querySelectorAll('[src]')].filter(e => /^https?:/.test(e.getAttribute('src'))).length }));
+  const soll = { text: docJson.fields.filter(f => !['check', 'unterschrift', 'qr'].includes(f.type)).length, k: docJson.fields.filter(f => f.type === 'check').length };
+  ok('HTML: Seitenbilder, alle Felder als Eingabefelder, nichts aus dem Netz', /\.html$/.test(ht.name) && hInfo.bilder === docJson.pages.length && hInfo.text === soll.text && hInfo.k === soll.k && hInfo.netz === 0, [ht.name, hInfo, soll]);
+  await hp.locator('input.t').first().fill('Im Browser'); await hp.locator('input.k').first().check();
+  const [dlH] = await Promise.all([hp.waitForEvent('download'), hp.click('#sichern')]);
+  const hF = path.join(TMP, 'aus.html'); await dlH.saveAs(hF); const hTxt = fs.readFileSync(hF, 'utf8');
+  ok('HTML: „Ausgefüllt speichern" behält Einträge und Haken', hTxt.includes('value="Im Browser"') && /class="f k"[^>]*checked/.test(hTxt));
+  await hp.emulateMedia({ media: 'print' });
+  const druck = await hp.evaluate(() => ({ leiste: getComputedStyle(document.querySelector('.leiste')).display, rand: getComputedStyle(document.querySelector('input.t')).borderTopColor }));
+  ok('HTML: beim Drucken ohne Knopfleiste und ohne Feldrahmen', druck.leiste === 'none' && /rgba\(0, 0, 0, 0\)|transparent/.test(druck.rand), druck);
+  await hp.close();
   ok('Dateinamen tragen die Fassung', /ausfuellbar/.test(aus.name) && /Vorlage/.test(vor.name) && !/\(/.test(fest.name), [aus.name, vor.name, fest.name]);
   const pa = await PDFDocument.load(aus.bytes), pv = await PDFDocument.load(vor.bytes), pf = await PDFDocument.load(fest.bytes);
   const felderA = pa.getForm().getFields(), felderV = pv.getForm().getFields();
@@ -280,8 +294,10 @@ try {
   const af = await page.evaluate(async () => { const w = window.__wfpdf; const r = await WFP.Export.exportieren(w.S.doc, w.S.bytes, 'ausfuellbar');
     const d = await PDFLib.PDFDocument.load(r.bytes); const fs = d.getForm().getFields();
     const w0 = fs[0].acroField.getWidgets()[0]; const mk = w0.getAppearanceCharacteristics();
-    return { n: fs.length, bg: !!(mk && mk.getBackgroundColor()), print: (w0.dict.get(PDFLib.PDFName.of('F')) || {}).numberValue }; });
+    const cbx = fs.find(x => x instanceof PDFLib.PDFCheckBox); const mkc = cbx && cbx.acroField.getWidgets()[0].getAppearanceCharacteristics();
+    return { n: fs.length, bg: !!(mk && mk.getBackgroundColor()), print: (w0.dict.get(PDFLib.PDFName.of('F')) || {}).numberValue, cbBg: !cbx ? 'kein' : !!(mkc && mkc.getBackgroundColor()) }; });
   ok('ausfüllbares PDF: echte Felder mit sichtbarem Hintergrund und Druck-Flag', af.n >= 4 && af.bg && (af.print & 4) === 4, af);
+  ok('ausfüllbares PDF: Kästchen ohne Füllung (gedruckte Haken bleiben sichtbar)', af.cbBg === false, af);
   const offGrau = G.length;
 
   // 11. KI mit nummerierten Kandidaten

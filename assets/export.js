@@ -160,7 +160,8 @@
       const opt = { x: anker[0], y: anker[1], width: bw, height: bh, rotate: degrees(((winkel % 360) + 360) % 360), backgroundColor: rgb(0.91, 0.94, 1), borderColor: rgb(0.45, 0.58, 0.9), borderWidth: 0.6 };
       if (f.type === 'check') {
         const cb = form.createCheckBox(name);
-        cb.addToPage(page, opt);
+        // Kästchen ohne Füllung: sonst deckt der Hintergrund einen gedruckten Haken ab
+        cb.addToPage(page, Object.assign({}, opt, { backgroundColor: undefined }));
         if (modus === 'ausfuellbar' && wert) cb.check();
         continue;
       }
