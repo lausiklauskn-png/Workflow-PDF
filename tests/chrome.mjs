@@ -143,7 +143,7 @@ try {
   const docId = await page.evaluate(async () => (await WFP.DB.all('docs')).find(d => d.name === 'Chrome').id);
   const u = new URL(adr.url);
   ok('Adresse trägt Dokument, Sprachen und Weg (ue, von=de, nach=en, weg=chrome)', u.searchParams.get('ue') === docId && u.searchParams.get('von') === 'de' && u.searchParams.get('nach') === 'en' && u.searchParams.get('weg') === 'chrome', adr.url);
-  ok('Android-Adresse erzwingt die Chrome-App und hat einen Rückfall', /^intent:\/\/127\.0\.0\.1:\d+\/index\.html\?ue=/.test(adr.intent) && /#Intent;scheme=http;package=com\.android\.chrome;S\.browser_fallback_url=/.test(adr.intent) && adr.intent.endsWith(';end') && decodeURIComponent(adr.intent.split('S.browser_fallback_url=')[1].replace(/;end$/, '')) === adr.url, adr.intent);
+  ok('Android-Adresse erzwingt die Chrome-App, OHNE Rückfall ins App-Fenster', /^intent:\/\/127\.0\.0\.1:\d+\/index\.html\?ue=/.test(adr.intent) && /#Intent;scheme=http;package=com\.android\.chrome;end$/.test(adr.intent) && !/fallback/.test(adr.intent) && adr.intent.includes(new URL(adr.url).search), adr.intent);
   await page.waitForFunction(() => /angehalten/.test(document.querySelector('.dlg h2')?.textContent || ''), null, { timeout: 15000 }).catch(() => {});
   ok('der Lauf im App-Fenster hält an, bevor der Tab übernimmt', await page.evaluate(() => /angehalten/.test(document.querySelector('.dlg h2')?.textContent || '') && !document.getElementById('wfp-chrome')));
   // Der Tab: gleicher Speicher (wie Chrome und die installierte App auf Android)
@@ -167,7 +167,29 @@ try {
   ok('unbekanntes Dokument: Meldung „in diesem Browser nicht da", kein Dialog', await tab.evaluate(() => /nicht da/.test(document.getElementById('toast').textContent) && !document.querySelector('.dlg [data-ausapp]')));
   await tab.close();
 
-  ok('keine Fehler in der Konsole', konsole.length === 0, konsole);
+  // 5. Android, App-Fenster: Chrome nimmt den Sprung nicht an (Klaus 2026-09-25). Hier im
+  //    Test-Chromium passiert bei intent:// nichts — genau der Fall, den die App abfangen muss.
+  await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: `http://127.0.0.1:${srv.address().port}` });
+  await page.evaluate(() => { document.querySelectorAll('.dlg [data-x]').forEach(b => b.click()); Object.defineProperty(navigator, 'userAgent', { get: () => 'Mozilla/5.0 (Linux; Android 14; SM-X710) AppleWebKit/537.36 Chrome/140 Safari/537.36', configurable: true }); });
+  await page.waitForTimeout(300);
+  await oeffne('en');
+  const url0 = page.url();
+  await page.click('.dlg [data-tabreihe] button');
+  await page.waitForSelector('.dlg [data-chromehinweis]', { timeout: 8000 }).catch(() => {});
+  const hw = await page.evaluate(() => { const d = document.querySelector('.dlg [data-chromehinweis]')?.closest('.dlg'); return d ? { t: d.textContent, v: d.querySelector('[data-adr]').value } : null; });
+  const ab = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''));
+  const adr2 = await page.evaluate(() => window.__wfpdfChromeTab);
+  ok('Android: die Adresse liegt SOFORT in der Zwischenablage', ab === adr2.url, [ab, adr2.url]);
+  ok('… die App bleibt stehen (kein Rückfall lädt die Seite neu)', page.url() === url0, page.url());
+  ok('… und erklärt den Weg über „Einfügen", mit der Adresse zum Kopieren', hw && /Zwischenablage/.test(hw.t) && /Einfügen/.test(hw.t) && hw.v === adr2.url, hw);
+  // Nach dem Sprung auf intent:// nimmt das Test-Chromium keine Maus-Klicks mehr an (es hält
+  // eine Frage „externes Programm öffnen?" offen, die es headless nicht zeigt) — deshalb hier
+  // der Klick über das Element selbst. Am Tablet gibt es diese Frage nicht.
+  await page.evaluate(() => document.querySelector('.dlg [data-hinok]')?.click());
+  await page.waitForTimeout(300); ok('… „OK" schließt den Hinweis', await page.evaluate(() => !document.querySelector('.dlg [data-chromehinweis]')), await page.evaluate(() => document.querySelectorAll('.dlg [data-chromehinweis]').length));
+
+  const ohneIntent = konsole.filter(k => !/intent:/.test(k));   // „scheme does not have a registered handler" ist gewollt
+  ok('keine Fehler in der Konsole', ohneIntent.length === 0, ohneIntent);
 } catch (e) {
   rot++; console.log('  ✗ ROT: Abbruch → ' + (e && e.message || e));
 } finally {

@@ -38,6 +38,9 @@
     const nachRichtung = {}; let gedreht = 0;
     for (const it of tc.items) {
       if (!it.str || !it.str.trim()) continue;
+      // Stücke ohne Buchstaben und Ziffern (✓ • ■ ☐) bleiben, wie sie sind: sie gehören
+      // nicht in einen Absatz, sonst werden sie mit abgedeckt oder blähen die Schriftgröße auf.
+      if (!/[\p{L}\p{N}]/u.test(it.str)) continue;
       const tr = pdfjsLib.Util.transform(vp.transform, it.transform);
       const fh = Math.hypot(tr[2], tr[3]);
       if (!(fh > 0.5)) continue;
@@ -49,8 +52,8 @@
       (nachRichtung[o] = nachRichtung[o] || []).push({ s: it.str, x, y, w: breite, fh });
     }
     const out = [];
-    for (const o of Object.keys(nachRichtung).map(Number)) out.push(...gruppieren(nachRichtung[o], o));
-    return { bloecke: out, gedreht, w: vp.width, h: vp.height, t: vp.transform.slice() };
+    for (const o of Object.keys(nachRichtung).map(Number)) out.push(...gruppieren(nachRichtung[o].map(t => ({ ...t })), o));
+    return { bloecke: out, gedreht, w: vp.width, h: vp.height, t: vp.transform.slice(), roh: nachRichtung };
   }
   /* Umlaute & Co. (Lehre aus den Rezeptbüchern: Umlaute kamen falsch an).
      PDFs liefern „ü" oft ZERLEGT: „u" + kombinierendes Trema (U+0308), oder als
@@ -68,18 +71,34 @@
       .replace(/([Ии])[ \u00A0]?[\u02D8\u0306]/g, '$1\u0306')                   // и˘ → й
       .normalize('NFC');
   }
-  function gruppieren(teile, o) {
-    // Zeilen: gleiche Grundlinie, dicht nebeneinander
+  // bild (optional): Prüfer auf dem gerenderten Seitenbild, nur bei waagerechtem Text (o = 0).
+  function gruppieren(teile, o, bild) {
+    const pb = o === 0 ? bild : null;
+    // Zeilen: gleiche Grundlinie, dicht nebeneinander, ähnliche Schriftgröße
+    // (Befund Klaus 2026-09-25: mit 1,6 Schrifthöhen Abstand verschmolz das Logo-„M" mit „Bürgeramt …")
     teile.sort((a, b) => a.y - b.y || a.x - b.x);
     const zeilen = [];
     for (const t of teile) {
-      const z = zeilen.find(z => Math.abs(z.y - t.y) < Math.min(z.fh, t.fh) * 0.45 && t.x - (z.x + z.w) < Math.max(z.fh, t.fh) * 1.6 && t.x > z.x - t.fh * 0.5);
+      const z = zeilen.find(z => Math.abs(z.y - t.y) < Math.min(z.fh, t.fh) * 0.45 && t.x - (z.x + z.w) < Math.min(z.fh, t.fh) * 1.0 && t.x > z.x - t.fh * 0.5
+        && Math.max(z.fh, t.fh) / Math.min(z.fh, t.fh) < 1.6);
       if (z) {
         const luecke = t.x - (z.x + z.w);
         if (luecke > t.fh * 0.12 && !/\s$/.test(z.s) && !/^\s/.test(t.s)) z.s += ' ';
         z.s += t.s; z.w = Math.max(z.w, t.x + t.w - z.x); z.fh = Math.max(z.fh, t.fh);
       } else zeilen.push({ s: t.s, x: t.x, y: t.y, w: t.w, fh: t.fh });
     }
+    // Vor der Zeile ein Zeichen (Kästchen, Punkt, Kreis)? Dann ist sie ein eigener Eintrag.
+    // Größen-Toleranz: die Textebene nennt die Schriftgröße genau, die Texterkennung schätzt sie aus dem Zeilenkasten
+    const rat = pb ? 1.15 : 1.3;
+    // Ein Zeichen (Kästchen, Kreis mit Ziffer) steht links vor der Zeile und ist vom Zeichen
+    // der Zeile darüber durch eine leere Zeile getrennt. Der Rand eines Kastens läuft dagegen
+    // durch — der ist keine Marke, sonst zerfällt der Kastentext in einzelne Zeilen.
+    const marke = (z, letzte) => {
+      if (!pb) return false;
+      const x0 = z.x - z.fh * 1.8, x1 = z.x - z.fh * 0.12;
+      if (!(pb.tinte(x0, z.y - z.fh * 0.85, x1, z.y + z.fh * 0.1) > 0.04 && pb.breite(x0, z.y - z.fh * 0.85, x1, z.y + z.fh * 0.1) > 2)) return false;
+      return !letzte || pb.leereZeile(x0, letzte.y - letzte.fh * 0.85, x1, z.y - z.fh * 0.85);
+    };
     // Absätze: Zeilen untereinander, ähnliche Schrift, kleiner Abstand, überlappend;
     // ein Aufzählungspunkt beginnt immer einen neuen Absatz
     zeilen.sort((a, b) => a.y - b.y || a.x - b.x);
@@ -88,10 +107,17 @@
       const oben = z.y - z.fh;
       const b = AUFZ.test(z.s) ? null : abs.find(b => {
         const letzte = b.zeilen[b.zeilen.length - 1];
+        if (marke(z, letzte)) return false;
         const abstand = oben - (letzte.y + letzte.fh * 0.25);
         const quer = Math.min(b.x + b.w, z.x + z.w) - Math.max(b.x, z.x);
-        return abstand > -z.fh * 0.3 && abstand < z.fh * 0.9 && quer > Math.min(b.w, z.w) * 0.3
-          && Math.abs(z.x - b.x) < z.fh * 3 && z.fh / letzte.fh < 1.3 && letzte.fh / z.fh < 1.3;
+        if (!(abstand > -z.fh * 0.3 && abstand < z.fh * 0.9 && quer > Math.min(b.w, z.w) * 0.3
+          && Math.abs(z.x - b.x) < z.fh * 3 && z.fh / letzte.fh < rat && letzte.fh / z.fh < rat)) return false;
+        // Kurze erste Zeile in etwas größerer Schrift = Überschrift eines Kastens („Hinweis zu Fotos")
+        if (b.zeilen.length === 1 && letzte.w < z.w * 0.6 && letzte.fh / z.fh > 1.04) return false;
+        // Zwischen den Zeilen eine Linie, ein Feld, ein Kasten? Dann zwei Absätze.
+        if (pb) { const x0 = Math.max(letzte.x, z.x), x1 = Math.min(letzte.x + letzte.w, z.x + z.w);
+          if (x1 > x0 && pb.tinte(x0, letzte.y + letzte.fh * 0.3, x1, z.y - z.fh * 0.8) > 0.03) return false; }
+        return true;
       });
       if (b) { b.zeilen.push(z); const r = Math.max(b.x + b.w, z.x + z.w); b.x = Math.min(b.x, z.x); b.w = r - b.x; }
       else abs.push({ zeilen: [z], x: z.x, w: z.w });
@@ -107,8 +133,11 @@
       const erste = b.zeilen[0], letzte = b.zeilen[b.zeilen.length - 1];
       const size = b.zeilen.reduce((m, z) => m + z.fh, 0) / b.zeilen.length;
       const y = erste.y - erste.fh * 1.02, unten = letzte.y + letzte.fh * 0.28;
-      return { t: zeichenNormal(text).replace(/\s+/g, ' ').trim(), x: +b.x.toFixed(2), y: +y.toFixed(2), w: +b.w.toFixed(2), h: +(unten - y).toFixed(2), s: +size.toFixed(2), z: b.zeilen.length, o };
-    }).filter(b => /[\p{L}]/u.test(b.t));
+      // Jede Zeile einzeln abdecken statt des ganzen Rechtecks — sonst verschwinden
+      // Logo, Kreis-Ziffer oder Kästchen, die zufällig im Rechteck liegen.
+      const zr = b.zeilen.map(z => [+z.x.toFixed(2), +(z.y - z.fh * 1.02).toFixed(2), +z.w.toFixed(2), +(z.fh * 1.3).toFixed(2)]);
+      return { t: zeichenNormal(text).replace(/\s+/g, ' ').trim(), x: +b.x.toFixed(2), y: +y.toFixed(2), w: +b.w.toFixed(2), h: +(unten - y).toFixed(2), s: +size.toFixed(2), z: b.zeilen.length, o, zr };
+    }).filter(b => /\p{L}[^]*\p{L}/u.test(b.t));   // ein einzelner Buchstabe (Logo-„M", Kreis-Ziffer) bleibt, wie er ist
   }
 
   /* ---------- 1b. Seitenbild, Farben, Texterkennung (OCR) ---------- */
@@ -145,6 +174,76 @@
     const fg = fgK ? rgbAus(fgK[0]) : (hell > 128 ? [17, 17, 17] : [255, 255, 255]);
     return [hex(...bgE), hex(...fg)];
   }
+  /* Prüfer auf dem Seitenbild (Koordinaten in Punkten der Anzeige, y nach unten).
+     tinte(): Anteil der Pixel, die sich deutlich von der häufigsten Farbe im Rechteck
+     abheben. frei(): wie weit rechts und unten neben einem Absatz leere Fläche liegt —
+     bis zur nächsten Linie, zum nächsten Kasten, zum nächsten Text. Dorthin darf eine
+     längere Übersetzung wachsen, BEVOR ihre Schrift kleiner wird. */
+  function seitenPruefer(canvas, scale) {
+    const W = canvas.width, H = canvas.height;
+    const d = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, W, H).data;
+    const px = v => Math.round(v * scale);
+    const klemm = (v, m) => Math.max(0, Math.min(m, v));
+    function tinte(x0, y0, x1, y1) {
+      const X0 = klemm(px(x0), W), X1 = klemm(px(x1), W), Y0 = klemm(px(y0), H), Y1 = klemm(px(y1), H);
+      if (X1 - X0 < 1 || Y1 - Y0 < 1) return 0;
+      const zaehl = new Map(); let n = 0;
+      for (let Y = Y0; Y < Y1; Y++) for (let X = X0; X < X1; X++) { const i = (Y * W + X) * 4, k = (d[i] >> 4) << 8 | (d[i + 1] >> 4) << 4 | (d[i + 2] >> 4); zaehl.set(k, (zaehl.get(k) || 0) + 1); n++; }
+      let bk = 0, bn = -1; for (const [k, c] of zaehl) if (c > bn) { bn = c; bk = k; }
+      const br = ((bk >> 8) & 15) * 16 + 8, bg = ((bk >> 4) & 15) * 16 + 8, bb = (bk & 15) * 16 + 8;
+      let t = 0;
+      for (let Y = Y0; Y < Y1; Y++) for (let X = X0; X < X1; X++) { const i = (Y * W + X) * 4; if (Math.abs(d[i] - br) + Math.abs(d[i + 1] - bg) + Math.abs(d[i + 2] - bb) > 120) t++; }
+      return t / n;
+    }
+    // Breite (in Punkten) der Spalten, in denen überhaupt Tinte steht
+    function breite(x0, y0, x1, y1) {
+      const X0 = klemm(px(x0), W), X1 = klemm(px(x1), W), Y0 = klemm(px(y0), H), Y1 = klemm(px(y1), H);
+      if (X1 - X0 < 1 || Y1 - Y0 < 1) return 0;
+      const zaehl = new Map();
+      for (let Y = Y0; Y < Y1; Y++) for (let X = X0; X < X1; X++) { const i = (Y * W + X) * 4, k = (d[i] >> 4) << 8 | (d[i + 1] >> 4) << 4 | (d[i + 2] >> 4); zaehl.set(k, (zaehl.get(k) || 0) + 1); }
+      let bk = 0, bn = -1; for (const [k, c] of zaehl) if (c > bn) { bn = c; bk = k; }
+      const br = ((bk >> 8) & 15) * 16 + 8, bg = ((bk >> 4) & 15) * 16 + 8, bb = (bk & 15) * 16 + 8;
+      let n = 0;
+      for (let X = X0; X < X1; X++) for (let Y = Y0; Y < Y1; Y++) { const i = (Y * W + X) * 4; if (Math.abs(d[i] - br) + Math.abs(d[i + 1] - bg) + Math.abs(d[i + 2] - bb) > 120) { n++; break; } }
+      return n / scale;
+    }
+    // Gibt es zwischen y0 und y1 eine Pixelzeile, die im Streifen durchgehend eine Farbe hat?
+    function leereZeile(x0, y0, x1, y1) {
+      const X0 = klemm(px(x0), W), X1 = klemm(px(x1), W), Y0 = klemm(px(y0), H), Y1 = klemm(px(y1), H);
+      if (X1 - X0 < 1) return false;
+      for (let Y = Y0; Y < Y1; Y++) {
+        const j = (Y * W + X0) * 4; let gleich = true;
+        for (let X = X0 + 1; X < X1 && gleich; X++) { const i = (Y * W + X) * 4; gleich = Math.abs(d[i] - d[j]) + Math.abs(d[i + 1] - d[j + 1]) + Math.abs(d[i + 2] - d[j + 2]) < 60; }
+        if (gleich) return true;
+      }
+      return false;
+    }
+    const leer = (X, Y, rgb) => { const i = (Y * W + X) * 4; return Math.abs(d[i] - rgb[0]) + Math.abs(d[i + 1] - rgb[1]) + Math.abs(d[i + 2] - rgb[2]) < 60; };
+    // b: [x, y, w, h, size, …, bgF]; andere: Rechtecke der übrigen Absätze; grenzeR: rechter Rand
+    function frei(b, andere, grenzeR) {
+      const [x, y, w, h, size] = b, bgF = b[8] || '#ffffff';
+      const rgb = [1, 3, 5].map(i => parseInt(bgF.slice(i, i + 2), 16));
+      const trifft = (ax, ay, aw, ah) => andere.some(r => r !== b && r[0] < ax + aw && r[0] + r[2] > ax && r[1] < ay + ah && r[1] + r[3] > ay);
+      // rechts: Spalte für Spalte im Band des Absatzes
+      const Y0 = klemm(px(y), H - 1), Y1 = klemm(px(y + h), H - 1);
+      let X = klemm(px(x + w) + 1, W - 1); const XE = klemm(px(grenzeR), W - 1);
+      for (; X < XE; X++) {
+        let ok = true; for (let Y = Y0; Y <= Y1 && ok; Y += 1) ok = leer(X, Y, rgb);
+        if (!ok || trifft(X / scale, y, 1 / scale, h)) break;
+      }
+      const wFrei = Math.max(0, X / scale - (x + w) - size * 0.5);
+      // unten: Zeile für Zeile unter dem Absatz, höchstens drei Schrifthöhen
+      const XA = klemm(px(x), W - 1), XB = klemm(px(x + w + wFrei), W - 1);
+      let Y = klemm(px(y + h) + 1, H - 1); const YE = klemm(px(y + h + size * 3), H - 1);
+      for (; Y < YE; Y++) {
+        let ok = true; for (let Xs = XA; Xs <= XB && ok; Xs += 1) ok = leer(Xs, Y, rgb);
+        if (!ok || trifft(x, Y / scale, w + wFrei, 1 / scale)) break;
+      }
+      const hFrei = Math.max(0, Y / scale - (y + h) - size * 0.6);
+      return [+wFrei.toFixed(2), +hFrei.toFixed(2)];
+    }
+    return { tinte, breite, leereZeile, frei };
+  }
   const TESS = { de: 'deu', ru: 'rus', en: 'eng' };
   // Texterkennung für Seiten ohne Textebene (Scans, Fotos). Läuft auf dem Gerät
   // (Tesseract.js, Apache-2.0); Programm und Sprachdaten liegen unter <basis>tesseract/.
@@ -154,7 +253,34 @@
     const w = await window.Tesseract.createWorker(TESS[von] || 'eng', 1, { workerPath: abs(basis + 'tesseract/worker.min.js'), corePath: abs(basis + 'tesseract/'), langPath: abs(basis + 'tesseract/lang'), gzip: false, cacheMethod: 'none' });
     return w;
   }
-  async function ocrBloecke(worker, canvas, scale) {
+  /* Bilder auf einer Seite MIT Text (Klaus 2026-09-25: „Kurzanleitung wurde nicht übersetzt").
+     Die Texterkennung lief nur auf Seiten ganz ohne Textebene — ein eingefügter Scan, ein
+     Foto einer Anleitung oder ein Bildschirmfoto auf einer normalen Seite blieb deutsch.
+     Gesucht werden die Stellen, an denen die Seite ein Bild zeichnet (Anzeige-Punkte, y
+     nach unten). Nur größere Bilder: ein Logo oder Symbol ist kein Lesestoff. */
+  async function bildFlaechen(page) {
+    const vp = page.getViewport({ scale: 1 }); let ops;
+    try { ops = await page.getOperatorList(); } catch (_) { return []; }
+    const O = pdfjsLib.OPS, mal = pdfjsLib.Util.transform, stapel = []; let ctm = [1, 0, 0, 1, 0, 0]; const raus = [];
+    const bild = new Set([O.paintImageXObject, O.paintInlineImageXObject, O.paintJpegXObject, O.paintImageXObjectRepeat].filter(v => v != null));
+    for (let i = 0; i < ops.fnArray.length; i++) {
+      const fn = ops.fnArray[i], a = ops.argsArray[i];
+      if (fn === O.save) stapel.push(ctm.slice());
+      else if (fn === O.restore) ctm = stapel.pop() || [1, 0, 0, 1, 0, 0];
+      else if (fn === O.transform) ctm = mal(ctm, a);
+      else if (fn === O.paintFormXObjectBegin && a && a[0]) { stapel.push(ctm.slice()); ctm = mal(ctm, a[0]); }
+      else if (fn === O.paintFormXObjectEnd) ctm = stapel.pop() || [1, 0, 0, 1, 0, 0];
+      else if (bild.has(fn)) {
+        const m = mal(vp.transform, ctm);
+        const ecken = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([u, v]) => [m[0] * u + m[2] * v + m[4], m[1] * u + m[3] * v + m[5]]);
+        const x0 = Math.max(0, Math.min(...ecken.map(e => e[0]))), y0 = Math.max(0, Math.min(...ecken.map(e => e[1])));
+        const x1 = Math.min(vp.width, Math.max(...ecken.map(e => e[0]))), y1 = Math.min(vp.height, Math.max(...ecken.map(e => e[1])));
+        if (x1 - x0 >= 80 && y1 - y0 >= 60 && (x1 - x0) * (y1 - y0) >= vp.width * vp.height * 0.04) raus.push([x0, y0, x1 - x0, y1 - y0]);
+      }
+    }
+    return raus;
+  }
+  async function ocrBloecke(worker, canvas, scale, dx = 0, dy = 0) {
     const r = await worker.recognize(canvas, {}, { blocks: true, text: false });
     const teile = [];
     for (const bl of (r.data.blocks || [])) for (const pa of (bl.paragraphs || [])) for (const li of (pa.lines || [])) {
@@ -162,7 +288,7 @@
       if (!t || li.confidence < 45 || !/[\p{L}]{2}/u.test(t)) continue;
       const bb = li.bbox, hoehe = (bb.y1 - bb.y0) / scale;
       const basis = li.baseline && li.baseline.y0 > bb.y0 ? li.baseline.y0 / scale : bb.y1 / scale - hoehe * 0.2;
-      teile.push({ s: t, x: bb.x0 / scale, y: basis, w: (bb.x1 - bb.x0) / scale, fh: Math.max(4, hoehe * 0.82) });
+      teile.push({ s: t, x: bb.x0 / scale + dx, y: basis + dy, w: (bb.x1 - bb.x0) / scale, fh: Math.max(4, hoehe * 0.82) });
     }
     return gruppieren(teile, 0);
   }
@@ -409,9 +535,38 @@
           }
           if (ocrWorker) { r.bloecke = await ocrBloecke(ocrWorker, bild, scale); ocr = true; ocrSeiten++; }
         }
+        const pr = seitenPruefer(bild, scale);
+        if (!ocr && r.roh) { r.bloecke = []; for (const o of Object.keys(r.roh).map(Number)) r.bloecke.push(...gruppieren(r.roh[o].map(t => ({ ...t })), o, pr)); }
+        // Bilder auf einer Seite mit Text: den Bildausschnitt groß rendern und lesen.
+        // Was schon als echter Text über dem Bild liegt, wird nicht doppelt übernommen.
+        let bildText = 0;
+        if (!ocr && opt.ocr && r.bloecke.length) {
+          const flaechen = (await bildFlaechen(page)).filter(f => !r.bloecke.some(b => b.x >= f[0] - 2 && b.y - b.h * 0.2 >= f[1] - 2 && b.x + b.w <= f[0] + f[2] + 2 && b.y + b.h <= f[1] + f[3] + 2 && b.w * b.h > f[2] * f[3] * 0.25));
+          if (flaechen.length) {
+            if (!ocrWorker && !ocrFehler) {
+              if (opt.melde) opt.melde(stand.seiten.filter(Boolean).length, n, { ms: Date.now() - t0, neu, text: 'Texterkennung wird geladen …' });
+              try { ocrWorker = await ocrStarten(opt.ocr.basis, opt.ocr.von); } catch (e) { ocrFehler = e.message || String(e); }
+            }
+            if (ocrWorker) {
+              const S = 3, gross = await seitenBild(page, S);
+              for (const [fx, fy, fw, fh] of flaechen) {
+                const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(fw * S)); c.height = Math.max(1, Math.round(fh * S));
+                c.getContext('2d').drawImage(gross, Math.round(fx * S), Math.round(fy * S), c.width, c.height, 0, 0, c.width, c.height);
+                const neuB = (await ocrBloecke(ocrWorker, c, S, fx, fy)).filter(nb => !r.bloecke.some(b => b.x < nb.x + nb.w && b.x + b.w > nb.x && b.y - b.h < nb.y && b.y > nb.y - nb.h));
+                bildText += neuB.length; r.bloecke.push(...neuB);
+                c.width = c.height = 0;
+              }
+              gross.width = gross.height = 0;
+              if (bildText) ocrSeiten++;
+            }
+          }
+        }
         try { page.cleanup(); } catch (_) {}
         const b = r.bloecke.map(b => [b.x, b.y, b.w, b.h, b.s, b.z, b.t, b.o || 0]);
         b.forEach(x => x.push(...farben(bild, scale, x)));
+        // [10] freie Breite rechts, [11] freie Höhe unten, [12] Zeilenrechtecke zum Abdecken
+        const links = Math.max(18, Math.min(...b.map(x => x[0]).concat([r.w])));
+        b.forEach((x, k) => { const f = (x[7] || 0) === 0 ? pr.frei(x, b, r.w - links) : [0, 0]; x.push(f[0], f[1], r.bloecke[k].zr || null); });
         bild.width = bild.height = 0; bild = null;
         const texte = r.bloecke.map(b => b.t);
         // Scheitert der Übersetzer (Kontingent, 429, Netz), bleibt das Übersetzte
@@ -420,7 +575,7 @@
         let u;
         try { u = texte.length ? (await opt.uebersetzer(texte)).map(zeichenNormal) : []; }
         catch (e) { fehler = (e && e.message) || String(e); break; }
-        stand.seiten[i] = { b, u, gedreht: r.gedreht, t: r.t, ocr };
+        stand.seiten[i] = { b, u, gedreht: r.gedreht, t: r.t, ocr: ocr || bildText > 0 };
         neu++;
         if (opt.speichere) await opt.speichere(stand);
         if (opt.melde) opt.melde(stand.seiten.filter(Boolean).length, n, { ms: Date.now() - t0, neu });
@@ -491,8 +646,28 @@
       const inv = invert(s.t || anzeige(page).t);
       const o = inv(0, 0), ex = inv(1, 0);
       const winkel = Math.round(Math.atan2(ex[1] - o[1], ex[0] - o[0]) * 180 / Math.PI);
+      // Durchgang 1: je Absatz die Größe, in der er passt
+      const groesse = s.b.map((b, k) => {
+        const roh = s.u && s.u[k]; if (roh == null) return null;
+        const [, , w, h, size] = b, text = saeubern(font, roh).text;
+        const W2 = w + (+b[10] || 0), H2 = h + (+b[11] || 0);
+        const ok = (g, br, ho, zu = 0) => { const z = umbrechen(font, text, g, br); return z.length * g * 1.18 <= ho + g * zu && !z.some(t => font.widthOfTextAtSize(t, g) > br + 0.5); };
+        let g = Math.min(size, 40); if (ok(g, w, h, 0.3) || ok(g, W2, h, 0.3) || ok(g, W2, H2)) return g;
+        while (g > 3.5 && !ok(g, W2, H2)) g -= 0.25; return g;
+      });
+      // Angleichen: gleiche Originalgröße in derselben Spalte bekommt dieselbe Größe —
+      // sonst springt die Schrift von Listenpunkt zu Listenpunkt. Nicht unter 70 % des Originals.
+      // Zwei Sorten Nachbarn: dieselbe Spalte (Listenpunkte) und dieselbe Zeile (Ankreuz-Reihe „Ja · Nein").
+      const gruppen = b => ['s' + (b[7] || 0) + ':' + Math.round(b[0] / 3) + ':' + Math.round(b[4] * 2),
+        // nur kurze Beschriftungen — eine lange Frage in derselben Zeile ist kein Nachbar
+        ...(String(b[6] || '').length <= 24 ? ['z' + (b[7] || 0) + ':' + Math.round(b[1] / 3) + ':' + Math.round(b[4] * 2)] : [])];
+      const kleinste = {};
+      s.b.forEach((b, k) => { const g = groesse[k]; if (g == null || g < Math.min(b[4], 40) * 0.7) return;
+        for (const schl of gruppen(b)) kleinste[schl] = Math.min(kleinste[schl] == null ? 99 : kleinste[schl], g); });
+      const angeglichen = (b, g) => gruppen(b).reduce((m, schl) => kleinste[schl] == null ? m : Math.min(m, kleinste[schl]), g);
       s.b.forEach((b, k) => {
         const [x, y, w, h, size, , , o = 0, bgF = '#ffffff', fgF = '#111111'] = b; const roh = s.u && s.u[k];
+        const ziel = groesse[k] == null ? null : angeglichen(b, groesse[k]);
         const farbe = f => { const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(f) || [0, 'ff', 'ff', 'ff']; return rgb(parseInt(m[1], 16) / 255, parseInt(m[2], 16) / 255, parseInt(m[3], 16) / 255); };
         if (roh == null) return;
         const { text, ersetzt: e } = saeubern(font, roh); ersetzt += e;
@@ -500,10 +675,21 @@
         const p = (dx, dy) => { const d = ausRahmen(o, x + dx, y + dy); return inv(d[0], d[1]); };
         const dreh = degrees(winkel - o);
         const pad = Math.max(0.6, size * 0.08);
-        const a = p(-pad, h + pad);
-        page.drawRectangle({ x: a[0], y: a[1], width: w + 2 * pad, height: h + 2 * pad, color: farbe(bgF), rotate: dreh });
-        let gr = Math.min(size, 40), zeilen = umbrechen(font, text, gr, w);
-        while (gr > 3.5 && (zeilen.length * gr * 1.18 > h + gr * 0.3 || zeilen.some(z => font.widthOfTextAtSize(z, gr) > w + 0.5))) { gr -= 0.25; zeilen = umbrechen(font, text, gr, w); }
+        const zr = b[12];
+        if (zr && zr.length) for (const [zx, zy, zw, zh] of zr) {
+          const a = ausRahmen(o, zx - pad, zy + zh + pad), q = inv(a[0], a[1]);
+          page.drawRectangle({ x: q[0], y: q[1], width: zw + 2 * pad, height: zh + 2 * pad, color: farbe(bgF), rotate: dreh });
+        } else {
+          const a = p(-pad, h + pad);
+          page.drawRectangle({ x: a[0], y: a[1], width: w + 2 * pad, height: h + 2 * pad, color: farbe(bgF), rotate: dreh });
+        }
+        // Erst in der Größe des Originals: im alten Rahmen, dann mit dem freien Platz
+        // rechts, dann auch unten — erst danach wird die Schrift kleiner.
+        const W2 = w + (+b[10] || 0), H2 = h + (+b[11] || 0);
+        const passt = (g, br, ho, zu = 0) => { const z = umbrechen(font, text, g, br); return z.length * g * 1.18 <= ho + g * zu && !z.some(t => font.widthOfTextAtSize(t, g) > br + 0.5) ? z : null; };
+        let gr = ziel, zeilen = passt(gr, w, h, 0.3) || passt(gr, W2, h, 0.3) || passt(gr, W2, H2);
+        while (!zeilen && gr > 3.5) { gr -= 0.25; zeilen = passt(gr, W2, H2); }
+        if (!zeilen) zeilen = umbrechen(font, text, gr, W2);
         if (gr < size * 0.6) zuKlein++;
         zeilen.forEach((z, j) => {
           const q = p(0, (j + 1) * gr * 1.18 - gr * 0.22);
@@ -513,7 +699,7 @@
     }
     if (offen) hinweise.push(offen + ' Seite(n) sind noch nicht übersetzt (Lauf abgebrochen) und stehen im Original da.');
     if (ohneText) hinweise.push(ohneText + ' Seite(n) ohne erkennbaren Text (leer, nur Bild, oder Texterkennung nicht verfügbar) bleiben wie im Original.');
-    if (ocr) hinweise.push(ocr + ' gescannte Seite(n) per Texterkennung (OCR) gelesen — dort bitte die Übersetzung gegenlesen, Erkennungsfehler sind möglich.');
+    if (ocr) hinweise.push('Auf ' + ocr + ' Seite(n) wurde Text in Scans oder Bildern per Texterkennung (OCR) gelesen — dort bitte die Übersetzung gegenlesen, Erkennungsfehler sind möglich.');
     if (gedreht) hinweise.push(gedreht + ' schräg gesetzte Textstücke (nicht waagerecht oder senkrecht) bleiben im Original stehen.');
     if (zuKlein) hinweise.push(zuKlein + ' Absätze mussten stark verkleinert werden, weil die Übersetzung länger ist.');
     if (ersetzt) hinweise.push(ersetzt + ' Zeichen fehlen in der Schrift und wurden durch „?" ersetzt.');
