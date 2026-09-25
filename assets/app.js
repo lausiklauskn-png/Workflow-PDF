@@ -927,6 +927,16 @@
     if (!installiert()) $('btnInstall').hidden = false;
     window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); _inst = e; if (!installiert()) $('btnInstall').hidden = false; });
     window.addEventListener('appinstalled', () => { _inst = null; $('btnInstall').hidden = true; installHinweis(true); });
+    // ⟳ Hard-Reload: Vorrat des Service-Workers weg, Worker abmelden, mit geänderter Adresse neu laden.
+    // Nur eine geänderte Adresse ist für den HTTP-Cache eine andere Datei. IndexedDB (deine Dokumente) bleibt unberührt.
+    $('btnNeu').onclick = async () => {
+      $('btnNeu').disabled = true; toast('Neueste Fassung wird geladen …');
+      try { await speichernJetzt(); } catch (_) {}
+      try { if (window.caches) for (const k of await caches.keys()) await caches.delete(k); } catch (_) {}
+      try { if (navigator.serviceWorker) for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister(); } catch (_) {}
+      const u = new URL(location.href); u.searchParams.set('neu', Date.now().toString(36)); location.replace(u.href);
+    };
+    if (new URLSearchParams(location.search).has('neu')) { const u = new URL(location.href); u.searchParams.delete('neu'); history.replaceState(null, '', u.pathname + u.search + u.hash); }
     $('btnInstall').onclick = async () => {
       if (_inst) { _inst.prompt(); try { await _inst.userChoice; } catch (_) {} _inst = null; return; }
       installHinweis(false);

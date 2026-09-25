@@ -338,6 +338,12 @@ try {
   await page.waitForFunction(() => window.__wfpdf.S.doc && window.__wfpdf.S.doc.fields.some(f => f.value === 'Getippt'), null, { timeout: 15000 });
   ok('Arbeitsstand eingelesen: Einträge wieder da, älterer Browserstand ersetzt', await page.evaluate(async () => (await WFP.DB.all('docs')).filter(d => d.name === 'Grauformular').length === 1));
 
+  // 14. ⟳ Hard-Reload: lädt neu, räumt die Adresse auf, Dokumente bleiben
+  const vorN = await page.evaluate(async () => (await WFP.DB.all('docs')).length);
+  await Promise.all([page.waitForNavigation(), page.click('#btnNeu')]);
+  await page.waitForFunction(() => window.__wfpdf && !location.search.includes('neu='), null, { timeout: 15000 });
+  ok('⟳ lädt neu, Adresse aufgeräumt, Dokumente bleiben', await page.evaluate(async () => (await WFP.DB.all('docs')).length) === vorN && vorN > 0, vorN);
+
   ok('keine Fehler in der Konsole', konsole.length === 0, konsole);
 } catch (e) {
   rot++; console.log('  ✗ ROT: Abbruch → ' + (e.stack || e));
