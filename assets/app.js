@@ -989,15 +989,44 @@
       <p>Ein eigener Bereich: die Originale kommen in einen eigenen, frei benannten Ordner (z. B. „Handbücher", „Verträge"), die Übersetzungen in eigene Ordner je Sprache. Nichts mischt sich mit deinen bearbeiteten Formularen, und das Original bleibt unberührt.</p>
       <button class="wahl" data-uo><b>🗂️ Ordner vom Gerät übersetzen</b><span>Alle PDFs eines Ordners, beliebig viele Seiten. Jede Seite wird einzeln übersetzt und sofort gespeichert.</span></button>
       <button class="wahl" data-ud><b>📄 Einzelne PDFs oder Bilder übersetzen</b><span>Eine oder mehrere PDF-Dateien oder Fotos (JPG, PNG) wählen. Bei Fotos wird das Blatt gesucht und auf A4 gerade gezogen.</span></button>
+      <button class="wahl" data-ubsp><b>📘 Beispiele zum Ausprobieren</b><span>Das Benutzerhandbuch dieser App (14 Seiten mit Bildern, Tabellen, Kästen, Querformat und einer gescannten Seite) und ein erfundenes Amtsformular. Übersetzen testen, ohne eigene Dokumente zu nehmen. Sie landen im Ordner „Beispiele".</span></button>
       <button class="wahl" data-uk><b>📷 Brief fotografieren</b><span>Papierbrief (z. B. vom Amt) Seite für Seite aufnehmen. Das Blatt wird auf A4 gerade gezogen — ausgedruckt wieder so groß wie das Papier. Die Texterkennung liest ihn auf dem Gerät.</span></button>
       ${quellen.length ? `<p style="margin-top:12px"><b>… oder einen Ordner, der schon hier liegt:</b></p>${quellen.map(o => `<button class="wahl" data-o="${o.id}"><b>${o.bereich === 'uebersetzung' ? '🌐 ' : '🗂️ '}${h(o.name)}</b><span>${S.docs.filter(d => d.folderId === o.id && !d.uebersetzung).length} Dokumente</span></button>`).join('')}` : ''}
       <div class="zeile"><button class="knopf" data-x>Abbrechen</button></div>`, (dl, zu) => {
       dl.querySelector('[data-x]').onclick = zu;
       dl.querySelector('[data-uo]').onclick = () => { zu(); $('inUeOrdner').click(); };
       dl.querySelector('[data-ud]').onclick = () => { zu(); $('inUeDateien').click(); };
+      dl.querySelector('[data-ubsp]').onclick = async () => { zu(); const d = await beispieleLaden(); if (d.length) uebersetzenDialog(d.map(x => x.id), true); };
       dl.querySelector('[data-uk]').onclick = () => { zu(); S.aufnahmeZiel = 'uebersetzung'; S.aufnahmeUe = true; $('inKamera').click(); };
       dl.querySelectorAll('[data-o]').forEach(b => b.onclick = () => { zu(); S.aktOrdner = b.dataset.o; zeichneBibliothek(); uebersetzenDialog(S.docs.filter(d => d.folderId === b.dataset.o && !d.uebersetzung).map(d => d.id), true); });
     });
+  }
+  /* Beispiele zum Ausprobieren (Klaus 2026-09-25): das Benutzerhandbuch und ein erfundenes
+     Amtsformular liegen unter beispiele/ (gebaut von tools/handbuch-bauen.mjs). Übersetzen
+     testen, ohne eigene Dokumente zu nehmen. Schon eingelesene werden nicht doppelt angelegt;
+     der Worker legt die PDFs beim ersten Abruf in den Vorrat, danach gehen sie offline. */
+  const BEISPIELE = [
+    { datei: 'beispiele/Workfloh-PDF-Benutzerhandbuch.pdf', name: 'Workfloh-PDF-Benutzerhandbuch' },
+    { datei: 'beispiele/Beispiel-Amtsformular-Bewohnerparkausweis.pdf', name: 'Beispiel-Amtsformular-Bewohnerparkausweis' }];
+  async function beispieleLaden(nur) {
+    let ordnerName = 'Beispiele';
+    if (S.ordner.some(o => o.name === ordnerName && o.bereich !== 'uebersetzung')) ordnerName += ' (Workfloh PDF)';
+    const imOrdner = () => { const o = S.ordner.find(x => x.name === ordnerName && x.bereich === 'uebersetzung'); return o ? S.docs.filter(d => d.folderId === o.id && !d.uebersetzung) : []; };
+    const gewollt = BEISPIELE.filter(b => !nur || b.name === nur);
+    const fehlt = gewollt.filter(b => !imOrdner().some(d => d.name === b.name));
+    if (fehlt.length) {
+      let dateien;
+      try {
+        dateien = await Promise.all(fehlt.map(async b => {
+          const r = await fetch(b.datei); if (!r.ok) throw new Error(r.status);
+          return new File([await r.blob()], b.name + '.pdf', { type: 'application/pdf' });
+        }));
+      } catch (e) { toast('Die Beispiele ließen sich nicht laden — beim ersten Mal braucht es Internet.'); return []; }
+      await importDateien(dateien, ordnerName, { still: true, bereich: 'uebersetzung' });
+    }
+    const da = imOrdner(); const o = S.ordner.find(x => x.name === ordnerName && x.bereich === 'uebersetzung');
+    if (o) { S.aktOrdner = o.id; zeichneBibliothek(); }
+    return gewollt.map(b => da.find(d => d.name === b.name)).filter(Boolean);
   }
   async function ueEinlesen(dateien, ordnerName) {
     const pdfs = Array.from(dateien || []).filter(f => istPdf(f) || istBild(f));
@@ -1403,7 +1432,13 @@
       <li><b>Ausgeben:</b> festes PDF, ausfüllbares PDF oder leere ausfüllbare Vorlage.</li>
       <li><b>Übersetzen:</b> in der Bibliothek „🌐 Übersetzen" — Deutsch, Russisch, Englisch in jede Richtung. Jede Seite wird auf <i>derselben</i> Seite übersetzt, Seitenumbrüche bleiben. Das Ergebnis liegt als neues Dokument im selben Ordner, das Original bleibt unberührt. Mit Gegenprobe (Rückübersetzung) daneben. <b>Kostenlos ohne Schlüssel:</b> „🌐 Mit Chrome übersetzen" — die App zeigt den Text unten an, du tippst in Chrome ⋮ → „Übersetzen" (der Text geht an Google). Läuft die App installiert im eigenen Fenster und fehlt dort „Übersetzen": „🌐 In Chrome öffnen" — derselbe Übersetzer öffnet sich in Chrome mit denselben Dokumenten, das Ergebnis liegt danach auch in der App.</li></ol>
       <p class="hinweis">Alles bleibt in diesem Browser (DeX-Chrome und Tablet-Chrome sind zwei getrennte Browser). Ins Netz geht nur, was du ausdrücklich an eine KI schickst.</p>
-      <div class="zeile"><button class="knopf rot" data-x>Verstanden</button></div>`, (d, zu) => d.querySelector('[data-x]').onclick = zu);
+      <p>Das ausführliche <b>Benutzerhandbuch</b> und ein <b>Beispiel-Formular</b> (erfundene Daten) liegen der App bei — hier unten öffnen, oder unter „🌐 Übersetzen → 📘 Beispiele zum Ausprobieren". Sie landen im Ordner „Beispiele".</p>
+      <div class="zeile"><button class="knopf" data-hb>📘 Handbuch öffnen</button><button class="knopf" data-bsp>📄 Beispiel-Formular</button><button class="knopf rot" data-x>Verstanden</button></div>`, (d, zu) => {
+        d.querySelector('[data-x]').onclick = zu;
+        const oeffne = nur => async () => { zu(); const x = await beispieleLaden(nur); if (x[0]) oeffneDok(x[0].id); };
+        d.querySelector('[data-hb]').onclick = oeffne(BEISPIELE[0].name);
+        d.querySelector('[data-bsp]').onclick = oeffne(BEISPIELE[1].name);
+      });
   }
 
   /* ---------- Verdrahtung ---------- */
@@ -1479,7 +1514,7 @@
 
     if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
     ladeBibliothek().then(chromeTabRueckweg).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
-    window.__wfpdf = { S, EINST, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele };   // für die Probe
+    window.__wfpdf = { beispieleLaden, S, EINST, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele };   // für die Probe
   }
   start();
 })();
