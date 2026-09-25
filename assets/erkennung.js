@@ -258,8 +258,8 @@
       + 'Bei Ja/Nein-Kästchen nenne die Frage mit, z. B. "Unfallzeugen: Ja". '
       + '2) Liste zusätzlich Eingabestellen, die NICHT rot markiert sind, mit Koordinaten in Prozent der Bildbreite und -höhe (0 bis 100, linke obere Ecke). '
       + 'Antworte AUSSCHLIESSLICH mit JSON in dieser Form: '
-      + '{"text":"der gesamte gedruckte Text der Seite","felder":[{"nr":1,"typ":"text|datum|kaestchen|email|internetadresse|unterschrift","bezeichnung":"..."}],"keinFeld":[5],"zusaetzlich":[{"typ":"text","bezeichnung":"...","x":0,"y":0,"b":0,"h":0}]} '
-      + 'Trage niemals gedruckte Inhalte als Feldwert ein.';
+      + '{"text":"der gesamte gedruckte Text der Seite","felder":[{"nr":1,"typ":"text|datum|kaestchen|email|internetadresse|unterschrift","bezeichnung":"...","inhalt":""}],"keinFeld":[5],"zusaetzlich":[{"typ":"text","bezeichnung":"...","x":0,"y":0,"b":0,"h":0}]} '
+      + 'Steht in einem Eingabefeld bereits etwas (ausgefüllt, gestempelt, angekreuzt), gib es unter "inhalt" wortgetreu wieder (bei Kästchen true/false); die Beschriftung des Feldes gehört NICHT in "inhalt".';
   }
 
   async function fehlerText(resp) {
@@ -324,14 +324,15 @@
     for (const f of arr) {
       const t0 = typ(f.typ || f.type), lab0 = String(f.bezeichnung || f.label || '').trim().slice(0, 60);
       const nr = parseInt(f.nr, 10);
-      if (Number.isFinite(nr) && nr > 0) { out.push({ nr, type: t0, label: lab0 || (/unterschrift|sign/i.test(String(f.typ)) ? 'Unterschrift' : ''), quelle: 'ki' }); continue; }
+      const inh = f.inhalt == null ? '' : (typeof f.inhalt === 'boolean' ? f.inhalt : String(f.inhalt).trim().slice(0, 2000));
+      if (Number.isFinite(nr) && nr > 0) { out.push({ nr, type: t0, label: lab0 || (/unterschrift|sign/i.test(String(f.typ)) ? 'Unterschrift' : ''), inhalt: inh, quelle: 'ki' }); continue; }
       let x = +f.x * fx, y = +f.y * fy, w = +(f.b ?? f.w ?? f.breite) * fx, h = +(f.h ?? f.hoehe) * fy;
       if (![x, y, w, h].every(Number.isFinite)) continue;
       if (x <= 1 && y <= 1 && w <= 1 && h <= 1) { x *= 100; y *= 100; w *= 100; h *= 100; }   // Anteile statt Prozent
       x = clamp(x, 0, 99); y = clamp(y, 0, 99); w = clamp(w, 0.8, 100 - x); h = clamp(h, 0.6, 100 - y);
       const t = typ(f.typ || f.type);
       const lab = String(f.bezeichnung || f.label || '').trim().slice(0, 60);
-      out.push({ type: t, x, y, w, h, label: lab || (/unterschrift|sign/i.test(String(f.typ)) ? 'Unterschrift' : ''), quelle: 'ki' });
+      out.push({ type: t, x, y, w, h, label: lab || (/unterschrift|sign/i.test(String(f.typ)) ? 'Unterschrift' : ''), inhalt: inh, quelle: 'ki' });
     }
     const kein = (Array.isArray(j.keinFeld) ? j.keinFeld : []).map(n => parseInt(n, 10)).filter(Number.isFinite);
     return { felder: out, kein, text: typeof j.text === 'string' ? j.text.slice(0, 40000) : '' };
@@ -345,7 +346,7 @@
     const benannt = [];
     for (const k of ki.filter(k => k.nr)) {
       const c = kand[k.nr - 1]; if (!c || weg.has(c) || benannt.some(b => b.q === c)) continue;
-      benannt.push({ q: c, f: Object.assign({}, c, { type: c.type === 'check' ? 'check' : k.type === 'check' ? 'text' : k.type, label: k.label || c.label, quelle: 'ki', eingerastet: true }) });
+      benannt.push({ q: c, f: Object.assign({}, c, { type: c.type === 'check' ? 'check' : k.type === 'check' ? 'text' : k.type, label: k.label || c.label, inhalt: k.inhalt, quelle: 'ki', eingerastet: true }) });
     }
     ki = ki.filter(k => !k.nr).concat(benannt.map(b => b.f));
     linien = linien.filter(l => !weg.has(l) && !benannt.some(b => b.q === l));

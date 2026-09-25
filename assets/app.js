@@ -435,6 +435,7 @@
     el.className = 'feld' + (!f.geprueft ? ' ki' : '') + (f.type === 'check' ? ' check-feld' : '') + ((f.type === 'check' ? f.value : f.value !== '' && f.value != null) ? ' hatwert' : '');
     el.dataset.id = f.id;
     el.style.left = f.x + '%'; el.style.top = f.y + '%'; el.style.width = f.w + '%'; el.style.height = f.h + '%';
+    if (f.decken) el.style.backgroundColor = f.decken;
     const hoehePx = () => el.getBoundingClientRect().height || 20;
     if (S.modus === 'ausfuellen') {
       if (f.type === 'check') {
@@ -673,20 +674,25 @@
   }
 
   /* ---------- Erkennung ---------- */
-  function erkennenDialog(ids) {
+  async function erkennenDialog(ids) {
     const mehrere = ids.length > 1;
+    const namen = {};
+    if (mehrere) for (const id of ids) { try { const d = S.doc && S.doc.id === id ? S.doc : await DB.get('docs', id); namen[id] = d && d.name; } catch (_) {} }
     const a = ER.ANBIETER[EINST.anbieter];
     dialog(`<h2>🤖 Formularfelder erkennen</h2>
-      <p>${mehrere ? ids.length + ' Dokumente.' : ''} Erkannte Felder sind <b>Vorschläge</b>: sie erscheinen orange gestrichelt, bis du sie prüfst. Noch nicht geprüfte Vorschläge aus einem früheren Durchgang werden dabei ersetzt.</p>
+      ${mehrere ? `<p><b>In welchen Dokumenten?</b></p><div class="erk-liste">${ids.map(id => `<label class="erk-dok"><input type="checkbox" data-dok="${h(id)}" checked> ${h(namen[id] || id)}</label>`).join('')}</div>` : ''}
+      <p>Erkannte Felder sind <b>Vorschläge</b>: sie erscheinen orange gestrichelt, bis du sie prüfst. Noch nicht geprüfte Vorschläge aus einem früheren Durchgang werden dabei ersetzt.</p>
       <button class="wahl" data-off><b>🔍 Ohne Internet erkennen</b><span>Findet Linien, Eingabe-Rahmen, graue Eingabeflächen und Kästchen im Seitenbild. Bei digitalen PDFs kommt die Beschriftung aus dem Text daneben.</span></button>
       <button class="wahl" data-ki><b>🤖 Mit KI erkennen — ${h(a.label)}</b><span>${kiBereit()
         ? `Jede Seite wird als Bild an ${h(a.label)} geschickt, mit den offline gefundenen Stellen nummeriert markiert. Die KI benennt sie, sortiert Falsches aus und ergänzt Fehlendes. Die Positionen der markierten Stellen bleiben exakt.`
         : 'Noch kein Schlüssel eingetragen — tippen, um ihn in den Einstellungen einzutragen.'}</span></button>
       <div class="zeile"><button class="knopf" data-x>Abbrechen</button></div>`, (d, zu) => {
       d.querySelector('[data-x]').onclick = zu;
-      d.querySelector('[data-off]').onclick = () => { zu(); erkenneViele(ids, false); };
+      const gewaehlt = () => mehrere ? [...d.querySelectorAll('[data-dok]')].filter(c => c.checked).map(c => c.dataset.dok) : ids;
+      d.querySelector('[data-off]').onclick = () => { const w = gewaehlt(); if (!w.length) return toast('Kein Dokument gewählt.'); zu(); erkenneViele(w, false); };
       d.querySelector('[data-ki]').onclick = async () => {
-        zu();
+        const w = gewaehlt(); if (!w.length) return toast('Kein Dokument gewählt.');
+        ids = w; zu();
         if (!kiBereit()) { einstellungen(); return; }
         if (!EINST.kiOk[EINST.anbieter]) {
           const ok = await frage('Seiten an die KI senden?', `<p>Die Seiten ${mehrere ? 'aller ' + ids.length + ' Dokumente ' : ''}werden als Bild an <b>${h(a.label)}</b> übertragen (Verarbeitung: ${h(a.region)}). Enthalten sie persönliche Angaben, gehen diese mit.</p><p class="hinweis">Diese Frage kommt je Anbieter einmal. Ohne Bestätigung verlässt nichts das Gerät.</p>`, 'Senden');
@@ -723,6 +729,36 @@
     if (/internet|webseite|homepage|url\b|www/.test(l)) return 'url';
     return 'text';
   }
+  // Was schon IN einem erkannten Feld steht, wird zum Feldwert; die Hintergrundfarbe
+  // deckt den gedruckten Text später ab, damit sich nichts doppelt überlagert.
+  function inhaltUebernehmen(felder, items, ctx, W, H) {
+    for (const f of felder) {
+      const px = Math.max(0, Math.round(f.x / 100 * W)), py = Math.max(0, Math.round(f.y / 100 * H));
+      const pw = Math.max(1, Math.round(f.w / 100 * W)), ph = Math.max(1, Math.round(f.h / 100 * H));
+      let img; try { img = ctx.getImageData(px, py, Math.min(pw, W - px), Math.min(ph, H - py)); } catch (_) { continue; }
+      const dd = img.data, iw = img.width, ih = img.height;
+      if (f.type === 'check') {
+        let dunkel = 0, n = 0; const r = Math.round(Math.min(iw, ih) * 0.22);
+        for (let y = r; y < ih - r; y++) for (let x = r; x < iw - r; x++) { const i = (y * iw + x) * 4; n++; if (dd[i] * 0.3 + dd[i + 1] * 0.59 + dd[i + 2] * 0.11 < 110) dunkel++; }
+        if (n && dunkel / n > 0.08) f.angekreuzt = true;
+        continue;
+      }
+      let sr = 0, sg = 0, sb = 0, n = 0;
+      for (let i = 0; i < dd.length; i += 16) { const l = dd[i] * 0.3 + dd[i + 1] * 0.59 + dd[i + 2] * 0.11; if (l > 150) { sr += dd[i]; sg += dd[i + 1]; sb += dd[i + 2]; n++; } }
+      const hex = v => ('0' + Math.round(v).toString(16)).slice(-2);
+      if (n) f.decken = '#' + hex(sr / n) + hex(sg / n) + hex(sb / n);
+      if (typeof f.inhalt === 'string' && f.inhalt) continue;       // KI hat schon gelesen
+      const lab = String(f.label || '').toLowerCase().replace(/[:\s]+$/, '');
+      const drin = items.filter(t => t.str.trim() && t.x + t.w / 2 > f.x && t.x + t.w / 2 < f.x + f.w && t.y + t.h / 2 > f.y && t.y + t.h / 2 < f.y + f.h
+        && t.str.trim().toLowerCase().replace(/[:\s]+$/, '') !== lab);
+      if (!drin.length) continue;
+      drin.sort((a, b) => Math.abs(a.y - b.y) > a.h * 0.5 ? a.y - b.y : a.x - b.x);
+      let txt = '', letzt = null;
+      for (const t of drin) { txt += letzt ? (Math.abs(t.y - letzt.y) > letzt.h * 0.5 ? '\n' : ' ') : ''; txt += t.str.trim(); letzt = t; }
+      f.inhalt = txt.replace(/ +/g, ' ').trim();
+    }
+  }
+
   async function erkenneDok(d, bytes, mitKi, melde) {
     const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
     d.fields = d.fields.filter(f => f.geprueft);           // alte, ungeprüfte Vorschläge ersetzen
@@ -757,6 +793,7 @@
           return { str: t.str, x: tr[4] / c.width * 100, y: (tr[5] - fh) / c.height * 100, w: t.width * vp.scale / c.width * 100, h: fh / c.height * 100 };
         });
         ER.beschrifte(felder, items);
+        inhaltUebernehmen(felder, items, x, c.width, c.height);
         if (!d.pages[i].text && items.length) d.pages[i].text = tc.items.map(t => t.str + (t.hasEOL ? '\n' : ' ')).join('').trim();
       } catch (_) {}
       const iou = (a, b) => { const ix = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)), iy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y)); const s = ix * iy; return s / (a.w * a.h + b.w * b.h - s || 1); };
@@ -770,6 +807,9 @@
         d.fields.push({ id: uid(), page: i, type: typ, label: f.label || (typ === 'check' ? 'Kästchen ' : 'Feld ') + (i + 1) + '.' + nr,
           x: f.x, y: f.y, w: f.w, h: f.h, value: typ === 'check' ? false : '', mehrzeilig: typ === 'text' && f.h > 4.5,
           herkunft: f.quelle === 'ki' ? 'ki' : 'erkennung', geprueft: false });
+        const nf = d.fields[d.fields.length - 1];
+        if (typ === 'check') { if (f.inhalt === true || f.angekreuzt) nf.value = true; }
+        else if (typeof f.inhalt === 'string' && f.inhalt && typ !== 'unterschrift') { nf.value = f.inhalt; nf.decken = f.decken || '#ffffff'; if (f.inhalt.includes('\n')) nf.mehrzeilig = true; }
         neu++;
       }
     }

@@ -48,6 +48,7 @@ async function grauFormular() {
   const p = pdf.addPage([595.28, 841.89]); const g = rgb(0.89, 0.89, 0.89);
   p.drawText('Versicherungsnehmer:', { x: 180, y: 712, size: 10, font: f });
   p.drawRectangle({ x: 180, y: 690, width: 330, height: 14, color: g });
+  p.drawText('Max Muster', { x: 184, y: 694, size: 9, font: f });   // schon ausgefüllt
   p.drawText('Unfallzeugen?', { x: 60, y: 652, size: 10, font: f });
   p.drawText('Ja', { x: 190, y: 652, size: 10, font: f }); p.drawRectangle({ x: 210, y: 649, width: 12, height: 12, color: g });
   p.drawText('Nein', { x: 250, y: 652, size: 10, font: f }); p.drawRectangle({ x: 280, y: 649, width: 12, height: 12, color: g });
@@ -274,6 +275,12 @@ try {
   const gk = G.filter(f => f.type === 'check');
   ok('grau: beide grauen Kästchen erkannt, mit Frage beschriftet', gk.length === 2 && gk.some(f => /Unfallzeugen.*Ja/.test(f.label)) && gk.some(f => /Unfallzeugen.*Nein/.test(f.label)), gk.map(f => f.label));
   ok('grau: große Fläche „Schilderung" mehrzeilig', G.some(f => f.type === 'text' && f.mehrzeilig && /Schilderung/.test(f.label)), G.map(f => [f.label, f.h.toFixed(1)]));
+  ok('grau: Text im Feld wird zum Feldwert, mit Deckfarbe der Fläche', gv && gv.value === 'Max Muster' && /^#e[0-9a-f]e[0-9a-f]e[0-9a-f]$/i.test(gv.decken || ''), gv && [gv.value, gv.decken]);
+  const af = await page.evaluate(async () => { const w = window.__wfpdf; const r = await WFP.Export.exportieren(w.S.doc, w.S.bytes, 'ausfuellbar');
+    const d = await PDFLib.PDFDocument.load(r.bytes); const fs = d.getForm().getFields();
+    const w0 = fs[0].acroField.getWidgets()[0]; const mk = w0.getAppearanceCharacteristics();
+    return { n: fs.length, bg: !!(mk && mk.getBackgroundColor()), print: (w0.dict.get(PDFLib.PDFName.of('F')) || {}).numberValue }; });
+  ok('ausfüllbares PDF: echte Felder mit sichtbarem Hintergrund und Druck-Flag', af.n >= 4 && af.bg && (af.print & 4) === 4, af);
   const offGrau = G.length;
 
   // 11. KI mit nummerierten Kandidaten
@@ -293,7 +300,7 @@ try {
   await page.click('#vorschlagBand [data-alle]');
   await page.click('#mAusfuellen');
   const ziel = page.locator(`.feld[data-id="${kn1.id}"] input, .feld[data-id="${kn1.id}"] textarea`).first();
-  await ziel.click();
+  await ziel.fill(""); await ziel.click();
   await page.setViewportSize({ width: 1280, height: 520 }); await page.waitForTimeout(450);
   await page.keyboard.type('Getippt');
   ok('Ausfüllen: Feld behält den Fokus, wenn die Tastatur das Fenster verkleinert', await page.evaluate(id => window.__wfpdf.S.doc.fields.find(f => f.id === id).value === 'Getippt', kn1.id));

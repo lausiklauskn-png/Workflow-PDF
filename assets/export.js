@@ -98,6 +98,12 @@
 
       const wert = f.type === 'check' ? !!f.value : f.type === 'datum' ? datumText(f.value) : String(f.value == null ? '' : f.value);
 
+      // Gedruckten Inhalt im Feld abdecken, damit nichts doppelt übereinander steht
+      if (f.decken && /^#[0-9a-f]{6}$/i.test(f.decken) && f.type !== 'check') {
+        const hx = s => parseInt(f.decken.slice(s, s + 2), 16) / 255;
+        const a = p(0, bh);
+        page.drawRectangle({ x: a[0], y: a[1], width: bw, height: bh, color: rgb(hx(1), hx(3), hx(5)), rotate: degrees(winkel) });
+      }
       if (f.type === 'unterschrift') {
         // Als Bild auf die Seite, in allen Fassungen gleich; die leere Vorlage bleibt leer
         if (!wert || modus === 'vorlage' || !/^data:image\/png;base64,/.test(wert)) continue;
@@ -151,7 +157,7 @@
       // pdf-lib dreht das Widget-Rechteck selbst um seinen Anker (x, y). Deshalb:
       // Breite/Höhe in Anzeige-Richtung, Anker = linke untere Ecke der ANZEIGE.
       const anker = p(0, bh);
-      const opt = { x: anker[0], y: anker[1], width: bw, height: bh, rotate: degrees(((winkel % 360) + 360) % 360), backgroundColor: undefined, borderColor: undefined, borderWidth: 0 };
+      const opt = { x: anker[0], y: anker[1], width: bw, height: bh, rotate: degrees(((winkel % 360) + 360) % 360), backgroundColor: rgb(0.91, 0.94, 1), borderColor: rgb(0.45, 0.58, 0.9), borderWidth: 0.6 };
       if (f.type === 'check') {
         const cb = form.createCheckBox(name);
         cb.addToPage(page, opt);
