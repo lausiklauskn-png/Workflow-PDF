@@ -154,7 +154,7 @@ async function lies(name) {
     for (let i = 1; i <= pdf.numPages; i++) {
       const p = await pdf.getPage(i); const vp = p.getViewport({ scale: 1 });
       const tc = await p.getTextContent();
-      seiten.push({ w: vp.width, h: vp.height, stuecke: tc.items.filter(t => t.str.trim()).map(t => { const tr = pdfjsLib.Util.transform(vp.transform, t.transform); return { s: t.str, x: tr[4], y: tr[5], fh: Math.hypot(tr[2], tr[3]) }; }) });
+      seiten.push({ w: vp.width, h: vp.height, stuecke: tc.items.filter(t => t.str.trim()).map(t => { const tr = pdfjsLib.Util.transform(vp.transform, t.transform); return { s: t.str, x: tr[4], y: tr[5], fh: Math.hypot(tr[2], tr[3]), w: t.width }; }) });
     }
     pdf.destroy();
     return { d, seiten, groesse: bytes.length, fonts, noto: fonts.some(f => /NotoSans/.test(f)) };
@@ -260,9 +260,15 @@ try {
   ok('gescannte Seite bleibt, wie sie war (kein Text dazu)', ru.seiten[2].stuecke.length === 0);
   // Sichtbarkeit: Kyrillisch wird wirklich gezeichnet; das Original ist abgedeckt
   const o = org.seiten[0].stuecke.find(t => t.s === 'den 1. Mai');
-  const ink = await tinte('Mietvertrag [RU]', 0, [o.x, o.y - o.fh * 0.8, 40, o.fh * 0.9]);
-  const inkOrg = await tinte('Mietvertrag', 0, [o.x, o.y - o.fh * 0.8, 40, o.fh * 0.9]);
-  ok('Original abgedeckt: wo „den 1. Mai" stand, ist die Seite (fast) weiß', inkOrg > 0.05 && ink < 0.02, { inkOrg, ink });
+  // Gemessen wird der Teil, den die (kürzere) Übersetzung NICHT beschreibt: vom Ende
+  // von „Гамбург, 1 мая" bis zum Ende von „Mai". Bis 2026-09-25 maß die Probe den Anfang
+  // von „den 1. Mai" — dort steht zu Recht die Übersetzung, und grün war sie nur, weil
+  // die Schrift-Teilmenge Buchstaben verlor (tests/schrift.mjs).
+  const nRu = ru.seiten[0].stuecke.find(t => t.s.startsWith('Гамбург'));
+  const x0 = nRu ? nRu.x + nRu.w + 2 : o.x + o.w, bx = [x0, o.y - o.fh * 0.8, o.x + o.w - x0, o.fh * 0.9];
+  const ink = bx[2] > 4 ? await tinte('Mietvertrag [RU]', 0, bx) : null;
+  const inkOrg = bx[2] > 4 ? await tinte('Mietvertrag', 0, bx) : null;
+  ok('Original abgedeckt: wo „Mai" stand und die Übersetzung nicht hinreicht, ist die Seite (fast) weiß', bx[2] > 4 && inkOrg > 0.05 && ink < 0.02, { inkOrg, ink, breite: bx[2] });
   const h1 = org.seiten[0].stuecke.find(t => t.s.startsWith('Mietvertrag'));
   ok('russische Überschrift ist sichtbar gezeichnet (Tinte im Bereich)', await tinte('Mietvertrag [RU]', 0, [h1.x, h1.y - h1.fh, 150, h1.fh * 1.1]) > 0.04);
   ok('Gegenprobe liegt daneben und trägt den deutschen Text zurück', gp && gp.d.uebersetzung.gegenprobe && text(gp.seiten[0]).includes('Die Miete beträgt 850 Euro im Monat.') && gp.seiten.length === 6);

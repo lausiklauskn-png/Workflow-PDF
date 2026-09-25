@@ -24,6 +24,10 @@ npm install && npm test     # Syntax + Probe im echten Browser
   Widget-Rechtecke selbst um ihren Anker; deshalb Anzeige-Breite/-Höhe und die
   linke untere Anzeige-Ecke übergeben. Die Probe prüft das an einer 90°-Seite.
 - **pdf-lib:** `setFontSize` erst NACH `addToPage` (vorher kein /DA-Eintrag).
+- **Schrift NIE als Teilmenge einbetten** (`subset: false`, Befund Klaus 2026-09-25):
+  pdf-lib + fontkit verlor bei Noto Sans Buchstaben („An … e" statt „Anspruchsteller") —
+  die Textebene stimmte, nur das Bild nicht. Kostet ~240 KB je PDF. `tests/schrift.mjs`
+  misst die Tinte im gerenderten Bild (heil 0,74–0,79 · Teilmenge 0,11–0,35).
 - **Cache-Bump:** `CACHE_VERSION` in `sw.js` erhöhen, wenn eine App-Datei sich ändert.
 - **DB-Name `WorkflohPDF1` nie ändern** — github.io ist eine geteilte Adresse.
 - **Resize nur bei Breitenänderung neu zeichnen.** Die Bildschirmtastatur macht das
@@ -67,6 +71,13 @@ Textfarbe an dieselbe Stelle. Zwischenstand je Seite in IndexedDB
   Die übrige App bekommt `translate="no"` (Marke `data-wfp-tr`), bis Chrome wieder das
   Original zeigt. Keine Gegenprobe. Headless gibt es Chromes Übersetzung nicht —
   `tests/chrome.mjs` stellt sie nach; am Tablet ist sie ungemessen.
+- **🌐 In Chrome öffnen** (Klaus 2026-09-25): im installierten App-Fenster fehlt oft
+  „Übersetzen", und die Adresse kennt kaum jemand. Knöpfe im Dialog und auf der Fläche
+  (nur `display-mode: standalone`): In Chrome öffnen (Android: `intent://…;package=com.android.chrome;S.browser_fallback_url=…`,
+  sonst neuer Tab) · Teilen · Adresse kopieren. Die Adresse trägt `?ue=<ids>&von&nach&weg=chrome`;
+  `chromeTabRueckweg()` öffnet damit im Tab denselben Übersetzer wieder — das Ergebnis wird
+  ein PDF, nicht die übersetzte App-Oberfläche. Ob Chrome und die installierte App auf dem
+  Tablet denselben Speicher sehen, ist ungemessen; fehlen die Dokumente, sagt der Tab das.
 - `npm run messen` misst 400 Seiten + 10 Scans (nicht Teil von `npm test`).
 - **Behördenformular** (`tests/behoerde.mjs`): Felder kommen übersetzt mit
   (`quellFeld` → Feld im Original), Rückweg „↩ Einträge ins Original" legt eine

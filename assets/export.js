@@ -89,7 +89,7 @@
     const fuerFeld = modus !== 'fest' && !!opt.unicodeFelder;
     const unicodeNoetig = fuerFeld || doc.fields.some(f => f.type !== 'check' && f.type !== 'qr' && f.type !== 'unterschrift' && modus !== 'vorlage' && brauchtUnicode(font, f.value));
     if (unicodeNoetig && opt.schrift && window.fontkit) {
-      try { pdf.registerFontkit(window.fontkit); fontU = await pdf.embedFont(opt.schrift, { subset: modus === 'fest' }); } catch (_) { fontU = null; }
+      try { pdf.registerFontkit(window.fontkit); fontU = await pdf.embedFont(opt.schrift, { subset: false }); } catch (_) { fontU = null; }
     }
     const fontFuer = s => (fontU && (fuerFeld || brauchtUnicode(font, s))) ? fontU : font;
     const pages = pdf.getPages();
