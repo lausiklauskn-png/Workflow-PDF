@@ -143,7 +143,7 @@ try {
   const docId = await page.evaluate(async () => (await WFP.DB.all('docs')).find(d => d.name === 'Chrome').id);
   const u = new URL(adr.url);
   ok('Adresse trägt Dokument, Sprachen und Weg (ue, von=de, nach=en, weg=chrome)', u.searchParams.get('ue') === docId && u.searchParams.get('von') === 'de' && u.searchParams.get('nach') === 'en' && u.searchParams.get('weg') === 'chrome', adr.url);
-  ok('Android-Adresse erzwingt die Chrome-App, OHNE Rückfall ins App-Fenster', /^intent:\/\/127\.0\.0\.1:\d+\/index\.html\?ue=/.test(adr.intent) && /#Intent;scheme=http;package=com\.android\.chrome;end$/.test(adr.intent) && !/fallback/.test(adr.intent) && adr.intent.includes(new URL(adr.url).search), adr.intent);
+  ok('Adresse ohne intent-Umweg (den gibt Android an die installierte App zurück)', !('intent' in adr) && /^http:\/\/127\.0\.0\.1:\d+\/index\.html\?ue=/.test(adr.url), adr);
   await page.waitForFunction(() => /angehalten/.test(document.querySelector('.dlg h2')?.textContent || ''), null, { timeout: 15000 }).catch(() => {});
   ok('der Lauf im App-Fenster hält an, bevor der Tab übernimmt', await page.evaluate(() => /angehalten/.test(document.querySelector('.dlg h2')?.textContent || '') && !document.getElementById('wfp-chrome')));
   // Der Tab: gleicher Speicher (wie Chrome und die installierte App auf Android)
@@ -167,26 +167,32 @@ try {
   ok('unbekanntes Dokument: Meldung „in diesem Browser nicht da", kein Dialog', await tab.evaluate(() => /nicht da/.test(document.getElementById('toast').textContent) && !document.querySelector('.dlg [data-ausapp]')));
   await tab.close();
 
-  // 5. Android, App-Fenster: Chrome nimmt den Sprung nicht an (Klaus 2026-09-25). Hier im
-  //    Test-Chromium passiert bei intent:// nichts — genau der Fall, den die App abfangen muss.
+  // 5. Android, App-Fenster (Klaus 2026-09-25, zweimal gemessen): ein Sprung auf die
+  //    App-Adresse kommt in die installierte App zurück („zuck, zuck"). Also kein Sprung:
+  //    kopieren, Anleitung sofort, und „Chrome starten" öffnet Chrome OHNE Adresse.
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: `http://127.0.0.1:${srv.address().port}` });
   await page.evaluate(() => { document.querySelectorAll('.dlg [data-x]').forEach(b => b.click()); Object.defineProperty(navigator, 'userAgent', { get: () => 'Mozilla/5.0 (Linux; Android 14; SM-X710) AppleWebKit/537.36 Chrome/140 Safari/537.36', configurable: true }); });
   await page.waitForTimeout(300);
   await oeffne('en');
-  const url0 = page.url();
+  const url0 = page.url(), seitenVorher = ctx.pages().length;
   await page.click('.dlg [data-tabreihe] button');
-  await page.waitForSelector('.dlg [data-chromehinweis]', { timeout: 8000 }).catch(() => {});
-  const hw = await page.evaluate(() => { const d = document.querySelector('.dlg [data-chromehinweis]')?.closest('.dlg'); return d ? { t: d.textContent, v: d.querySelector('[data-adr]').value } : null; });
+  await page.waitForSelector('.dlg [data-chromehinweis]', { timeout: 1500 }).catch(() => {});
+  const hw = await page.evaluate(() => { const d = document.querySelector('.dlg [data-chromehinweis]')?.closest('.dlg'); return d ? { t: d.textContent, v: d.querySelector('[data-adr]').value, start: !!d.querySelector('[data-chromestart]') } : null; });
   const ab = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''));
   const adr2 = await page.evaluate(() => window.__wfpdfChromeTab);
   ok('Android: die Adresse liegt SOFORT in der Zwischenablage', ab === adr2.url, [ab, adr2.url]);
-  ok('… die App bleibt stehen (kein Rückfall lädt die Seite neu)', page.url() === url0, page.url());
-  ok('… und erklärt den Weg über „Einfügen", mit der Adresse zum Kopieren', hw && /Zwischenablage/.test(hw.t) && /Einfügen/.test(hw.t) && hw.v === adr2.url, hw);
-  // Nach dem Sprung auf intent:// nimmt das Test-Chromium keine Maus-Klicks mehr an (es hält
-  // eine Frage „externes Programm öffnen?" offen, die es headless nicht zeigt) — deshalb hier
-  // der Klick über das Element selbst. Am Tablet gibt es diese Frage nicht.
+  ok('… kein Sprung: die App bleibt stehen, kein neues Fenster', page.url() === url0 && ctx.pages().length === seitenVorher, [page.url(), ctx.pages().length]);
+  ok('… die Anleitung steht SOFORT da (ohne auf einen Sprung zu warten), mit Adresse und „Chrome starten"', hw && /Zwischenablage/.test(hw.t) && /Einfügen/.test(hw.t) && hw.v === adr2.url && hw.start, hw);
+  await page.click('.dlg [data-kopie]');
+  ok('… „Nochmal kopieren" legt dieselbe Adresse ab', await page.evaluate(() => navigator.clipboard.readText().catch(() => '')) === adr2.url);
+  if (await page.$('.dlg [data-chromestart]')) await page.click('.dlg [data-chromestart]');
+  const st = await page.evaluate(() => window.__wfpdfChromeStart);
+  ok('„Chrome starten" startet Chrome OHNE die App-Adresse (nichts, was Android zurückgeben könnte)', /package=com\.android\.chrome/.test(st || '') && /LAUNCHER/.test(st) && !/127\.0\.0\.1|index\.html|ue=/.test(st), st);
+  // Nach dem Aufruf von intent: nimmt das Test-Chromium keine Mausklicks mehr an (es hält eine
+  // unsichtbare Frage „externes Programm öffnen?" offen) — daher der letzte Klick über das Element.
   await page.evaluate(() => document.querySelector('.dlg [data-hinok]')?.click());
-  await page.waitForTimeout(300); ok('… „OK" schließt den Hinweis', await page.evaluate(() => !document.querySelector('.dlg [data-chromehinweis]')), await page.evaluate(() => document.querySelectorAll('.dlg [data-chromehinweis]').length));
+  await page.waitForTimeout(300);
+  ok('… „OK" schließt die Anleitung', await page.evaluate(() => !document.querySelector('.dlg [data-chromehinweis]')));
 
   const ohneIntent = konsole.filter(k => !/intent:/.test(k));   // „scheme does not have a registered handler" ist gewollt
   ok('keine Fehler in der Konsole', ohneIntent.length === 0, ohneIntent);

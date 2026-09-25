@@ -73,16 +73,17 @@ Textfarbe an dieselbe Stelle. Zwischenstand je Seite in IndexedDB
   `tests/chrome.mjs` stellt sie nach; am Tablet ist sie ungemessen.
 - **🌐 In Chrome öffnen** (Klaus 2026-09-25): im installierten App-Fenster fehlt oft
   „Übersetzen", und die Adresse kennt kaum jemand. Knöpfe im Dialog und auf der Fläche
-  (nur `display-mode: standalone`): In Chrome öffnen (Android: `intent://…;package=com.android.chrome;end`,
-  sonst neuer Tab) · Teilen · Adresse kopieren. Die Adresse trägt `?ue=<ids>&von&nach&weg=chrome`;
-  `chromeTabRueckweg()` öffnet damit im Tab denselben Übersetzer wieder — das Ergebnis wird
-  ein PDF, nicht die übersetzte App-Oberfläche.
-  Der Android-Sprung trägt **kein** `S.browser_fallback_url` mehr (Klaus 2026-09-25: „springt
-  kurz auf, dann Fehlermeldung" — der Rückfall lud die Adresse im App-Fenster). Die Adresse
-  wird VOR dem Sprung kopiert; bleibt die App nach 1,8 s sichtbar, erklärt ein Dialog das
-  Einfügen in Chrome. Am Tablet ungemessen; headless nimmt Chromium nach `intent:` keine
-  Mausklicks mehr an (die Probe klickt dort über das Element). Ob Chrome und die installierte App auf dem
-  Tablet denselben Speicher sehen, ist ungemessen; fehlen die Dokumente, sagt der Tab das.
+  (nur `display-mode: standalone`): In Chrome öffnen · Teilen · Adresse kopieren. Die Adresse
+  trägt `?ue=<ids>&von&nach&weg=chrome`; `chromeTabRueckweg()` öffnet damit im Tab denselben
+  Übersetzer wieder — das Ergebnis wird ein PDF, nicht die übersetzte App-Oberfläche.
+  ⚠ **Auf Android springt die App NICHT mehr nach Chrome** (Klaus 2026-09-25, zweimal gemessen:
+  „zuck, zuck, dann ist immer noch der Workflow da"). Der Geltungsbereich ist `./`, und Android
+  gibt JEDE Adresse unter /Workflow-PDF/ an die installierte App zurück — auch einen intent mit
+  `package=com.android.chrome`. Dabei wurde die App kurz unsichtbar, und der alte Riegel hielt
+  das für „Chrome hat übernommen" und zeigte gar nichts. Jetzt: Adresse kopieren, Anleitung
+  sofort, „🌐 Chrome starten" öffnet Chrome OHNE Adresse (`CHROME_STARTEN`). Das Starten ist am
+  Tablet ungemessen; Kopieren + Einfügen hat Klaus bestätigt. Ob Chrome und die App denselben
+  Speicher sehen, ist ungemessen; fehlen die Dokumente, sagt der Tab das.
 - **Aufbau auf der Seite** (Klaus 2026-09-25: „Textüberlagerung, Logos und Zahlen abgedeckt"),
   geprüft in `tests/layout.mjs` (erfundenes Formular, Stellvertreter +34 % länger):
   Stücke ohne Buchstaben/Ziffern und Absätze mit weniger als 2 Buchstaben (Logo „M",
