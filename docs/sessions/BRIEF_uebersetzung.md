@@ -2,6 +2,10 @@
 
 Stand: 2026-09-25 · geschrieben gegen `origin/main`, kein offener PR vorausgesetzt.
 
+> ✅ **Erledigt am 2026-09-25** — was gebaut, gemessen und offen ist, steht in
+> `ABSCHLUSS_2026-09-25_uebersetzung.md`; weiter geht es mit
+> `BRIEF_uebersetzung-am-geraet.md`.
+
 ## Pflichtlektüre, in dieser Reihenfolge
 
 1. `CLAUDE.md` dieses Repos und `Sage-Protokol/docs/NETZWEIT.md`
