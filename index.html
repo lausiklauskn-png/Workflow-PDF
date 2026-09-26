@@ -13,7 +13,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1">
 <link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png?v=1">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1">
-<link rel="stylesheet" href="assets/style.css?v=12">
+<link rel="stylesheet" href="assets/style.css?v=13">
 </head>
 <body>
 <header class="kopf">
@@ -55,7 +55,13 @@
     </div>
 
     <div class="ordner-leiste" id="ordnerLeiste"></div>
-    <input class="bib-suche" id="bibSuche" type="search" placeholder="🔎 Suchen — Name oder Inhalt, z. B. eine Kundennummer" aria-label="Dokumente suchen">
+    <!-- Suchzeile (Klaus 2026-09-26): ein FORMULAR, damit die Lupe der Bildschirmtastatur absendet;
+         im Feld Mikrofon und Lupe statt des Kreuzes des Browsers. -->
+    <form class="bib-suchform" id="bibForm" role="search" autocomplete="off">
+      <input class="bib-suche" id="bibSuche" type="search" enterkeyhint="search" placeholder="🔎 Suchen — Name oder Inhalt, z. B. eine Kundennummer" aria-label="Dokumente suchen">
+      <button class="bib-knopf" id="bibMic" type="button" title="Sprechen statt tippen" aria-label="Spracheingabe">🎤</button>
+      <button class="bib-knopf" id="bibLos" type="submit" title="Suchen" aria-label="Suchen">🔍</button>
+    </form>
     <div class="ordner-aktionen" id="ordnerAktionen"></div>
     <div class="dok-gitter" id="dokGitter"></div>
   </section>
@@ -74,6 +80,14 @@
       <button class="knopf" id="edSpeichern" title="Speichern · Arbeitsstand als Datei sichern">💾<span class="lang"> Speichern</span></button>
       <button class="knopf rot" id="edExport">⬇ PDF<span class="lang"> ausgeben</span></button>
     </div>
+    <!-- Im Dokument suchen (Klaus 2026-09-26): wie die Suche im PDF-Programm — alle Treffer markiert,
+         ▲▼ springt, ein Tipp auf eine Markierung blendet sie aus. -->
+    <form class="ed-such" id="edSuchForm" role="search" autocomplete="off">
+      <input class="bib-suche" id="edSuche" type="search" enterkeyhint="search" placeholder="🔎 Im Dokument suchen" aria-label="Im Dokument suchen">
+      <span class="ed-such-zahl" id="edSuchZahl" aria-live="polite"></span>
+      <button class="knopf klein" id="edSuchZurueck" type="button" title="Vorheriger Treffer">▲</button>
+      <button class="knopf klein" id="edSuchWeiter" type="submit" title="Nächster Treffer">▼</button>
+    </form>
     <div class="vorschlag-band" id="vorschlagBand" hidden></div>
     <div class="ed-flaeche" id="edFlaeche"><div class="seiten" id="seiten"></div></div>
     <div class="ed-fuss" id="edFuss"></div>
@@ -90,14 +104,14 @@
 <script src="vendor/pdf-lib.min.js"></script>
 <script src="vendor/qrcode.js"></script>
 <script src="assets/db.js?v=3"></script>
-<script src="assets/suche.js?v=1"></script>
+<script src="assets/suche.js?v=2"></script>
 <script src="assets/erkennung.js?v=5"></script>
 <script src="assets/blatt.js?v=1"></script>
 <script src="assets/export.js?v=7"></script>
 <script src="assets/html-export.js?v=2"></script>
 <script src="assets/uebersetzung.js?v=10"></script>
-<script src="assets/sprache-texte.js?v=4"></script>
+<script src="assets/sprache-texte.js?v=5"></script>
 <script src="assets/sprache.js?v=1"></script>
-<script src="assets/app.js?v=30"></script>
+<script src="assets/app.js?v=31"></script>
 </body>
 </html>

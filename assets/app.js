@@ -125,23 +125,32 @@
   }
   function offeneVorschlaege(d) { return (d.fields || []).filter(f => !f.geprueft).length; }
   function zeichneBibliothek() {
+    // Suche (Klaus 2026-09-26): Name, Ordner, Feldinhalte UND der Text der Seiten — mit Fundstellen.
+    // Die Rechnung steht in assets/suche.js; hier nur Auswahl und Anzeige. Gerechnet wird über ALLE
+    // Dokumente, damit jeder Ordner-Knopf seine Trefferzahl zeigt; angezeigt nur der gewählte Ordner.
+    const such = SU.anfrage(S.suche);
+    const FUND = new Map();
+    if (such.length) for (const d of S.docs) {
+      const ordn = S.ordner.find(x => x.id === d.folderId);
+      const r = SU.sucheDok(Object.assign({}, d, { ordner: ordn ? ordn.name : '' }), TEXTE.get(d.id) || null, such); if (r) FUND.set(d.id, r);
+    }
+    const imO = (d, id) => id === 'alle' ? true : id === 'ohne' ? !d.folderId || !S.ordner.some(x => x.id === d.folderId) : d.folderId === id;
+    const treffO = id => S.docs.reduce((n, d) => n + (FUND.has(d.id) && imO(d, id) ? FUND.get(d.id).treffer : 0), 0);
+    const tz = id => such.length ? `<span class="treffer-zahl" data-treffer="${treffO(id)}" title="${T('Treffer in diesem Ordner')}">🔎${treffO(id)}</span>` : '';
     const anz = id => S.docs.filter(d => id === 'alle' ? true : id === 'ohne' ? !d.folderId || !S.ordner.some(o => o.id === d.folderId) : d.folderId === id).length;
-    let html = `<button class="ordner-chip${S.aktOrdner === 'alle' ? ' on' : ''}" data-o="alle">Alle<span class="anz">${anz('alle')}</span></button>`;
-    for (const o of S.ordner) html += `<button class="ordner-chip${S.aktOrdner === o.id ? ' on' : ''}" data-o="${o.id}">${o.bereich === 'uebersetzung' ? '🌐 ' : '🗂️ '}${nm(o.name)}<span class="anz">${anz(o.id)}</span></button>`;
-    if (S.ordner.length && anz('ohne')) html += `<button class="ordner-chip${S.aktOrdner === 'ohne' ? ' on' : ''}" data-o="ohne">Ohne Ordner<span class="anz">${anz('ohne')}</span></button>`;
+    let html = `<button class="ordner-chip${S.aktOrdner === 'alle' ? ' on' : ''}" data-o="alle">Alle<span class="anz">${anz('alle')}</span>${tz('alle')}</button>`;
+    for (const o of S.ordner) html += `<button class="ordner-chip${S.aktOrdner === o.id ? ' on' : ''}" data-o="${o.id}">${o.bereich === 'uebersetzung' ? '🌐 ' : '🗂️ '}${nm(o.name)}<span class="anz">${anz(o.id)}</span>${tz(o.id)}</button>`;
+    if (S.ordner.length && anz('ohne')) html += `<button class="ordner-chip${S.aktOrdner === 'ohne' ? ' on' : ''}" data-o="ohne">Ohne Ordner<span class="anz">${anz('ohne')}</span>${tz('ohne')}</button>`;
     html += `<button class="ordner-chip" data-neu>＋ Ordner</button>`;
     const ol = $('ordnerLeiste'); ol.innerHTML = html;
     ol.querySelectorAll('[data-o]').forEach(b => b.onclick = () => { S.aktOrdner = b.dataset.o; zeichneBibliothek(); });
     ol.querySelector('[data-neu]').onclick = neuerOrdner;
 
     const akt = $('ordnerAktionen'); const o = S.ordner.find(x => x.id === S.aktOrdner);
-    // Suche (Klaus 2026-09-26): Name, Feldinhalte UND der Text der Seiten — mit Fundstellen.
-    // Die Rechnung steht in assets/suche.js (Umlaute, Nummern, Daten); hier nur Auswahl und Anzeige.
-    const such = SU.anfrage(S.suche);
-    const FUND = new Map();
-    if (such.length) for (const d of S.docs) { const r = SU.sucheDok(d, TEXTE.get(d.id) || null, such); if (r) FUND.set(d.id, r); }
+    // Ist ein Ordner gewählt, zeigt die Suche NUR ihn (Klaus 2026-09-26) — ein Knopf hebt das auf.
+    const imOrdner = d => imO(d, S.aktOrdner);
     S.fund = FUND;
-    const sicht = S.docs.filter(d => such.length ? FUND.has(d.id) : S.aktOrdner === 'alle' ? true : S.aktOrdner === 'ohne' ? !d.folderId || !S.ordner.some(x => x.id === d.folderId) : d.folderId === S.aktOrdner);
+    const sicht = S.docs.filter(d => imOrdner(d) && (!such.length || FUND.has(d.id)));
     if (such.length) sicht.sort((a, b) => FUND.get(b.id).punkte - FUND.get(a.id).punkte);
     akt.innerHTML = (sicht.length ? `<button class="knopf" data-ueb>🌐 Übersetzen${sicht.length > 1 ? ' — Dokumente wählen' : ''}</button><button class="knopf" data-erk>🤖 Felder erkennen${sicht.length > 1 ? ' — Dokumente wählen' : ''}</button>` : '')
       + (o ? `<button class="knopf" data-ren>✎ Ordner umbenennen</button><button class="knopf gefahr" data-del>🗑 Ordner löschen</button>` : '');
@@ -160,20 +169,24 @@
     };
 
     const g = $('dokGitter');
+    const nurOrdner = such.length && S.aktOrdner !== 'alle' ? '<div class="hinweis such-ordner" data-suchordner><span>Gesucht nur in diesem Ordner.</span><button class="knopf klein" data-alleordner>In allen Ordnern suchen</button></div>' : '';
+    const alleOrdnerKnopf = () => { const b = g.querySelector('[data-alleordner]'); if (b) b.onclick = () => { S.aktOrdner = 'alle'; zeichneBibliothek(); }; };
     if (!sicht.length) {
-      if (such.length) { g.innerHTML = `<div class="leer" data-suchleer><b>Kein Dokument passt zu „${h(S.suche.trim())}".</b></div>` + suchStand(); return; }
+      if (such.length) { g.innerHTML = nurOrdner + `<div class="leer" data-suchleer><b>Kein Dokument passt zu „${h(S.suche.trim())}".</b></div>` + suchStand(); alleOrdnerKnopf(); return; }
       g.innerHTML = `<div class="leer"><b>Noch keine Dokumente${o ? ' in diesem Ordner' : ''}.</b><br>Oben ein PDF oder Bild wählen, ein Formular fotografieren oder einen ganzen Ordner einlesen. Du kannst Dateien auch einfach hierher ziehen.</div>`;
       return;
     }
-    g.innerHTML = sicht.map(d => {
+    g.innerHTML = nurOrdner + sicht.map(d => {
       const v = offeneVorschlaege(d), ord = S.ordner.find(x => x.id === d.folderId);
-      return `<div class="dok" data-id="${d.id}">
+      const tr = FUND.has(d.id) ? FUND.get(d.id).treffer : 0;
+      return `<div class="dok" data-id="${d.id}">${tr ? `<span class="treffer-zahl dok-treffer" data-treffer="${tr}" title="${T('Treffer in diesem Dokument')}">🔎${tr}</span>` : ''}
         <button class="dok-bild" data-auf style="background-image:url('${d.thumb || ''}')" title="Öffnen">
           <span class="marken">${v ? `<span class="marke-klein ki">🤖 ${v} zu prüfen</span>` : ''}${d.quelle === 'foto' ? '<span class="marke-klein">📷 Foto</span>' : ''}${d.uebersetzung ? `<span class="marke-klein">🌐 ${h((d.uebersetzung.von || '').toUpperCase())}→${h((d.uebersetzung.nach || '').toUpperCase())}${d.uebersetzung.gegenprobe ? ' Gegenprobe' : ''}</span>` : ''}${d.ausgefuellt ? `<span class="marke-klein">↩ ausgefüllt aus ${h((d.ausgefuellt.aus || '').toUpperCase())}</span>` : ''}</span></button>
         <div class="dok-info"><div class="dok-name" data-kein-ue title="${h(d.name)}">${nm(d.name)}</div>
           <div class="dok-meta">${d.pages.length} Seite${d.pages.length === 1 ? '' : 'n'} · ${d.fields.length} Feld${d.fields.length === 1 ? '' : 'er'}${ord && S.aktOrdner === 'alle' ? ' · 🗂️ ' + nm(ord.name) : ''}</div>${FUND.has(d.id) ? fundZeilen(FUND.get(d.id)) : ''}</div>
         <div class="dok-akt"><button data-auf title="Öffnen">✏️</button><button data-verschieben title="In Ordner verschieben">🗂️</button><button data-kopie title="Duplizieren (z. B. als Vorlage)">⧉</button><button data-loeschen title="Löschen">🗑</button></div></div>`;
     }).join('') + (such.length ? suchStand() : '');
+    alleOrdnerKnopf();
     g.querySelectorAll('.dok').forEach(el => {
       const id = el.dataset.id;
       // Aus der Suche geöffnet: die Fundstellen kommen mit und werden auf der Seite markiert
@@ -189,7 +202,7 @@
     const z = [], gesehen = new Set();
     for (const f of r.funde) {
       const key = f.art + '|' + (f.page != null ? f.page : '') + '|' + (f.feldId || '') + '|' + f.text; if (gesehen.has(key)) continue; gesehen.add(key);
-      const wo = f.art === 'name' ? 'Im Namen' : f.art === 'feld' ? (f.label ? 'Feld' : 'Feld auf Seite ' + (f.page + 1)) : 'Auf Seite ' + (f.page + 1);
+      const wo = f.art === 'name' ? 'Im Namen' : f.art === 'ordner' ? 'Im Ordnernamen' : f.art === 'feld' ? (f.label ? 'Feld' : 'Feld auf Seite ' + (f.page + 1)) : 'Auf Seite ' + (f.page + 1);
       z.push(`<div class="fund-zeile"><span class="fund-wo" data-art="${f.art}">${h(wo)}</span>${f.art === 'feld' && f.label ? ' ' + nm('„' + f.label + '"') : ''} <span class="fund-text" data-kein-ue>${h(f.text)}</span></div>`);
     }
     const mehr = z.length - 3;
@@ -489,7 +502,9 @@
   let _oeffnenNr = 0;
   async function oeffneDok(id, fund) {
     const nr = ++_oeffnenNr;
-    S.funde = fundMarken(fund);
+    S.funde = []; S.fundIdx = -1;
+    // Aus der Bibliothek-Suche geöffnet: dieselben Wörter stehen im Suchfeld des Dokuments
+    $('edSuche').value = fund ? String(S.suche || '') : ''; zeichneSuchZahl();
     const d = await DB.get('docs', id); const b = await DB.getFile(id);
     if (nr !== _oeffnenNr) return;
     if (!d || !b) { toast('⚠️ Dokument nicht gefunden'); return; }
@@ -505,11 +520,43 @@
     $('edName').value = d.name; $('kopfSub').setAttribute('data-kein-ue', ''); $('kopfSub').textContent = d.name;
     history.pushState({ ed: 1 }, '', '#dok');
     zeichneSeiten(); zeichneModus();
-    if (S.funde.length) {
-      const erste = Math.min(...S.funde.map(m => m.page));
-      setTimeout(() => { const el = document.querySelector(`.seite[data-i="${erste}"] .fund`) || document.querySelector(`.seite[data-i="${erste}"]`); if (el) el.scrollIntoView({ block: 'center' }); }, 80);
-      toast('🔎 ' + S.funde.length + ' Fundstellen markiert — antippen blendet sie aus');
+    if (fund) {
+      await imDokSuchen(S.suche, true);
+      if (S.funde.length) toast('🔎 ' + S.funde.length + ' Fundstellen markiert — antippen blendet sie aus');
     }
+  }
+  /* Im Dokument suchen: dieselbe Rechnung wie die Bibliothek (assets/suche.js), nur für dieses
+     Dokument. Fehlt der Seitentext noch, wird er jetzt aus dem offenen PDF erfasst. */
+  async function imDokSuchen(q, stumm) {
+    const d = S.doc; if (!d) return;
+    const toks = SU.anfrage(q);
+    if (toks.length && !TEXTE.has(d.id) && S.pdf) await textAblegen(d.id, await seitenText(S.pdf));
+    if (S.doc !== d) return;
+    const ordn = S.ordner.find(x => x.id === d.folderId);
+    const r = toks.length ? SU.sucheDok(Object.assign({}, d, { ordner: ordn ? ordn.name : '' }), TEXTE.get(d.id) || null, toks) : null;
+    S.funde = fundMarken(r).sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x);
+    S.fundIdx = S.funde.length ? 0 : -1;
+    funde_neu_zeichnen(); zeichneSuchZahl();
+    if (S.funde.length) springeZuFund(0);
+    else if (toks.length && !stumm) toast('🔎 Kein Treffer in diesem Dokument');
+  }
+  function funde_neu_zeichnen() {
+    document.querySelectorAll('#seiten .fund').forEach(e => e.remove());
+    document.querySelectorAll('#seiten .seite').forEach(el => { const lage = el.querySelector('.lage'); if (lage) zeichneFunde(+el.dataset.i, lage); });
+  }
+  function zeichneSuchZahl() {
+    const z = $('edSuchZahl'); if (!z) return;
+    const q = SU.anfrage($('edSuche').value);
+    z.textContent = !q.length ? '' : S.funde.length ? (Math.max(0, S.fundIdx) + 1) + ' / ' + S.funde.length : T('kein Treffer');
+  }
+  function springeZuFund(i) {
+    if (!S.funde.length) return;
+    S.fundIdx = (i + S.funde.length) % S.funde.length;
+    const m = S.funde[S.fundIdx];
+    document.querySelectorAll('#seiten .fund.akt').forEach(e => e.classList.remove('akt'));
+    const el = document.querySelector(`#seiten .fund[data-fund="${m.id}"]`) || document.querySelector(`.seite[data-i="${m.page}"]`);
+    if (el) { el.classList.add('akt'); setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 60); }
+    zeichneSuchZahl();
   }
   // Aus den Funden der Suche die Markierungen für die Seiten (Feld und Seitentext; der Name hat keine Stelle)
   function fundMarken(fund) {
@@ -521,12 +568,12 @@
   function zeichneFunde(i, lage) {
     for (const m of S.funde || []) {
       if (m.page !== i) continue;
-      const el = document.createElement('div'); el.className = 'fund'; el.dataset.fund = m.id; el.dataset.art = m.art;
+      const el = document.createElement('div'); el.className = 'fund' + (S.funde[S.fundIdx] === m ? ' akt' : ''); el.dataset.fund = m.id; el.dataset.art = m.art;
       el.setAttribute('data-kein-ue', '');   // der Titel ist schon übersetzt (T) und trägt das Suchwort des Nutzers
       el.style.left = (m.x - 0.4) + '%'; el.style.top = (m.y - 0.3) + '%'; el.style.width = (m.w + 0.8) + '%'; el.style.height = (m.h + 0.6) + '%';
       el.title = T('Gefunden wegen') + ' „' + m.wort + '" — ' + T('antippen blendet es aus');
       // Ein Tipp nimmt die Markierung weg — nur diese; das Feld darunter bleibt, wie es war
-      const weg = e => { e.preventDefault(); e.stopPropagation(); S.funde = S.funde.filter(x => x.id !== m.id); el.remove(); };
+      const weg = e => { e.preventDefault(); e.stopPropagation(); S.funde = S.funde.filter(x => x.id !== m.id); el.remove(); S.fundIdx = Math.min(S.fundIdx, S.funde.length - 1); zeichneSuchZahl(); };
       el.addEventListener('pointerdown', e => e.stopPropagation());
       el.addEventListener('click', weg);
       lage.appendChild(el);
@@ -538,7 +585,7 @@
     $('sc-ed').classList.remove('on'); $('sc-bib').classList.add('on');
     $('kopfSub').removeAttribute('data-kein-ue'); $('kopfSub').textContent = 'Formulare einlesen · Felder setzen · übersetzen · PDF ausgeben';
     if (S.beob) { S.beob.disconnect(); S.beob = null; }
-    S.doc = null; S.sel = null; S.funde = [];
+    S.doc = null; S.sel = null; S.funde = []; S.fundIdx = -1; $('edSuche').value = '';
     if (!ohneHistory && location.hash === '#dok') history.back();
     ladeBibliothek();
   }
@@ -1690,6 +1737,40 @@
       d.querySelector('[data-x]').onclick = zu;
     });
   }
+  /* Spracheingabe fürs Suchfeld (Klaus 2026-09-26), Muster aus PWA Toolpoint.
+     Die Spracherkennung des Browsers schickt die Aufnahme dafür an den Hersteller (in Chrome an
+     Google) — das steht am Knopf und beim ersten Druck. Kann der Browser es nicht, wird der Knopf
+     abgeschaltet und sagt warum; er verschwindet nicht (ein wegfallender Knopf verschiebt die Zeile). */
+  const MIC_LANG = { de: 'de-DE', en: 'en-US', ru: 'ru-RU', ar: 'ar-SA' };
+  function spracheingabe() {
+    const k = $('bibMic'), feld = $('bibSuche'); if (!k || !feld) return;
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { k.disabled = true; k.title = 'Spracheingabe kann dieser Browser nicht — bitte tippen'; return; }
+    k.title = 'Sprechen statt tippen — die Aufnahme geht zur Erkennung an den Browser-Hersteller (Chrome: Google)';
+    let lauf = null, erstes = true;
+    k.onclick = () => {
+      if (lauf) { try { lauf.stop(); } catch (_) {} return; }
+      const r = new SR();
+      r.lang = MIC_LANG[(WFP.Sprache && WFP.Sprache.lang) || 'de'] || 'de-DE';
+      r.interimResults = false; r.maxAlternatives = 1;
+      r.onresult = ev => {
+        let t = ''; for (let i = 0; i < ev.results.length; i++) t += ev.results[i][0].transcript;
+        t = t.trim(); if (!t) return;
+        feld.value = t; S.suche = t; zeichneBibliothek();
+        toast('🎤 Verstanden: „' + t + '"');
+      };
+      r.onerror = ev => {
+        const e = (ev && ev.error) || '';
+        toast(e === 'not-allowed' || e === 'service-not-allowed' ? '🎤 Das Mikrofon ist für diese Seite nicht erlaubt.'
+          : e === 'no-speech' ? '🎤 Nichts gehört — bitte näher am Gerät sprechen.'
+          : e === 'network' ? '🎤 Die Spracherkennung braucht Internet und kam nicht durch.'
+          : '🎤 Mit dem Mikrofon ging es gerade nicht — bitte tippen.');
+      };
+      r.onend = () => { lauf = null; k.classList.remove('hoert'); };
+      try { r.start(); lauf = r; k.classList.add('hoert'); toast(erstes ? '🎤 Ich höre zu … (die Aufnahme geht zur Erkennung an Google)' : '🎤 Ich höre zu …'); erstes = false; }
+      catch (_) { toast('🎤 Mit dem Mikrofon ging es gerade nicht — bitte tippen.'); }
+    };
+  }
   function spracheKnopf() { const b = $('btnSprache'); if (b && WFP.Sprache) b.querySelector('span').textContent = WFP.Sprache.SPRACHEN.find(x => x.code === WFP.Sprache.lang).kurz; }
   document.addEventListener('wfp-sprache', () => {
     spracheKnopf();
@@ -1777,7 +1858,27 @@
     $('inUeOrdner').onchange = e => { const fs = Array.from(e.target.files || []); const n = fs[0] && fs[0].webkitRelativePath ? fs[0].webkitRelativePath.split('/')[0] : null; ueEinlesen(fs, n); e.target.value = ''; };
     $('inUeDateien').onchange = e => { ueEinlesen(e.target.files, null); e.target.value = ''; };
     $('btnEinst').onclick = einstellungen; $('btnHilfe').onclick = hilfe;
-    $('bibSuche').oninput = e => { S.suche = e.target.value; zeichneBibliothek(); };
+    // Suche: beim Tippen UND beim Absenden. Die Lupe der Bildschirmtastatur sendet das Formular ab
+    // (vorher war das Feld ohne Formular — die Lupe tat nichts). Absenden schließt die Tastatur,
+    // damit die Treffer zu sehen sind; compositionend fängt Tastaturen, die ein Wort erst am Ende
+    // übergeben (Samsung-Tastatur mit Wortvorschlägen).
+    const suchen = () => { S.suche = $('bibSuche').value; zeichneBibliothek(); };
+    $('bibSuche').oninput = suchen;
+    $('bibSuche').addEventListener('compositionend', suchen);
+    $('bibForm').onsubmit = e => {
+      e.preventDefault(); suchen(); $('bibSuche').blur();
+      const g = $('dokGitter'); if (g && g.scrollIntoView) g.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    };
+    spracheingabe();
+    // Im Dokument: beim Tippen suchen (kurz verzögert, ein langes PDF kostet Zeit), Lupe/▼ = nächster Treffer
+    let _eds = null, _edq = '';
+    $('edSuche').oninput = () => { clearTimeout(_eds); _eds = setTimeout(() => { _edq = $('edSuche').value; imDokSuchen(_edq); }, 250); };
+    $('edSuchForm').onsubmit = async e => {
+      e.preventDefault(); clearTimeout(_eds);
+      if ($('edSuche').value !== _edq || !S.funde.length) { _edq = $('edSuche').value; await imDokSuchen(_edq); } else springeZuFund(S.fundIdx + 1);
+      $('edSuche').blur();
+    };
+    $('edSuchZurueck').onclick = () => springeZuFund(S.fundIdx - 1);
     $('btnSprache').onclick = spracheWaehlen; spracheKnopf();
     // Installieren: eigener Knopf, damit es nicht vom Chrome-Menü abhängt.
     // Läuft die App schon installiert (eigenes Fenster), bleibt er verborgen.

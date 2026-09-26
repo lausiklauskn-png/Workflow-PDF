@@ -93,10 +93,10 @@
   }
 
   /* Ein Dokument durchsuchen.
-     doc: { name, fields: [{ id, label, value, page, x, y, w, h }] }
+     doc: { name, ordner?, fields: [{ id, label, value, page, x, y, w, h }] }
      seiten: vorbereitet (siehe oben) oder null, wenn der Seitentext noch fehlt.
-     Rückgabe: null (passt nicht) oder { punkte, funde: [...] }.
-       fund: { art: 'name'|'feld'|'seite', wort, page, feldId, label, text, boxen: [{x,y,w,h}] } */
+     Rückgabe: null (passt nicht) oder { punkte, funde: [...], treffer }.
+       fund: { art: 'name'|'ordner'|'feld'|'seite', wort, page, feldId, label, text, boxen: [{x,y,w,h}] } */
   function sucheDok(doc, seiten, toks) {
     if (!toks.length) return null;
     const funde = []; let punkte = 0;
@@ -104,6 +104,8 @@
     for (const tok of toks) {
       let hier = 0;
       if (trifft(tok, bereite(doc.name))) { hier++; punkte += 3; funde.push({ art: 'name', wort: tok.roh, text: kurz(doc.name, 90) }); }
+      // der Ordner, in dem es liegt („Betriebsanleitungen" findet alles darin)
+      if (doc.ordner && trifft(tok, bereite(doc.ordner))) { hier++; punkte += 1; funde.push({ art: 'ordner', wort: tok.roh, text: kurz(doc.ordner, 90) }); }
       for (const f of felder) if (trifft(tok, bereite(f.value))) {
         hier++; punkte += 2;
         funde.push({ art: 'feld', wort: tok.roh, feldId: f.id, label: f.label || '', page: f.page, text: kurz(f.value, 90), boxen: [{ x: f.x, y: f.y, w: f.w, h: f.h }] });
@@ -113,12 +115,15 @@
         const st = stellen(tok, seite);
         hier++; punkte += 1;
         const um = st[0] ? seite.it.slice(Math.max(0, st[0].von - 3), st[0].bis + 4).map(a => a.s).join(' ') : '';
-        funde.push({ art: 'seite', wort: tok.roh, page: p, text: kurz(um, 110),
+        funde.push({ art: 'seite', wort: tok.roh, page: p, text: kurz(um, 110), anzahl: st.length || 1,
           boxen: st.slice(0, 30).map(s => huelle(seite.it.slice(s.von, s.bis + 1))) });
       });
       if (!hier) return null;   // jedes Wort muss irgendwo stehen
     }
-    return { punkte, funde };
+    // Trefferzahl: jede Fundstelle zählt, auf einer Seite jede Stelle einzeln (Klaus 2026-09-26:
+    // „mit kleinen Zahlen, dass man sieht, die Trefferquote bei dem ist viel höher als bei dem")
+    const treffer = funde.reduce((n, f) => n + (f.anzahl || 1), 0);
+    return { punkte, funde, treffer };
   }
 
   const API = { falte, kompakt, daten, datumVonWort, anfrage, bereite, trifft, vorbereiten, sucheDok };

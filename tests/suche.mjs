@@ -43,6 +43,14 @@ const zwei = SU.vorbereiten([[['Nr. KD-', 10, 30, 10, 2], ['4711', 21, 30, 5, 2]
 const r4 = SU.sucheDok({ name: 'x', fields: [] }, zwei, SU.anfrage('KD-4711'));
 ok('ein Wort über zwei Textstücke wird markiert (Hülle beider)', r4 && r4.funde[0].boxen.length === 1 && r4.funde[0].boxen[0].x === 10 && Math.abs(r4.funde[0].boxen[0].w - 16) < 0.01, r4);
 ok('ohne Seitentext sucht es trotzdem in Name und Feldern', !!SU.sucheDok(dok, null, SU.anfrage('KD 4711')));
+const doppelt = SU.vorbereiten([[['Kunde Müller', 10, 20, 20, 2], ['Frau Müller', 10, 40, 20, 2]]]);
+const r5 = SU.sucheDok({ name: 'x', fields: [] }, doppelt, SU.anfrage('müller'));
+ok('Trefferzahl: zwei Stellen auf einer Seite zählen zwei', r5 && r5.treffer === 2, r5);
+const r6 = SU.sucheDok({ name: 'Anleitung', fields: [] }, doppelt, SU.anfrage('müller anleitung'));
+ok('Trefferzahl: Name und Seitenstellen zusammen (1 + 2 = 3)', r6 && r6.treffer === 3, r6 && r6.treffer);
+const r7 = SU.sucheDok({ name: 'x', ordner: 'Betriebsanleitungen', fields: [] }, null, SU.anfrage('betriebsanleitung'));
+ok('Ordner: der Ordnername zählt als Fundstelle', r7 && r7.funde[0].art === 'ordner', r7);
+ok('Ordner: ohne Ordnernamen kein Ordner-Treffer', SU.sucheDok({ name: 'x', fields: [] }, null, SU.anfrage('betriebsanleitung')) === null);
 
 /* ---------- Teil B: im Browser ---------- */
 let pw = null, pdflib = null;
@@ -56,6 +64,7 @@ else {
     p.drawText('Auftrag A-2026-0815', { x: 60, y: 780, size: 18, font: f });
     p.drawText('Kunde: Bäckerei Müller', { x: 60, y: 700, size: 12, font: f });
     p.drawText('Datum: 03.09.2026', { x: 60, y: 670, size: 12, font: f });
+    p.drawText('Ansprechpartnerin: Frau Müller', { x: 60, y: 600, size: 12, font: f });
     p.drawText('Leistung: Schaufensterfolie montiert', { x: 60, y: 640, size: 12, font: f });
     const p2 = pdf.addPage([595.28, 841.89]);
     p2.drawText('Rechnung zu Kunde KD-', { x: 60, y: 780, size: 12, font: f });
@@ -109,6 +118,66 @@ else {
     ok('Bibliothek: zwei Wörter aus zwei Dokumenten → keins (UND)', r.length === 0 && await page.$('[data-suchleer]') !== null, r);
     r = await suche('schaufenster');
     ok('Bibliothek: ein Wortteil genügt („schaufenster" in „Schaufensterfolie")', r.length === 1, r);
+
+    // Trefferzahlen (Klaus 2026-09-26: „mit kleinen Zahlen … Trefferquote bei dem viel höher als bei dem")
+    const zahlen = () => page.evaluate(() => ({
+      dok: Object.fromEntries([...document.querySelectorAll('#dokGitter .dok')].map(d => [d.querySelector('.dok-name').textContent, +((d.querySelector('.dok-treffer') || {}).dataset || {}).treffer || 0])),
+      chip: Object.fromEntries([...document.querySelectorAll('#ordnerLeiste [data-o]')].map(b => [b.dataset.o, b.querySelector('[data-treffer]') ? +b.querySelector('[data-treffer]').dataset.treffer : null])) }));
+    // Tablet-Tastatur: die Lupe schickt das Formular ab — die Seite darf dabei NICHT neu laden
+    await page.evaluate(() => { window.__nichtNeu = 1; });
+    await page.fill('#bibSuche', 'Mueller'); await page.press('#bibSuche', 'Enter'); await page.waitForTimeout(200);
+    ok('Tastatur: Lupe/Enter sucht, ohne die Seite neu zu laden', await page.evaluate(() => window.__nichtNeu === 1 && document.querySelectorAll('#dokGitter .dok').length === 1));
+    ok('Suchfeld: Lupe und Mikrofon stehen im Feld', await page.evaluate(() => { const f = document.getElementById('bibSuche').getBoundingClientRect(); return ['bibLos', 'bibMic'].every(id => { const b = document.getElementById(id).getBoundingClientRect(); return b.width > 0 && b.left > f.left && b.right <= f.right + 1 && b.top >= f.top - 1 && b.bottom <= f.bottom + 1; }); }));
+    await suche('Müller');
+    let z = await zahlen();
+    ok('Trefferzahl: am Dokument steht, wie oft es trifft (Müller steht zweimal)', Object.values(z.dok)[0] === 2, z);
+    ok('Trefferzahl: der Knopf „Alle" zählt die Treffer zusammen', z.chip.alle === 2, z);
+    await suche('Datum');
+    z = await zahlen();
+    ok('Trefferzahl: „Alle" = Summe der Dokumente', Object.keys(z.dok).length === 2 && z.chip.alle === Object.values(z.dok).reduce((a, b) => a + b, 0), z);
+    await page.fill('#bibSuche', ''); await page.waitForTimeout(60);
+    ok('Trefferzahl: ohne Suche keine Zahl', await page.evaluate(() => !document.querySelector('.treffer-zahl')));
+
+    // Ordner: der Name zählt, ein gewählter Ordner begrenzt die Suche, ein Knopf hebt es auf
+    await page.evaluate(async () => { const w = window.__wfpdf; const o = { id: 'o-test', name: 'Betriebsanleitungen', erstellt: Date.now() }; await WFP.DB.put('folders', o);
+      const d = w.S.docs.find(x => /Angebot/.test(x.name)); d.folderId = o.id; await WFP.DB.put('docs', d); });
+    await page.reload(); await page.waitForFunction(() => window.__wfpdf && window.__wfpdf.S.docs.length === 2 && window.__wfpdf.S.ordner.length === 1);
+    await page.waitForFunction(() => window.__wfpdf.S.docs.every(d => window.__wfpdf.suche.TEXTE.has(d.id)), null, { timeout: 30000 });
+    r = await suche('betriebsanleitung');
+    ok('Ordner: sein Name findet das Dokument darin („Im Ordnernamen")', r.length === 1 && /Angebot/.test(r[0].name) && r[0].fund.some(t => /^Im Ordnernamen/.test(t)), r);
+    await suche('Müller');
+    z = await zahlen();
+    ok('Ordner: jeder Ordner-Knopf zeigt seine Trefferzahl (hier 0, Alle 2)', z.chip['o-test'] === 0 && z.chip.alle === 2, z);
+    await page.click('#ordnerLeiste [data-o="o-test"]'); await page.waitForTimeout(60);
+    ok('Ordner: gewählt, sucht sie nur darin — und sagt es', await page.evaluate(() => document.querySelectorAll('#dokGitter .dok').length === 0 && !!document.querySelector('[data-suchordner]')));
+    await page.click('[data-alleordner]'); await page.waitForTimeout(60);
+    ok('Ordner: „In allen Ordnern suchen" findet es wieder', await page.evaluate(() => window.__wfpdf.S.aktOrdner === 'alle' && document.querySelectorAll('#dokGitter .dok').length === 1 && !document.querySelector('[data-suchordner]')));
+    await page.fill('#bibSuche', ''); await page.waitForTimeout(60);
+
+    // Im geöffneten Dokument suchen — wie im PDF-Programm
+    await page.evaluate(() => window.__wfpdf.oeffneDok(window.__wfpdf.S.docs.find(d => /Auftrag/.test(d.name)).id));
+    await page.waitForSelector('#sc-ed.on .seite canvas');
+    ok('Dokument: ohne Suche geöffnet ist das Suchfeld leer', await page.evaluate(() => document.getElementById('edSuche').value === '' && !document.querySelector('.fund')));
+    await page.fill('#edSuche', 'müller');
+    await page.waitForFunction(() => window.__wfpdf.S.funde.length > 0, null, { timeout: 5000 }).catch(() => {});
+    const ds = () => page.evaluate(() => ({ zahl: document.getElementById('edSuchZahl').textContent, n: document.querySelectorAll('.fund').length, akt: [...document.querySelectorAll('.fund')].findIndex(e => e.classList.contains('akt')), s: window.__wfpdf.S.funde.length }));
+    let d1 = await ds();
+    ok('Dokument: alle Stellen markiert, „1 / 2"', d1.n === 2 && d1.zahl === '1 / 2' && d1.akt === 0, d1);
+    await page.press('#edSuche', 'Enter'); await page.waitForTimeout(80);
+    d1 = await ds();
+    ok('Dokument: Lupe/Enter springt zum nächsten Treffer („2 / 2")', d1.zahl === '2 / 2' && d1.akt === 1, d1);
+    await page.click('#edSuchWeiter'); await page.waitForTimeout(80);
+    ok('Dokument: nach dem letzten kommt wieder der erste', (await ds()).zahl === '1 / 2');
+    await page.click('#edSuchZurueck'); await page.waitForTimeout(80);
+    ok('Dokument: ▲ geht zurück (vom ersten zum letzten)', (await ds()).zahl === '2 / 2');
+    await page.click('.seite[data-i="0"] .fund.akt'); await page.waitForTimeout(60);
+    d1 = await ds();
+    ok('Dokument: antippen blendet eine aus, der Zähler zieht nach', d1.n === 1 && d1.zahl === '1 / 1', d1);
+    await page.fill('#edSuche', 'xyzqw'); await page.waitForTimeout(450);
+    d1 = await ds();
+    ok('Dokument: kein Treffer wird gesagt, keine Markierung', d1.n === 0 && d1.zahl === 'kein Treffer', d1);
+    await page.click('#flohKnopf'); await page.waitForSelector('#sc-bib.on');
+    ok('Dokument: beim Schließen wird das Suchfeld geleert', await page.evaluate(() => document.getElementById('edSuche').value === ''));
 
     // Öffnen aus der Suche: markiert
     // zwei Wörter → zwei Markierungen: nach dem Antippen bleibt eine stehen, sonst misst
