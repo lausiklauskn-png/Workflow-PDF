@@ -228,7 +228,7 @@
   }
   function melden() {
     if (!ST) return;
-    window.__wfpdfScan = { seiten: ST.seiten.map(s => ({ ecken: s.ecken, erkennung: s.erkennung && { quelle: s.erkennung.quelle, sicher: s.erkennung.sicher, grund: s.erkennung.grund, verfahren: s.erkennung.verfahren }, manuell: s.manuell, drehung: s.drehung, filter: s.filter, hell: s.hell, kontrast: s.kontrast, foto: [s.foto.width, s.foto.height], ocr: s.ocr ? s.ocr.zeilen.length : null, aenderungen: Object.assign({}, s.aenderungen) })), akt: ST.akt, format: ST.format, qualitaet: ST.qualitaet, durchsuchbar: ST.durchsuchbar, mlFehler: _mlFehler };
+    window.__wfpdfScan = { seiten: ST.seiten.map(s => ({ name: s.name, ecken: s.ecken, erkennung: s.erkennung && { quelle: s.erkennung.quelle, sicher: s.erkennung.sicher, grund: s.erkennung.grund, verfahren: s.erkennung.verfahren }, manuell: s.manuell, drehung: s.drehung, filter: s.filter, hell: s.hell, kontrast: s.kontrast, foto: [s.foto.width, s.foto.height], ocr: s.ocr ? s.ocr.zeilen.length : null, aenderungen: Object.assign({}, s.aenderungen) })), akt: ST.akt, format: ST.format, qualitaet: ST.qualitaet, durchsuchbar: ST.durchsuchbar, mlFehler: _mlFehler };
   }
   const akt = () => ST && ST.seiten[ST.akt];
 

@@ -198,7 +198,7 @@
     const alleOrdnerKnopf = () => { const b = g.querySelector('[data-alleordner]'); if (b) b.onclick = () => { S.aktOrdner = 'alle'; zeichneBibliothek(); }; };
     if (!sicht.length) {
       if (such.length) { const bz = bedeutungZusatz(FUND, imOrdner); g.innerHTML = nurOrdner + `<div class="leer" data-suchleer><b>Kein Dokument passt zu „${nm(S.suche.trim())}".</b>${bz.docs.length ? '<br>Nach Wörtern nicht — nach Bedeutung schon, siehe unten.' : ''}</div>` + bz.html + suchStand(); kartenBinden(g, FUND); alleOrdnerKnopf(); return; }
-      g.innerHTML = `<div class="leer"><b>Noch keine Dokumente${o ? ' in diesem Ordner' : ''}.</b><br>Oben ein PDF oder Bild wählen, ein Formular fotografieren oder einen ganzen Ordner einlesen. Du kannst Dateien auch einfach hierher ziehen.</div>`;
+      g.innerHTML = `<div class="leer"><b>Noch keine Dokumente${o ? ' in diesem Ordner' : ''}.</b><br>Oben ein PDF oder Bild wählen, ein Blatt scannen oder einen ganzen Ordner einlesen. Du kannst Dateien auch einfach hierher ziehen.</div>`;
       return;
     }
     const bz = such.length ? bedeutungZusatz(FUND, imOrdner) : { html: '', docs: [] };
@@ -2229,7 +2229,7 @@
   }
   function hilfe() {
     dialog(`<h2>So geht's</h2><ol>
-      <li><b>Einlesen:</b> PDF oder Bild wählen, ein Papierformular fotografieren oder einen ganzen Ordner einlesen. Dateien lassen sich auch auf die Seite ziehen. Bei Fotos wird das Blatt gesucht und auf A4 gerade gezogen — ausgedruckt („Tatsächliche Größe / 100 %") so groß wie das Papier.</li>
+      <li><b>Einlesen:</b> PDF oder Bild wählen, 📷 Scannen oder einen ganzen Ordner einlesen. Dateien lassen sich auch auf die Seite ziehen. Bei Fotos wird das Blatt gesucht und auf A4 gerade gezogen — ausgedruckt („Tatsächliche Größe / 100 %") so groß wie das Papier.</li>
       <li><b>Felder erkennen:</b> 🤖 findet Linien, Rahmen, graue Eingabeflächen und Kästchen — offline oder mit KI. Das sind Vorschläge (orange gestrichelt).</li>
       <li><b>Prüfen und korrigieren:</b> unter „✏️ Felder bearbeiten" Felder verschieben, am roten Punkt vergrößern, Bezeichnung und Art ändern. „✓ Passt" bestätigt einen Vorschlag.</li>
       <li><b>Eigene Felder:</b> Art wählen (Text, Datum, Kästchen, E-Mail, Internetadresse, QR-Code, Unterschrift) und auf die Stelle tippen.</li>

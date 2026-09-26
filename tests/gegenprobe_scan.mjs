@@ -2,7 +2,7 @@
    Jeder Fall muss die Probe umwerfen — mit einer roten Zeile, die zu ihm passt („trifft").
    Ein Fall, der nur fremde Zeilen rot macht, gilt als „aus falschem Grund".
    Ein Anker, der nicht genau einmal vorkommt, ist ein toter Anker.
-   NUR_ANKER=1 prüft nur die Anker (Sekunden, ohne Browser).
+   NUR_ANKER=1 prüft nur die Anker (Sekunden, ohne Browser); NUR_FALL=<Teil des Namens> fährt nur passende Fälle.
    Nicht in npm test (dauert); Aufruf: node tests/gegenprobe_scan.mjs */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -30,12 +30,13 @@ const FAELLE = [
   { name: 'Umordnen tauscht nicht', datei: 'assets/scanner.js', anker: 'const x = ST.seiten[a]; ST.seiten[a] = ST.seiten[b]; ST.seiten[b] = x;', ersatz: '', trifft: /tauscht die Reihenfolge/ },
   { name: 'geänderter Text wird nicht ins Bild geschrieben', datei: 'assets/scanner.js', anker: 'if (mitText !== false && s.ocr) textAnwenden(c, img, s);', ersatz: '', trifft: /neu geschrieben/ },
   { name: 'keine Textebene im PDF', datei: 'assets/scanner.js', anker: 'if (ST.durchsuchbar && s.ocr) {', ersatz: 'if (false) {', trifft: /durchsuchbar/ },
-  { name: 'Textebene trägt den alten Text', datei: 'assets/scanner.js', anker: 'const zeilenText = (s, i) => (s.aenderungen', ersatz: 'const zeilenText = (s, i) => s.ocr.zeilen[i].text || (s.aenderungen', trifft: /alte Text nicht mehr/ },
+  { name: 'Textebene trägt den alten Text', datei: 'assets/scanner.js', anker: 'const zeilenText = (s, i) => (s.aenderungen', ersatz: 'const zeilenText = (s, i) => s.ocr.zeilen[i].text; const _alt = (s, i) => (s.aenderungen', trifft: /alte Text nicht mehr/ },
   { name: 'ungeprüfte Seite wird ohne Frage übernommen', datei: 'assets/scanner.js', anker: 'if (offen && !await ST.opt.frage(', ersatz: 'if (false && !await ST.opt.frage(', trifft: /fragt vor dem Übernehmen/ },
   { name: 'ZIP enthält keine Bilder', datei: 'assets/scanner.js', anker: 'bytes: await jpeg(seiteRechnen(ST.seiten[i], Q.dpi, true).canvas, Q.q)', ersatz: 'bytes: new Uint8Array(8)', trifft: /ZIP mit einem JPEG/ },
   { name: 'Seite ist nicht A4', datei: 'assets/scan-bild.js', anker: 'else { pw = quer ? A4.h : A4.w; ph = quer ? A4.w : A4.h; }', ersatz: 'else { pw = quer ? 800 : 600; ph = quer ? 600 : 800; }', trifft: /A4/ }
 ];
 
+const NUR = process.env.NUR_FALL; if (NUR) FAELLE.splice(0, FAELLE.length, ...FAELLE.filter(f => f.name.includes(NUR)));
 let gefangen = 0, durch = 0, falsch = 0, tot = 0;
 const kopie = fs.mkdtempSync(path.join(os.tmpdir(), 'wfpdf-gp-'));
 const kopieren = () => {

@@ -209,11 +209,11 @@ try {
   ok('zweite Seite kommt in die Leiste', await page.locator('.scan .scan-daumen').count() === 2);
   await page.click('.scan [data-links="1"]');
   Z = await page.evaluate(() => window.__wfpdfScan);
-  ok('◀ tauscht die Reihenfolge (die neue steht vorn)', Z.seiten[1].filter === 'dokument' && Z.akt === 0, Z.seiten.map(s => s.filter));
+  ok('◀ tauscht die Reihenfolge (die neue steht vorn)', Z.seiten[0].name === 'Zweite Seite.jpg' && Z.seiten[1].name === 'Rechnung.jpg' && Z.akt === 0, Z.seiten.map(s => s.name));
   await page.click('.scan [data-ansicht="ergebnis"]');
   await page.click('.scan [data-weg]');
   Z = await page.evaluate(() => window.__wfpdfScan);
-  ok('🗑 entfernt die Seite, eine bleibt', Z.seiten.length === 1 && Z.seiten[0].filter === 'dokument');
+  ok('🗑 entfernt die Seite, eine bleibt (die richtige)', Z.seiten.length === 1 && Z.seiten[0].name === 'Rechnung.jpg', Z.seiten.map(s => s.name));
   await page.click('.scan [data-waehle="0"]');
   await page.click('.scan [data-ansicht="ergebnis"]');
 

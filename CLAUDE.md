@@ -83,6 +83,11 @@ fotografieren" (an ein Dokument anhängen). Der alte Aufnahme-Dialog ist weg.
   (Filter, Format, Qualität, durchsuchbar, Sprache) in `localStorage` `wfpdf_scan_v1`.
 - Proben: `tests/scan.mjs` (in `npm test`, A Rechnung · B 17 Fotos · C ganzer Weg mit echtem
   Tesseract) · `node tests/gegenprobe_scan.mjs` (22 Fälle, Wegwerf-Kopie; `NUR_ANKER=1`).
+  Gemessen am 2026-09-26: `scan.mjs` 58 grün · Gegenprobe erst **20 gefangen · 1 blind ·
+  1 aus falschem Grund**. Blind war „Umordnen": die zweite Seite erbte den gemerkten Filter,
+  also sahen beide Seiten gleich aus — gemessen wird jetzt der Dateiname je Seite. Falsch war
+  eine Sabotage (`a || (b) ? c : d` bindet anders als gedacht). Beide danach nachgefahren:
+  gefangen, jede rote Zeile mit ihrem Namen.
 - ⚠ **Nicht gemessen:** echte Handy-Kamera, Modell auf dem Tablet (Zeit, Speicher),
   Qualität der Texterkennung auf echten Briefen. Die Bildschirmfotos im Handbuch zeigen noch
   den alten Aufnahme-Dialog (`node tools/handbuch-bauen.mjs` baut sie neu).
