@@ -11,6 +11,12 @@
 
   const $ = id => document.getElementById(id);
   const h = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // Namen, die der Nutzer vergeben hat (Dokumente, Ordner, Felder): die Oberflächen-Übersetzung
+  // (assets/sprache.js) fasst sie nicht an — ein Ordner „Briefe" bleibt „Briefe".
+  const nm = s => '<span data-kein-ue>' + h(s) + '</span>';
+  // Für Text, der in einem geschützten Bereich steht (die Felder auf der Seite tragen den
+  // Namen des Nutzers als Titel): dort wird schon beim Bauen übersetzt.
+  const T = s => (WFP.Sprache ? WFP.Sprache.T(s) : s);
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id' + Date.now().toString(36) + Math.random().toString(36).slice(2));
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const jetzt = () => new Date().toISOString();
@@ -117,7 +123,7 @@
   function zeichneBibliothek() {
     const anz = id => S.docs.filter(d => id === 'alle' ? true : id === 'ohne' ? !d.folderId || !S.ordner.some(o => o.id === d.folderId) : d.folderId === id).length;
     let html = `<button class="ordner-chip${S.aktOrdner === 'alle' ? ' on' : ''}" data-o="alle">Alle<span class="anz">${anz('alle')}</span></button>`;
-    for (const o of S.ordner) html += `<button class="ordner-chip${S.aktOrdner === o.id ? ' on' : ''}" data-o="${o.id}">${o.bereich === 'uebersetzung' ? '🌐 ' : '🗂️ '}${h(o.name)}<span class="anz">${anz(o.id)}</span></button>`;
+    for (const o of S.ordner) html += `<button class="ordner-chip${S.aktOrdner === o.id ? ' on' : ''}" data-o="${o.id}">${o.bereich === 'uebersetzung' ? '🌐 ' : '🗂️ '}${nm(o.name)}<span class="anz">${anz(o.id)}</span></button>`;
     if (S.ordner.length && anz('ohne')) html += `<button class="ordner-chip${S.aktOrdner === 'ohne' ? ' on' : ''}" data-o="ohne">Ohne Ordner<span class="anz">${anz('ohne')}</span></button>`;
     html += `<button class="ordner-chip" data-neu>＋ Ordner</button>`;
     const ol = $('ordnerLeiste'); ol.innerHTML = html;
@@ -137,7 +143,7 @@
       for (const x of S.ordner) if (x !== o && stammOrdner(x) === stammOrdner(o) && abkoemmling(x, o) && x.name.startsWith(alt + ' · ')) { x.name = n + x.name.slice(alt.length); await DB.put('folders', x); }
       ladeBibliothek(); };
     if (q('[data-del]')) q('[data-del]').onclick = async () => {
-      if (!await frage('Ordner löschen?', `<p>Der Ordner „${h(o.name)}" wird gelöscht. Die ${anz(o.id)} Dokumente darin bleiben erhalten und stehen danach unter „Ohne Ordner".</p>`, 'Ordner löschen')) return;
+      if (!await frage('Ordner löschen?', `<p>Der Ordner „${nm(o.name)}" wird gelöscht. Die ${anz(o.id)} Dokumente darin bleiben erhalten und stehen danach unter „Ohne Ordner".</p>`, 'Ordner löschen')) return;
       for (const d of S.docs.filter(d => d.folderId === o.id)) { d.folderId = null; await DB.put('docs', d); }
       await DB.del('folders', o.id); S.aktOrdner = 'alle'; ladeBibliothek();
     };
@@ -152,8 +158,8 @@
       return `<div class="dok" data-id="${d.id}">
         <button class="dok-bild" data-auf style="background-image:url('${d.thumb || ''}')" title="Öffnen">
           <span class="marken">${v ? `<span class="marke-klein ki">🤖 ${v} zu prüfen</span>` : ''}${d.quelle === 'foto' ? '<span class="marke-klein">📷 Foto</span>' : ''}${d.uebersetzung ? `<span class="marke-klein">🌐 ${h((d.uebersetzung.von || '').toUpperCase())}→${h((d.uebersetzung.nach || '').toUpperCase())}${d.uebersetzung.gegenprobe ? ' Gegenprobe' : ''}</span>` : ''}${d.ausgefuellt ? `<span class="marke-klein">↩ ausgefüllt aus ${h((d.ausgefuellt.aus || '').toUpperCase())}</span>` : ''}</span></button>
-        <div class="dok-info"><div class="dok-name" title="${h(d.name)}">${h(d.name)}</div>
-          <div class="dok-meta">${d.pages.length} Seite${d.pages.length === 1 ? '' : 'n'} · ${d.fields.length} Feld${d.fields.length === 1 ? '' : 'er'}${ord && S.aktOrdner === 'alle' ? ' · 🗂️ ' + h(ord.name) : ''}</div></div>
+        <div class="dok-info"><div class="dok-name" data-kein-ue title="${h(d.name)}">${nm(d.name)}</div>
+          <div class="dok-meta">${d.pages.length} Seite${d.pages.length === 1 ? '' : 'n'} · ${d.fields.length} Feld${d.fields.length === 1 ? '' : 'er'}${ord && S.aktOrdner === 'alle' ? ' · 🗂️ ' + nm(ord.name) : ''}</div></div>
         <div class="dok-akt"><button data-auf title="Öffnen">✏️</button><button data-verschieben title="In Ordner verschieben">🗂️</button><button data-kopie title="Duplizieren (z. B. als Vorlage)">⧉</button><button data-loeschen title="Löschen">🗑</button></div></div>`;
     }).join('');
     g.querySelectorAll('.dok').forEach(el => {
@@ -171,8 +177,8 @@
   }
   async function verschieben(id) {
     const d = S.docs.find(x => x.id === id); if (!d) return;
-    dialog(`<h2>In Ordner verschieben</h2><p class="hinweis">„${h(d.name)}"</p>
-      ${S.ordner.map(o => `<button class="wahl" data-o="${o.id}"><b>🗂️ ${h(o.name)}</b></button>`).join('')}
+    dialog(`<h2>In Ordner verschieben</h2><p class="hinweis">„${nm(d.name)}"</p>
+      ${S.ordner.map(o => `<button class="wahl" data-o="${o.id}"><b>🗂️ ${nm(o.name)}</b></button>`).join('')}
       <button class="wahl" data-o=""><b>Ohne Ordner</b></button><button class="wahl" data-neu><b>＋ Neuer Ordner …</b></button>
       <div class="zeile"><button class="knopf" data-x>Abbrechen</button></div>`, (dl, zu) => {
       dl.querySelectorAll('[data-o]').forEach(b => b.onclick = async () => { d.folderId = b.dataset.o || null; await DB.put('docs', d); zu(); ladeBibliothek(); });
@@ -188,7 +194,7 @@
   }
   async function loeschen(id) {
     const d = S.docs.find(x => x.id === id); if (!d) return;
-    if (!await frage('Dokument löschen?', `<p>„${h(d.name)}" mit ${d.fields.length} Feldern wird aus diesem Browser gelöscht. Das lässt sich nicht rückgängig machen.</p>`, 'Löschen')) return;
+    if (!await frage('Dokument löschen?', `<p>„${nm(d.name)}" mit ${d.fields.length} Feldern wird aus diesem Browser gelöscht. Das lässt sich nicht rückgängig machen.</p>`, 'Löschen')) return;
     await DB.del('docs', id); await DB.del('files', id); toast('🗑 gelöscht'); ladeBibliothek();
   }
 
@@ -418,7 +424,7 @@
     if (nr !== _oeffnenNr || S.doc !== d) { try { pdf.destroy(); } catch (_) {} return; }
     S.pdf = pdf;
     $('sc-bib').classList.remove('on'); $('sc-ed').classList.add('on');
-    $('edName').value = d.name; $('kopfSub').textContent = d.name;
+    $('edName').value = d.name; $('kopfSub').setAttribute('data-kein-ue', ''); $('kopfSub').textContent = d.name;
     history.pushState({ ed: 1 }, '', '#dok');
     zeichneSeiten(); zeichneModus();
   }
@@ -426,7 +432,7 @@
     _oeffnenNr++;
     await speichernJetzt();
     $('sc-ed').classList.remove('on'); $('sc-bib').classList.add('on');
-    $('kopfSub').textContent = 'Formulare einlesen · Felder setzen · PDF ausgeben';
+    $('kopfSub').removeAttribute('data-kein-ue'); $('kopfSub').textContent = 'Formulare einlesen · Felder setzen · übersetzen · PDF ausgeben';
     if (S.beob) { S.beob.disconnect(); S.beob = null; }
     S.doc = null; S.sel = null;
     if (!ohneHistory && location.hash === '#dok') history.back();
@@ -489,6 +495,7 @@
     const el = document.createElement('div');
     el.className = 'feld' + (!f.geprueft ? ' ki' : '') + (f.type === 'check' ? ' check-feld' : '') + ((f.type === 'check' ? f.value : f.value !== '' && f.value != null) ? ' hatwert' : '');
     el.dataset.id = f.id;
+    el.setAttribute('data-kein-ue', '');   // Bezeichnung und Eintrag gehören dem Nutzer
     el.style.left = f.x + '%'; el.style.top = f.y + '%'; el.style.width = f.w + '%'; el.style.height = f.h + '%';
     if (f.decken) el.style.backgroundColor = f.decken;
     const hoehePx = () => el.getBoundingClientRect().height || 20;
@@ -496,18 +503,18 @@
       if (f.type === 'check') {
         el.innerHTML = `<span class="kreuz">${f.value ? '✓' : ''}</span>`;
         el.onclick = () => { f.value = !f.value; el.querySelector('.kreuz').textContent = f.value ? '✓' : ''; speichern(); };
-        el.title = f.label || 'Kästchen';
+        el.title = f.label || T('Kästchen');
       } else if (f.type === 'unterschrift') {
-        el.innerHTML = f.value ? `<img class="usbild" src="${h(f.value)}" alt="Unterschrift">` : '<span class="usleer">✒️ hier unterschreiben</span>';
+        el.innerHTML = f.value ? `<img class="usbild" src="${h(f.value)}" alt="Unterschrift">` : '<span class="usleer">' + h(T('✒️ hier unterschreiben')) + '</span>';
         el.onclick = () => unterschreiben(f);
-        el.title = f.label || 'Unterschrift';
+        el.title = f.label || T('Unterschrift');
       } else if (f.type === 'qr') {
-        el.innerHTML = `<div class="qrbild">${f.value ? qrSvg(f.value) : '<span class="qrleer">QR-Inhalt unten eingeben</span>'}</div>`;
+        el.innerHTML = `<div class="qrbild">${f.value ? qrSvg(f.value) : '<span class="qrleer">' + h(T('QR-Inhalt unten eingeben')) + '</span>'}</div>`;
         el.onclick = () => { S.sel = f.id; markiere(); zeichneFuss(); };
       } else {
         const inp = document.createElement(f.mehrzeilig ? 'textarea' : 'input');
         if (!f.mehrzeilig) inp.type = f.type === 'datum' ? 'date' : f.type === 'email' ? 'email' : f.type === 'url' ? 'url' : 'text';
-        inp.value = f.value || ''; inp.placeholder = ''; inp.title = f.label || TYPEN[f.type].name; inp.setAttribute('aria-label', f.label || TYPEN[f.type].name);
+        inp.value = f.value || ''; inp.placeholder = ''; inp.title = f.label || T(TYPEN[f.type].name); inp.setAttribute('aria-label', f.label || T(TYPEN[f.type].name));
         inp.oninput = () => { f.value = inp.value; speichern(); };
         inp.onblur = () => speichernJetzt();
         inp.onfocus = () => { S.sel = f.id; markiere(); };
@@ -522,7 +529,7 @@
     else if (f.type === 'qr') inhalt = `<div class="qrbild">${f.value ? qrSvg(f.value) : '<span class="qrleer">QR</span>'}</div>`;
     else if (f.type === 'unterschrift') inhalt = f.value ? `<img class="usbild" src="${h(f.value)}" alt="">` : '';
     else inhalt = `<span class="wert${f.mehrzeilig ? ' mz' : ''}">${h(feldText(f))}</span>`;
-    el.innerHTML = inhalt + `<span class="etikett">${!f.geprueft ? '🤖 ' : ''}${h(f.label || TYPEN[f.type].name)}</span><span class="griff" title="Größe ändern"></span>`;
+    el.innerHTML = inhalt + `<span class="etikett">${!f.geprueft ? '🤖 ' : ''}${h(f.label || T(TYPEN[f.type].name))}</span><span class="griff" title="${h(T('Größe ändern'))}"></span>`;
     requestAnimationFrame(() => { const w = el.querySelector('.wert'); if (w) w.style.fontSize = Math.max(8, Math.min(20, hoehePx() * (f.mehrzeilig ? 0.34 : 0.6))) + 'px'; });
     el.addEventListener('pointerdown', e => ziehen(e, f, el, e.target.classList.contains('griff') ? 'groesse' : 'bewegen'));
     return el;
@@ -636,7 +643,7 @@
   /* Unterschrift mit Stift oder Finger. Gespeichert als PNG (durchsichtig,
      auf die Striche zugeschnitten) — im PDF wird sie als Bild eingesetzt. */
   function unterschreiben(f) {
-    dialog(`<h2>✒️ ${h(f.label || 'Unterschrift')}</h2>
+    dialog(`<h2>✒️ ${f.label ? nm(f.label) : 'Unterschrift'}</h2>
       <p class="hinweis">Mit dem Stift oder dem Finger in das Feld schreiben.</p>
       <canvas class="us-flaeche" id="usFlaeche"></canvas>
       <div class="zeile"><button class="knopf" data-neu>Löschen</button><button class="knopf" data-x>Abbrechen</button><button class="knopf rot" data-ok>✓ Übernehmen</button></div>`,
@@ -735,7 +742,7 @@
     if (mehrere) for (const id of ids) { try { const d = S.doc && S.doc.id === id ? S.doc : await DB.get('docs', id); namen[id] = d && d.name; } catch (_) {} }
     const a = ER.ANBIETER[EINST.anbieter];
     dialog(`<h2>🤖 Formularfelder erkennen</h2>
-      ${mehrere ? `<p><b>In welchen Dokumenten?</b> Tippe die an, die erkannt werden sollen — nur diese gehen an die KI. <button class="knopf klein" data-alle>Alle</button></p><div class="erk-liste">${ids.map(id => `<label class="erk-dok"><input type="checkbox" data-dok="${h(id)}"> ${h(namen[id] || id)}</label>`).join('')}</div><p class="hinweis" data-zahl>Noch kein Dokument gewählt.</p>` : ''}
+      ${mehrere ? `<p><b>In welchen Dokumenten?</b> Tippe die an, die erkannt werden sollen — nur diese gehen an die KI. <button class="knopf klein" data-alle>Alle</button></p><div class="erk-liste">${ids.map(id => `<label class="erk-dok"><input type="checkbox" data-dok="${h(id)}"> ${nm(namen[id] || id)}</label>`).join('')}</div><p class="hinweis" data-zahl>Noch kein Dokument gewählt.</p>` : ''}
       <p>Erkannte Felder sind <b>Vorschläge</b>: sie erscheinen orange gestrichelt, bis du sie prüfst. Noch nicht geprüfte Vorschläge aus einem früheren Durchgang werden dabei ersetzt.</p>
       <button class="wahl" data-off><b>🔍 Ohne Internet erkennen</b><span>Findet Linien, Eingabe-Rahmen, graue Eingabeflächen und Kästchen im Seitenbild. Bei digitalen PDFs kommt die Beschriftung aus dem Text daneben.</span></button>
       <button class="wahl" data-ki><b>🤖 Mit KI erkennen — ${h(a.label)}</b><span>${kiBereit()
@@ -1007,7 +1014,7 @@
       <button class="wahl" data-ud><b>📄 Einzelne PDFs oder Bilder übersetzen</b><span>Eine oder mehrere PDF-Dateien oder Fotos (JPG, PNG) wählen. Bei Fotos wird das Blatt gesucht und auf A4 gerade gezogen.</span></button>
       <button class="wahl" data-ubsp><b>📘 Beispiele zum Ausprobieren</b><span>Das Benutzerhandbuch dieser App (14 Seiten mit Bildern, Tabellen, Kästen, Querformat und einer gescannten Seite) und ein erfundenes Amtsformular. Übersetzen testen, ohne eigene Dokumente zu nehmen. Sie landen im Ordner „Beispiele".</span></button>
       <button class="wahl" data-uk><b>📷 Brief fotografieren</b><span>Papierbrief (z. B. vom Amt) Seite für Seite aufnehmen. Das Blatt wird auf A4 gerade gezogen — ausgedruckt wieder so groß wie das Papier. Die Texterkennung liest ihn auf dem Gerät.</span></button>
-      ${quellen.length ? `<p style="margin-top:12px"><b>… oder einen Ordner, der schon hier liegt:</b></p>${quellen.map(o => `<button class="wahl" data-o="${o.id}"><b>${o.bereich === 'uebersetzung' ? '🌐 ' : '🗂️ '}${h(o.name)}</b><span>${S.docs.filter(d => d.folderId === o.id && !d.uebersetzung).length} Dokumente</span></button>`).join('')}` : ''}
+      ${quellen.length ? `<p style="margin-top:12px"><b>… oder einen Ordner, der schon hier liegt:</b></p>${quellen.map(o => `<button class="wahl" data-o="${o.id}"><b>${o.bereich === 'uebersetzung' ? '🌐 ' : '🗂️ '}${nm(o.name)}</b><span>${S.docs.filter(d => d.folderId === o.id && !d.uebersetzung).length} Dokumente</span></button>`).join('')}` : ''}
       <div class="zeile"><button class="knopf" data-x>Abbrechen</button></div>`, (dl, zu) => {
       dl.querySelector('[data-x]').onclick = zu;
       dl.querySelector('[data-uo]').onclick = () => { zu(); $('inUeOrdner').click(); };
@@ -1209,10 +1216,10 @@
     const mehrere = docs.length > 1; const a = ER.ANBIETER[EINST.anbieter];
     dialog(`<h2>🌐 Übersetzen</h2>${opt.chromeTab ? `<p class="hinweis" data-ausapp style="background:#fff3cd;padding:8px;border-radius:8px"><b>Aus der App in Chrome geöffnet.</b> Tippe „🌐 Mit Chrome übersetzen", danach in Chrome ⋮ → „Übersetzen" → ${h(UE.SPRACHEN[EINST.ueNach] || '')}. Das Ergebnis wird ein PDF wie in der App und liegt in der Bibliothek.</p>` : ''}
       <p class="hinweis">Jede Seite wird auf derselben Seite übersetzt: Bilder, Grafiken und Aufbau des Originals bleiben, nur der Text wird an seiner Stelle ersetzt — in der Farbe des Originals. Gescannte Seiten liest die Texterkennung (OCR) auf dem Gerät. Seitenumbrüche bleiben, das Original bleibt unberührt. Die Ergebnisse kommen in eigene Ordner je Sprache („… · RU"), getrennt von den Originalen; alle Ordner lassen sich umbenennen.</p>
-      ${ersetzt.length ? `<p class="hinweis" data-ersetzt style="background:#e8f0fe;padding:8px;border-radius:8px">${ersetzt.map(e => `„${h(e.von)}" ist selbst eine Übersetzung — übersetzt wird ihr <b>Original</b> „${h(e.nach)}" (${h(UE.SPRACHEN[e.sprache] || e.sprache)}). So entsteht sauberer Text statt zweier Sprachen übereinander.`).join('<br>')}</p>` : ''}
-      ${ohneOriginal.length ? `<p class="hinweis" data-ohneoriginal>Weggelassen: ${ohneOriginal.map(d => '„' + h(d.name) + '"').join(', ')} — selbst eine Übersetzung, das Original liegt nicht mehr hier.</p>` : ''}
+      ${ersetzt.length ? `<p class="hinweis" data-ersetzt style="background:#e8f0fe;padding:8px;border-radius:8px">${ersetzt.map(e => `„${nm(e.von)}" ist selbst eine Übersetzung — übersetzt wird ihr <b>Original</b> „${nm(e.nach)}" (${h(UE.SPRACHEN[e.sprache] || e.sprache)}). So entsteht sauberer Text statt zweier Sprachen übereinander.`).join('<br>')}</p>` : ''}
+      ${ohneOriginal.length ? `<p class="hinweis" data-ohneoriginal>Weggelassen: ${ohneOriginal.map(d => '„' + nm(d.name) + '"').join(', ')} — selbst eine Übersetzung, das Original liegt nicht mehr hier.</p>` : ''}
       ${mehrere ? `<p><b>Welche Dokumente?</b> <button class="knopf klein" data-alle>Alle</button></p>` : ''}
-      <div class="erk-liste">${docs.map((d, i) => `<label class="erk-dok"><input type="checkbox" data-dok="${h(d.id)}"${!mehrere || (alleGewaehlt && !d.uebersetzung) ? ' checked' : ''}> ${h(d.name)} <span class="hinweis">· ${d.pages.length} S.${d.uebersetzung ? ' · schon eine Übersetzung' : ''}${!d.uebersetzung ? ' · ' + (d.fields.filter(f => f.geprueft).length ? d.fields.filter(f => f.geprueft).length + ' Felder kommen übersetzt mit' : 'keine Felder') : ''}</span>${!d.uebersetzung && !d.fields.filter(f => f.geprueft).length ? ` <button class="knopf klein" data-feld="${h(d.id)}" title="Rahmen zum Ausfüllen (Text, Datum, Kästchen, Unterschrift) im Original setzen — sie kommen dann übersetzt mit">✏️ erst Felder setzen</button>` : ''}</label>`).join('')}</div>
+      <div class="erk-liste">${docs.map((d, i) => `<label class="erk-dok"><input type="checkbox" data-dok="${h(d.id)}"${!mehrere || (alleGewaehlt && !d.uebersetzung) ? ' checked' : ''}> ${nm(d.name)} <span class="hinweis">· ${d.pages.length} S.${d.uebersetzung ? ' · schon eine Übersetzung' : ''}${!d.uebersetzung ? ' · ' + (d.fields.filter(f => f.geprueft).length ? d.fields.filter(f => f.geprueft).length + ' Felder kommen übersetzt mit' : 'keine Felder') : ''}</span>${!d.uebersetzung && !d.fields.filter(f => f.geprueft).length ? ` <button class="knopf klein" data-feld="${h(d.id)}" title="Rahmen zum Ausfüllen (Text, Datum, Kästchen, Unterschrift) im Original setzen — sie kommen dann übersetzt mit">✏️ erst Felder setzen</button>` : ''}</label>`).join('')}</div>
       <p class="hinweis">Formular zum Ausfüllen (z. B. vom Amt)? Die Rahmen zum Ausfüllen am besten <b>im Original</b> setzen („✏️ erst Felder setzen", oder „🔍 Felder erkennen") — dann kommen sie übersetzt an dieselbe Stelle mit. Nach dem Ausfüllen holt „⬇ PDF ausgeben → ↩ Einträge ins Original" die Einträge zurück.</p>
       <div class="ue-sprachen"><div><label>von</label>${sprachWahl('von', vonVorgabe)}</div><div class="ue-pfeil">→</div><div><label>nach</label>${sprachWahl('nach', EINST.ueNach)}</div></div>
       <label style="font-weight:400"><input type="checkbox" data-rueck${EINST.ueRueck !== false ? ' checked' : ''}> Gegenprobe: danach zurück in die Ausgangssprache übersetzen und daneben ablegen</label>
@@ -1326,7 +1333,7 @@
     const eintraege = d.fields.filter(f => f.type === 'check' ? f.value : String(f.value || '').trim()).length;
     const a = ER.ANBIETER[EINST.anbieter];
     dialog(`<h2>↩ Einträge ins Original (${h(UE.SPRACHEN[nach])})</h2>
-      <p>Die <b>${eintraege}</b> Einträge aus „${h(d.name)}" werden ins ${h(UE.NAME_DE[nach] || nach)}e übersetzt und in eine <b>Kopie</b> des Originals „${h(src.name)}" eingesetzt — an dieselbe Stelle. Das Original und die Übersetzung bleiben unverändert.</p>
+      <p>Die <b>${eintraege}</b> Einträge aus „${nm(d.name)}" werden ins ${h(UE.NAME_DE[nach] || nach)}e übersetzt und in eine <b>Kopie</b> des Originals „${nm(src.name)}" eingesetzt — an dieselbe Stelle. Das Original und die Übersetzung bleiben unverändert.</p>
       <p class="hinweis">Datum, E-Mail, Internetadresse, Unterschrift und Kästchen werden übernommen, nicht übersetzt. Bitte die Einträge danach prüfen — Namen und Adressen bleiben in der Regel stehen, aber jede Übersetzung kann sich irren.</p>
       <button class="wahl" data-weg="browser"><b>📱 Übersetzer im Browser</b><span data-bstat>prüfe …</span></button>
       ${opt.chromeTab ? `<p class="hinweis" data-ausapp style="background:#fff3cd;padding:8px;border-radius:8px"><b>Aus der App in Chrome geöffnet.</b> Tippe „🌐 Mit Chrome übersetzen", danach in Chrome ⋮ → „Übersetzen" → ${h(UE.SPRACHEN[nach])}. Die ausgefüllte Kopie liegt danach in der Bibliothek.</p>` : ''}
@@ -1388,7 +1395,7 @@
   // Ein-Tipp-Messung für Klaus' Tablet: gibt es den Übersetzer, welche Paare, hat das PDF Text?
   async function messen(docs) {
     const z = [];
-    z.push('<b>Browser:</b> ' + h(navigator.userAgent.replace(/^Mozilla\/5\.0 /, '')));
+    z.push('<b>Browser:</b> ' + nm(navigator.userAgent.replace(/^Mozilla\/5\.0 /, '')));
     z.push('<b>Läuft als App (installiert):</b> ' + (matchMedia('(display-mode: standalone)').matches ? 'ja' : 'nein'));
     z.push('<b>Übersetzer im Browser (Translator):</b> ' + (UE.browserDa() ? 'vorhanden' : 'nicht vorhanden'));
     if (UE.browserDa()) {
@@ -1401,8 +1408,8 @@
         const n = Math.min(3, pdf.numPages); let mitText = 0, abs = 0;
         for (let i = 1; i <= n; i++) { const r = await UE.bloecke(await pdf.getPage(i)); if (r.bloecke.length) mitText++; abs += r.bloecke.length; }
         try { pdf.destroy(); } catch (_) {}
-        z.push(`<b>${h(d.name)}:</b> ${mitText} von ${n} geprüften Seiten mit Textebene (${abs} Absätze)${mitText ? '' : ' — vermutlich gescannt: der Text wird beim Übersetzen per Texterkennung (OCR, auf dem Gerät) gelesen'}`);
-      } catch (e) { z.push(`<b>${h(d.name)}:</b> nicht lesbar (${h(e.message || e)})`); }
+        z.push(`<b>${nm(d.name)}:</b> ${mitText} von ${n} geprüften Seiten mit Textebene (${abs} Absätze)${mitText ? '' : ' — vermutlich gescannt: der Text wird beim Übersetzen per Texterkennung (OCR, auf dem Gerät) gelesen'}`);
+      } catch (e) { z.push(`<b>${nm(d.name)}:</b> nicht lesbar (${h(e.message || e)})`); }
     }
     if (performance.memory) z.push('<b>Speicher der Seite:</b> ' + (performance.memory.usedJSHeapSize / 1048576).toFixed(0) + ' MB belegt, Grenze ' + (performance.memory.jsHeapSizeLimit / 1048576).toFixed(0) + ' MB');
     return z.join('<br>');
@@ -1487,7 +1494,7 @@
     const neuS = bericht.reduce((n, z) => n + (z.neu || 0), 0);
     window.__wfpdfBericht = { bericht, zeichen, tokE, tokA, ms: Date.now() - t0, speicherMB: performance.memory ? performance.memory.usedJSHeapSize / 1048576 : null };
     dialog(`<h2>🌐 Übersetzung ${abbruch ? 'angehalten' : bericht.some(z => z.teil) ? 'unvollständig — Teilergebnis liegt bereit' : 'fertig'}</h2>
-      <ul>${bericht.map(z => `<li><b>${h(z.name)}</b> · ${z.fertig != null ? z.fertig + ' von ' + z.seiten + ' Seiten' : ''}${z.neu ? ' · ' + (z.ms / z.neu / 1000).toFixed(1) + ' s je neu übersetzter Seite' : ''}${z.groesse ? ' · Ergebnis ' + (z.groesse >= 1048576 ? (z.groesse / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(z.groesse / 1024)) + ' KB') : ''}${z.ordner ? ' · liegt in „' + h(z.ordner) + '"' : ''}${z.felder ? ' · ' + z.felder + ' Felder übersetzt mitgenommen' : ''}${z.neuId ? ` <button class="knopf klein" data-oeffne="${h(z.neuId)}">${z.teil ? '👁 Teilübersetzung öffnen' : '✏️ Öffnen: Felder setzen / ausfüllen'}</button>` : ''}${z.hinweise.length ? '<ul>' + z.hinweise.map(x => '<li class="hinweis">' + h(x) + '</li>').join('') + '</ul>' : ''}</li>`).join('')}</ul>
+      <ul>${bericht.map(z => `<li><b>${nm(z.name)}</b> · ${z.fertig != null ? z.fertig + ' von ' + z.seiten + ' Seiten' : ''}${z.neu ? ' · ' + (z.ms / z.neu / 1000).toFixed(1) + ' s je neu übersetzter Seite' : ''}${z.groesse ? ' · Ergebnis ' + (z.groesse >= 1048576 ? (z.groesse / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(z.groesse / 1024)) + ' KB') : ''}${z.ordner ? ' · liegt in „' + nm(z.ordner) + '"' : ''}${z.felder ? ' · ' + z.felder + ' Felder übersetzt mitgenommen' : ''}${z.neuId ? ` <button class="knopf klein" data-oeffne="${h(z.neuId)}">${z.teil ? '👁 Teilübersetzung öffnen' : '✏️ Öffnen: Felder setzen / ausfüllen'}</button>` : ''}${z.hinweise.length ? '<ul>' + z.hinweise.map(x => '<li class="hinweis">' + h(x) + '</li>').join('') + '</ul>' : ''}</li>`).join('')}</ul>
       ${S.ausApp && !abbruch && !matchMedia('(display-mode: standalone)').matches ? '<p class="hinweis" data-zurueckapp><b>Zurück in die App:</b> die Übersetzung liegt hier in der Bibliothek. In der App oben <b>⟳ (Aktualisieren)</b> tippen — dann liest sie denselben Speicher neu und zeigt sie. Diesen Chrome-Tab kannst du danach schließen. Fehlt sie dort, „⬇ PDF" hier im Tab ausgeben.</p>' : ''}
       <p class="hinweis">Gemessen: ${neuS} Seiten in ${((Date.now() - t0) / 1000).toFixed(0)} s · ${zeichen.toLocaleString('de-DE')} Zeichen übersetzt${tokE || tokA ? ` · ${tokE.toLocaleString('de-DE')} Token hin, ${tokA.toLocaleString('de-DE')} Token zurück (${h(hin.stat.modell || '')}) — den Preis je Token nennt der Anbieter` : ''}${performance.memory ? ' · Speicher ' + (performance.memory.usedJSHeapSize / 1048576).toFixed(0) + ' MB' : ''}.</p>
       <div class="zeile"><button class="knopf rot" data-x>OK</button></div>`, (dl, zu) => { dl.querySelector('[data-x]').onclick = zu; dl.querySelectorAll('[data-oeffne]').forEach(b => b.onclick = () => { zu(); oeffneDok(b.dataset.oeffne); }); });
@@ -1495,6 +1502,30 @@
   }
 
   /* ---------- Einstellungen, Hilfe ---------- */
+  /* ---------- Sprache der App (Klaus 2026-09-26) ----------
+     Übersetzt wird offline in assets/sprache.js. Hier nur die Wahl. */
+  function spracheWaehlen() {
+    const SP = WFP.Sprache;
+    dialog(`<h2>🗣 Sprache der App</h2>
+      <p class="hinweis">Knöpfe, Hinweise und Erklärungen erscheinen in der gewählten Sprache — ohne Internet. Deine Dokumente, Ordner und Feldnamen bleiben, wie sie sind.</p>
+      <div class="sprach-liste">${SP.SPRACHEN.map(x => `<button class="wahl${x.code === SP.lang ? ' on' : ''}" data-sp="${x.code}" lang="${x.code}"${x.rtl ? ' dir="rtl"' : ''}><b data-kein-ue>${h(x.name)}</b></button>`).join('')}</div>
+      <label class="haken"><input type="checkbox" data-tipps${SP.tipps ? ' checked' : ''}> Hinweise beim Zeigen auf Knöpfe (Tooltips) anzeigen</label>
+      <div class="zeile"><button class="knopf rot" data-x>Fertig</button></div>`, (d, zu) => {
+      d.querySelectorAll('[data-sp]').forEach(b => b.onclick = () => {
+        SP.setzen(b.dataset.sp);
+        d.querySelectorAll('[data-sp]').forEach(x => x.classList.toggle('on', x === b));
+      });
+      d.querySelector('[data-tipps]').onchange = e => SP.tippsSetzen(e.target.checked);
+      d.querySelector('[data-x]').onclick = zu;
+    });
+  }
+  function spracheKnopf() { const b = $('btnSprache'); if (b && WFP.Sprache) b.querySelector('span').textContent = WFP.Sprache.SPRACHEN.find(x => x.code === WFP.Sprache.lang).kurz; }
+  document.addEventListener('wfp-sprache', () => {
+    spracheKnopf();
+    // Die Felder auf der Seite sind geschützt und wurden beim Bauen übersetzt — neu bauen.
+    if (S.doc && $('sc-ed').classList.contains('on')) { try { for (let i = 0; i < S.doc.pages.length; i++) zeichneFelder(i); zeichneFuss(); } catch (_) {} }
+  });
+
   function einstellungen() {
     const opt = Object.entries(ER.ANBIETER).map(([k, a]) => `<option value="${k}"${k === EINST.anbieter ? ' selected' : ''}>${h(a.label)}</option>`).join('');
     dialog(`<h2>⚙️ Einstellungen</h2>
@@ -1502,10 +1533,12 @@
       <p class="hinweis">Ohne KI funktionieren Import, Linien-Erkennung, Felder setzen und Export vollständig offline. Mit eigenem Schlüssel (BYOK) erkennt die KI auch Beschriftungen und Text. Standard ist Mistral mit Verarbeitung in der EU.</p>
       <label>Anbieter</label><select id="stAnb">${opt}</select>
       <label>Schlüssel <a id="stKonsole" target="_blank" rel="noopener" style="font-weight:400">— Schlüssel beim Anbieter holen ↗</a></label><input type="password" id="stKey" autocomplete="off" placeholder="nur in diesem Browser gespeichert">
-      <label>Modell für die Felderkennung (leer = Vorgabe)</label><input type="text" id="stMod" placeholder="">
-      <label>Modell für die Übersetzung (leer = Vorgabe)</label><input type="text" id="stUebMod" placeholder="">
+      <label>Modell für die Felderkennung (leer = Vorgabe)</label><input type="text" id="stMod" placeholder="" data-kein-ue>
+      <label>Modell für die Übersetzung (leer = Vorgabe)</label><input type="text" id="stUebMod" placeholder="" data-kein-ue>
       <div class="zeile" style="justify-content:flex-start"><button class="knopf" id="stTest">🔌 Verbindung testen</button><span class="hinweis" id="stTestErg"></span></div>
       <p class="hinweis">Der Schlüssel liegt unverschlüsselt im Speicher dieses Browsers (localStorage) und wird nur an den gewählten Anbieter geschickt.</p>
+      <h3 style="margin:14px 0 0;font-size:1rem">Sprache der App</h3>
+      <div class="zeile" style="justify-content:flex-start"><button class="knopf" id="stSprache">🗣 Sprache und Hinweise …</button></div>
       <h3 style="margin:14px 0 0;font-size:1rem">Erkennung</h3>
       <label style="font-weight:400"><input type="checkbox" id="stLin"${EINST.linien !== false ? ' checked' : ''}> Linien, Rahmen und Kästchen im Seitenbild suchen (offline)</label>
       <h3 style="margin:14px 0 0;font-size:1rem">Speicher</h3>
@@ -1520,6 +1553,7 @@
       const merke = () => { tmp.schluessel[akt] = key.value.trim(); tmp.modell[akt] = mod.value.trim(); tmp.uebModell[akt] = umod.value.trim(); };
       anb.onchange = () => { merke(); zeige(); d.querySelector('#stTestErg').textContent = ''; };
       zeige();
+      d.querySelector('#stSprache').onclick = spracheWaehlen;
       d.querySelector('#stTest').onclick = async () => {
         merke(); const e = d.querySelector('#stTestErg'); e.textContent = 'prüfe …';
         try { const m = await ER.kiTest({ anbieter: anb.value, schluessel: tmp.schluessel[anb.value], modell: tmp.modell[anb.value] }); e.textContent = '✅ Verbindung steht (' + m + ')'; }
@@ -1572,6 +1606,7 @@
     $('inUeOrdner').onchange = e => { const fs = Array.from(e.target.files || []); const n = fs[0] && fs[0].webkitRelativePath ? fs[0].webkitRelativePath.split('/')[0] : null; ueEinlesen(fs, n); e.target.value = ''; };
     $('inUeDateien').onchange = e => { ueEinlesen(e.target.files, null); e.target.value = ''; };
     $('btnEinst').onclick = einstellungen; $('btnHilfe').onclick = hilfe;
+    $('btnSprache').onclick = spracheWaehlen; spracheKnopf();
     // Installieren: eigener Knopf, damit es nicht vom Chrome-Menü abhängt.
     // Läuft die App schon installiert (eigenes Fenster), bleibt er verborgen.
     const installiert = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
@@ -1635,7 +1670,9 @@
 
     if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
     ladeBibliothek().then(chromeTabRueckweg).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
-    window.__wfpdf = { beispieleLaden, S, EINST, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner };   // für die Probe
+    window.__wfpdf = { beispieleLaden, S, EINST, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner,
+      // für tests/sprache.mjs: jeden Dialog einmal öffnen und seine Texte nachschlagen
+      dlg: { neuerOrdner, verschieben, loeschen, speichernDialog, aufnahmeDialog, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart } };   // für die Probe
   }
   start();
 })();
