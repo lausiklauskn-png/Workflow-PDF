@@ -85,7 +85,7 @@
         const luecke = t.x - (z.x + z.w);
         if (luecke > t.fh * 0.12 && !/\s$/.test(z.s) && !/^\s/.test(t.s)) z.s += ' ';
         z.s += t.s; z.w = Math.max(z.w, t.x + t.w - z.x); z.fh = Math.max(z.fh, t.fh);
-      } else zeilen.push({ s: t.s, x: t.x, y: t.y, w: t.w, fh: t.fh });
+      } else zeilen.push({ s: t.s, x: t.x, y: t.y, w: t.w, fh: t.fh, ocr: t.ocr });
     }
     // Vor der Zeile ein Zeichen (Kästchen, Punkt, Kreis)? Dann ist sie ein eigener Eintrag.
     // Größen-Toleranz: die Textebene nennt die Schriftgröße genau, die Texterkennung schätzt sie aus dem Zeilenkasten
@@ -112,6 +112,14 @@
         const quer = Math.min(b.x + b.w, z.x + z.w) - Math.max(b.x, z.x);
         if (!(abstand > -z.fh * 0.3 && abstand < z.fh * 0.9 && quer > Math.min(b.w, z.w) * 0.3
           && Math.abs(z.x - b.x) < z.fh * 3 && z.fh / letzte.fh < rat && letzte.fh / z.fh < rat)) return false;
+        // Eine Beschriftung („Vorname:", „Unfalltag:") ist eine Zeile für sich — sie steht neben
+        // IHREM Feld. Ebenso Zeilen mit weitem Abstand (Beschriftungs-Spalte neben Feldern,
+        // Überschrift über dem ersten Feld): zusammengezogen und neu umbrochen rutschen sie
+        // von ihren Feldern weg (Befund Klaus 2026-09-26, Fragebogen: „Postal code, / City: Email:").
+        if (/:\s*$/.test(letzte.s)) return false;
+        // Nicht bei Texterkennung: dort misst fh das Buchstaben-Kästchen, nicht die
+        // Schriftgröße — der Zeilenabstand sähe immer zu groß aus (Scan-Absatz zerfiel).
+        if (!z.ocr && z.y - letzte.y > Math.max(z.fh, letzte.fh) * 1.6) return false;
         // Kurze erste Zeile in etwas größerer Schrift = Überschrift eines Kastens („Hinweis zu Fotos")
         if (b.zeilen.length === 1 && letzte.w < z.w * 0.6 && letzte.fh / z.fh > 1.04) return false;
         // Zwischen den Zeilen eine Linie, ein Feld, ein Kasten? Dann zwei Absätze.
@@ -169,7 +177,11 @@
     for (let i = 0; i < d.length; i += 4 * schritt) { const k = (d[i] >> 4) << 8 | (d[i + 1] >> 4) << 4 | (d[i + 2] >> 4); if (k === sort[0][0]) { sr += d[i]; sg += d[i + 1]; sb += d[i + 2]; n++; } }
     const bgE = n ? [sr / n, sg / n, sb / n] : bg;
     const abst = c => Math.abs(c[0] - bgE[0]) + Math.abs(c[1] - bgE[1]) + Math.abs(c[2] - bgE[2]);
-    const fgK = sort.find(([k]) => abst(rgbAus(k)) > 180);
+    // Schrift = die KRÄFTIGSTE deutlich andere Farbe, die oft genug vorkommt — nicht einfach
+    // die häufigste: bei kleiner Schrift sind die weichen Kantenpixel (hellgrau) zahlreicher als
+    // der dunkle Kern, und die Übersetzung stand blassgrau da (Befund Klaus 2026-09-26).
+    const kand = sort.filter(([k]) => abst(rgbAus(k)) > 180);
+    const fgK = kand.length ? kand.filter(([, n]) => n >= kand[0][1] * 0.25).reduce((m, e) => abst(rgbAus(e[0])) > abst(rgbAus(m[0])) ? e : m) : null;
     const hell = (bgE[0] * 299 + bgE[1] * 587 + bgE[2] * 114) / 1000;
     const fg = fgK ? rgbAus(fgK[0]) : (hell > 128 ? [17, 17, 17] : [255, 255, 255]);
     return [hex(...bgE), hex(...fg)];
@@ -288,7 +300,7 @@
       if (!t || li.confidence < 45 || !/[\p{L}]{2}/u.test(t)) continue;
       const bb = li.bbox, hoehe = (bb.y1 - bb.y0) / scale;
       const basis = li.baseline && li.baseline.y0 > bb.y0 ? li.baseline.y0 / scale : bb.y1 / scale - hoehe * 0.2;
-      teile.push({ s: t, x: bb.x0 / scale + dx, y: basis + dy, w: (bb.x1 - bb.x0) / scale, fh: Math.max(4, hoehe * 0.82) });
+      teile.push({ s: t, x: bb.x0 / scale + dx, y: basis + dy, w: (bb.x1 - bb.x0) / scale, fh: Math.max(4, hoehe * 0.82), ocr: true });
     }
     return gruppieren(teile, 0);
   }
