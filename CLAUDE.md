@@ -218,6 +218,28 @@ Suche geöffnet: keine Markierung. Ohne Modell, ohne Netz.
   Wegwerf-Kopie; zwei Riegel, die einander decken — Öffnen und Schließen leeren die
   Markierungen — nimmt EIN Fall zusammen weg).
 
+## 🗂 Sortieren und Ordner ausgeben (Klaus 2026-09-26)
+
+„Seite 1 bis 40 als erstes, dann Seite 41 bis 81 … nach Dateinamen oder nach Dateigröße" · „der
+Ordner als Ganzes mit den integrierten PDFs freigeben oder ausgeben".
+
+- **Sortieren** über der Liste (`SORTIERUNG`, `sortiere()`): Name (Vorgabe), Zuletzt geändert,
+  Dateigröße, Seitenzahl — die Wahl liegt in `EINST.sortierung`. Namen werden **natürlich**
+  verglichen (`numeric: true`: „Teil 2" vor „Teil 10"), auch beim Einlesen eines Ordners. Bei
+  einer Suche ordnet weiter die Trefferstärke. Größen stehen nicht am Dokument — beim ersten
+  Sortieren nach Größe werden sie nachgelesen und die Liste neu gezeichnet.
+- **📤 Ordner ausgeben** (`ordnerAusgabe`) beim gewählten Ordner, Reihenfolge = die Sortierung.
+  Jedes Dokument als festes / ausfüllbares PDF / Vorlage / Original. Drei Wege: **ZIP** (eine Datei,
+  benannt wie der Ordner) · **alle Dateien teilen** (nur wenn `navigator.canShare`) · **zu einem
+  PDF zusammenfügen** (z. B. die übersetzten Teile wieder als ein Buch; Felder werden fest).
+  Teilen braucht einen frischen Tipp — nach dem Bauen steht deshalb „📤 Jetzt teilen …" da.
+- `assets/zip.js`: ZIP ohne Bibliothek, nur „gespeichert" (PDFs sind schon gepackt), Namen UTF-8,
+  gleiche Namen bekommen „ (2)". Läuft auch in Node.
+- ⚠ **Headless-Chromium meldet für JEDEN Dateinamen mit Nicht-ASCII-Zeichen („·", Umlaut) beim
+  Herunterladen nur „download"** (nachgestellt an einer leeren Seite). Die Probe liest den Namen
+  deshalb aus `window.__wfpdfOrdnerAusgabe`. Was das Tablet daraus macht, ist ungemessen.
+- Proben: `tests/ordner.mjs` (in `npm test`) · `node tests/gegenprobe_ordner.mjs` (14 Fälle).
+
 ## 🔗 Links im Feld (Klaus 2026-09-26)
 
 Beim Ausfüllen wird eine E-Mail, eine Internetadresse (www…, …de) oder eine Telefonnummer

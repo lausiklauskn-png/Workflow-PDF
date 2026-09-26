@@ -5,7 +5,7 @@
   "description": "Workflow PDF — Formulare einlesen, Felder setzen, als PDF ausgeben (PWA, ohne Build-Schritt)",
   "type": "module",
   "scripts": {
-    "test": "node tests/syntax.mjs && node tests/e2e.mjs && node tests/uebersetzung.mjs && node tests/layout.mjs && node tests/behoerde.mjs && node tests/chrome.mjs && node tests/schrift.mjs && node tests/beispiele.mjs && node tests/sprache.mjs && node tests/suche.mjs && node tests/teile.mjs",
+    "test": "node tests/syntax.mjs && node tests/e2e.mjs && node tests/uebersetzung.mjs && node tests/layout.mjs && node tests/behoerde.mjs && node tests/chrome.mjs && node tests/schrift.mjs && node tests/beispiele.mjs && node tests/sprache.mjs && node tests/suche.mjs && node tests/teile.mjs && node tests/ordner.mjs",
     "messen": "node tests/masse.mjs",
     "serve": "python3 -m http.server 8000"
   },

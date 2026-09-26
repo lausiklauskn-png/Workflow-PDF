@@ -73,6 +73,7 @@ async function rundreise(p) {
   });
   await schritt(p, 'Verschieben', () => p.evaluate(([W, id]) => { window[W].dlg.verschieben(id); }, [W, ids[0]]));
   await schritt(p, 'Löschen-Frage', () => p.evaluate(([W, id]) => { window[W].dlg.loeschen(id); }, [W, ids[0]]));
+  await schritt(p, 'Ordner ausgeben', () => p.evaluate(W => { const w = window[W]; const o = w.S.ordner.find(o => w.S.docs.some(d => d.folderId === o.id)); if (o) w.dlg.ordnerAusgabe(o); }, W));
   await schritt(p, 'Erkennen', () => p.evaluate(([W, ids]) => { window[W].dlg.erkennenDialog(ids); }, [W, ids]));
   await schritt(p, 'Übersetzen-Dialog', async () => { await p.evaluate(([W, ids]) => { window[W].dlg.uebersetzenDialog(ids, true); }, [W, ids]); await p.waitForTimeout(300); });
   // Übersetzen mit dem (gestellten) Übersetzer des Browsers — Fortschritt, Ergebnis, Rückweg

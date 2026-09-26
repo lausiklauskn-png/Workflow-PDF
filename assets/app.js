@@ -124,6 +124,26 @@
     texteNachholen();
   }
   function offeneVorschlaege(d) { return (d.fields || []).filter(f => !f.geprueft).length; }
+  /* Sortierung der Bibliothek (Klaus 2026-09-26: „Seite 1 bis 40 als erstes, dann Seite 41 bis 81
+     … nach Dateinamen geordnet oder nach Dateigröße"). Namen werden NATÜRLICH verglichen:
+     „Teil 2" vor „Teil 10", „S. 41–80" vor „S. 321–360". Vorgabe ist der Name. Bei einer Suche
+     ordnet weiter die Trefferstärke. Die Wahl liegt in den Einstellungen dieses Browsers. */
+  const SORTIERUNG = { name: 'Name (1, 2 … 10)', neu: 'Zuletzt geändert', groesse: 'Dateigröße', seiten: 'Seitenzahl' };
+  if (!SORTIERUNG[EINST.sortierung]) EINST.sortierung = 'name';
+  const namensVergleich = (a, b) => a.name.localeCompare(b.name, 'de', { numeric: true, sensitivity: 'base' });
+  function sortiere(liste) {
+    const art = EINST.sortierung;
+    if (art === 'groesse') {
+      const fehlt = liste.filter(d => !_groesse.has(d.id));
+      // Größen stehen nicht am Dokument — einmal nachlesen, dann neu zeichnen (fail-soft: fehlt eine, zählt sie als 0)
+      if (fehlt.length && !sortiere._laeuft) { sortiere._laeuft = true; Promise.all(fehlt.map(d => dateiGroesse(d.id).catch(() => 0))).finally(() => { sortiere._laeuft = false; zeichneBibliothek(); }); }
+      return liste.sort((a, b) => (_groesse.get(b.id) || 0) - (_groesse.get(a.id) || 0) || namensVergleich(a, b));
+    }
+    if (art === 'seiten') return liste.sort((a, b) => b.pages.length - a.pages.length || namensVergleich(a, b));
+    if (art === 'neu') return liste.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    return liste.sort(namensVergleich);
+  }
+  const mbText = n => n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
   function zeichneBibliothek() {
     // Suche (Klaus 2026-09-26): Name, Ordner, Feldinhalte UND der Text der Seiten — mit Fundstellen.
     // Die Rechnung steht in assets/suche.js; hier nur Auswahl und Anzeige. Gerechnet wird über ALLE
@@ -152,9 +172,13 @@
     S.fund = FUND;
     const sicht = S.docs.filter(d => imOrdner(d) && (!such.length || FUND.has(d.id)));
     if (such.length) sicht.sort((a, b) => FUND.get(b.id).punkte - FUND.get(a.id).punkte);
-    akt.innerHTML = (sicht.length ? `<button class="knopf" data-ueb>🌐 Übersetzen${sicht.length > 1 ? ' — Dokumente wählen' : ''}</button><button class="knopf" data-erk>🤖 Felder erkennen${sicht.length > 1 ? ' — Dokumente wählen' : ''}</button>` : '')
+    else sortiere(sicht);
+    const sortWahl = !such.length && sicht.length > 1 ? `<label class="sortier">Sortieren: <select data-sort>${Object.entries(SORTIERUNG).map(([k, v]) => `<option value="${k}"${k === EINST.sortierung ? ' selected' : ''}>${v}</option>`).join('')}</select></label>` : '';
+    akt.innerHTML = sortWahl + (o && S.docs.some(d => d.folderId === o.id) ? `<button class="knopf" data-ausgabe>📤 Ordner ausgeben</button>` : '') + (sicht.length ? `<button class="knopf" data-ueb>🌐 Übersetzen${sicht.length > 1 ? ' — Dokumente wählen' : ''}</button><button class="knopf" data-erk>🤖 Felder erkennen${sicht.length > 1 ? ' — Dokumente wählen' : ''}</button>` : '')
       + (o ? `<button class="knopf" data-ren>✎ Ordner umbenennen</button><button class="knopf gefahr" data-del>🗑 Ordner löschen</button>` : '');
     const q = s => akt.querySelector(s);
+    if (q('[data-sort]')) q('[data-sort]').onchange = e => { EINST.sortierung = e.target.value; einstSpeichern(); zeichneBibliothek(); };
+    if (q('[data-ausgabe]')) q('[data-ausgabe]').onclick = () => ordnerAusgabe(o);
     if (q('[data-erk]')) q('[data-erk]').onclick = () => erkennenDialog(sicht.map(d => d.id));
     if (q('[data-ueb]')) q('[data-ueb]').onclick = () => uebersetzenDialog(sicht.filter(d => !d.uebersetzung).map(d => d.id).concat(sicht.filter(d => d.uebersetzung).map(d => d.id)));
     if (q('[data-ren]')) q('[data-ren]').onclick = async () => { const n = await eingabe('Ordner umbenennen', 'Name', o.name); if (!n) return; const alt = o.name; o.name = n; await DB.put('folders', o);
@@ -183,7 +207,7 @@
         <button class="dok-bild" data-auf style="background-image:url('${d.thumb || ''}')" title="Öffnen">
           <span class="marken">${v ? `<span class="marke-klein ki">🤖 ${v} zu prüfen</span>` : ''}${d.quelle === 'foto' ? '<span class="marke-klein">📷 Foto</span>' : ''}${d.uebersetzung ? `<span class="marke-klein">🌐 ${h((d.uebersetzung.von || '').toUpperCase())}→${h((d.uebersetzung.nach || '').toUpperCase())}${d.uebersetzung.gegenprobe ? ' Gegenprobe' : ''}</span>` : ''}${d.ausgefuellt ? `<span class="marke-klein">↩ ausgefüllt aus ${h((d.ausgefuellt.aus || '').toUpperCase())}</span>` : ''}</span></button>
         <div class="dok-info"><div class="dok-name" data-kein-ue title="${h(d.name)}">${nm(d.name)}</div>
-          <div class="dok-meta">${d.pages.length} Seite${d.pages.length === 1 ? '' : 'n'} · ${d.fields.length} Feld${d.fields.length === 1 ? '' : 'er'}${ord && S.aktOrdner === 'alle' ? ' · 🗂️ ' + nm(ord.name) : ''}</div>${FUND.has(d.id) ? fundZeilen(FUND.get(d.id)) : ''}</div>
+          <div class="dok-meta">${d.pages.length} Seite${d.pages.length === 1 ? '' : 'n'} · ${d.fields.length} Feld${d.fields.length === 1 ? '' : 'er'}${EINST.sortierung === 'groesse' && _groesse.has(d.id) ? ' · ' + mbText(_groesse.get(d.id)) : ''}${ord && S.aktOrdner === 'alle' ? ' · 🗂️ ' + nm(ord.name) : ''}</div>${FUND.has(d.id) ? fundZeilen(FUND.get(d.id)) : ''}</div>
         <div class="dok-akt"><button data-auf title="Öffnen">✏️</button><button data-verschieben title="In Ordner verschieben">🗂️</button><button data-kopie title="Duplizieren (z. B. als Vorlage)">⧉</button><button data-loeschen title="Löschen">🗑</button></div></div>`;
     }).join('') + (such.length ? suchStand() : '');
     alleOrdnerKnopf();
@@ -423,7 +447,7 @@
     opt = opt || {};
     const staende = Array.from(dateien || []).filter(istStand);
     if (staende.length) { await staendeEinlesen(staende); dateien = Array.from(dateien).filter(f => !istStand(f)); if (!dateien.length) return []; }
-    const liste = Array.from(dateien || []).filter(f => istPdf(f) || istBild(f)).sort((a, b) => (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, 'de'));
+    const liste = Array.from(dateien || []).filter(f => istPdf(f) || istBild(f)).sort((a, b) => (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, 'de', { numeric: true }));
     const uebrig = (dateien ? dateien.length : 0) - liste.length;
     if (!liste.length) { toast('Keine PDF- oder Bilddatei gefunden.'); return []; }
     if (!_persistGefragt) { _persistGefragt = true; DB.persist(); }
@@ -1136,6 +1160,72 @@
     const w = mm(p.w), hh = mm(p.h), a4 = (Math.abs(w - 210) <= 1 && Math.abs(hh - 297) <= 1) ? 'A4 hoch' : (Math.abs(w - 297) <= 1 && Math.abs(hh - 210) <= 1) ? 'A4 quer' : '';
     return `📏 Seitengröße: ${a4 ? a4 + ' · ' : ''}${w} × ${hh} mm — die Ausgabe behält sie. Beim Drucken „Tatsächliche Größe / 100 %" wählen, nicht „An Seite anpassen", dann ist der Ausdruck so groß wie das Original, mit demselben Rand.`;
   }
+  // Die Ausgabe-Bytes eines Dokuments — EINE Stelle für den Einzel-Export und die Ordner-Ausgabe
+  async function ausgabeBytes(doc, bytes, m) {
+    if (m === 'original') return { bytes, hinweise: [] };
+    // Kyrillische Einträge (oder ein Formular zum Ausfüllen auf Russisch) brauchen
+    // eine Unicode-Schrift — die Standardschrift machte daraus „?".
+    const kyr = !!(doc.uebersetzung && doc.uebersetzung.nach === 'ru') || doc.fields.some(f => typeof f.value === 'string' && /[^\u0000-\u024F\u2000-\u206F€]/.test(f.value));
+    let schrift = null; if (kyr) { try { schrift = await UE.schriftLaden('vendor/'); } catch (_) {} }
+    return EX.exportieren(doc, bytes, m, { schrift, unicodeFelder: !!(doc.uebersetzung && doc.uebersetzung.nach === 'ru') });
+  }
+  /* Einen ganzen Ordner ausgeben (Klaus 2026-09-26: „dass der Ordner als Ganzes mit den
+     integrierten PDFs freigegeben werden kann"). Reihenfolge = die gewählte Sortierung.
+     Drei Wege: ZIP (ein Ordner, jede Datei einzeln), alle Dateien teilen, oder zu EINEM PDF
+     zusammenfügen — das holt z. B. die übersetzten Teile eines Handbuchs wieder in ein Buch. */
+  async function ordnerAusgabe(o) {
+    const docs = sortiere(S.docs.filter(d => d.folderId === o.id));
+    if (!docs.length) return toast('Der Ordner ist leer.');
+    const seiten = docs.reduce((n, d) => n + d.pages.length, 0);
+    dialog(`<h2>📤 Ordner ausgeben</h2>
+      <p><b>${nm(o.name)}</b> · ${docs.length} Dokument${docs.length === 1 ? '' : 'e'} · ${seiten} Seiten</p>
+      <p class="hinweis">Reihenfolge wie in der Bibliothek (${h(SORTIERUNG[EINST.sortierung])}):</p>
+      <ol class="hinweis aus-liste" data-liste>${docs.map(d => `<li>${nm(d.name)}</li>`).join('')}</ol>
+      <label>Jedes Dokument als <select data-m><option value="fest">festes PDF (Einträge fest auf der Seite)</option><option value="ausfuellbar">ausfüllbares PDF</option><option value="vorlage">leere ausfüllbare Vorlage</option><option value="original">Original, unverändert</option></select></label>
+      <button class="wahl" data-weg="zip"><b>🗜 Als ZIP-Datei (ein Ordner)</b><span>Eine Datei mit allen PDFs darin, benannt wie der Ordner. Zum Verschicken, Ablegen, Sichern.</span></button>
+      ${navigator.canShare ? '<button class="wahl" data-weg="teilen"><b>📤 Alle Dateien teilen</b><span>Alle PDFs auf einmal an eine App geben (Mail, Messenger, Drive …). Manche Apps nehmen nur eine Datei — dann die ZIP-Datei nehmen.</span></button>' : ''}
+      <button class="wahl" data-weg="eins"><b>📚 Zu einem PDF zusammenfügen</b><span>Alle Seiten hintereinander in EINEM PDF, in der Reihenfolge oben — z. B. die übersetzten Teile eines Handbuchs wieder als ein Buch. Ausfüllbare Felder werden dabei fest.</span></button>
+      <div class="zeile"><button class="knopf" data-x>Abbrechen</button></div>`, (d, zu) => {
+      d.querySelector('[data-x]').onclick = zu;
+      d.querySelectorAll('[data-weg]').forEach(b => b.onclick = async () => {
+        const weg = b.dataset.weg, m = weg === 'eins' && d.querySelector('[data-m]').value !== 'original' ? 'fest' : d.querySelector('[data-m]').value;
+        zu();
+        const fb = fortschritt('Ordner „' + o.name + '" wird ausgegeben');
+        try {
+          const zusatz = { fest: '', ausfuellbar: ' (ausfuellbar)', vorlage: ' (Vorlage)', original: '' }[m];
+          const dateien = [], hinweise = [];
+          const eins = weg === 'eins' ? await PDFLib.PDFDocument.create() : null;
+          for (let i = 0; i < docs.length; i++) {
+            fb.setze(i / docs.length, 'Dokument ' + (i + 1) + ' von ' + docs.length);
+            const bytes = await DB.getFile(docs[i].id);
+            if (!bytes) { hinweise.push('„' + docs[i].name + '" hat keine Datei mehr — übersprungen.'); continue; }
+            const r = await ausgabeBytes(docs[i], bytes, m);
+            if (eins) { const q = await PDFLib.PDFDocument.load(r.bytes, { ignoreEncryption: true }); (await eins.copyPages(q, q.getPageIndices())).forEach(p => eins.addPage(p)); }
+            else dateien.push({ name: dateiName(docs[i].name) + zusatz + '.pdf', bytes: r.bytes });
+          }
+          fb.setze(0.95, 'Datei wird gebaut …');
+          let aus;
+          if (eins) aus = [{ name: dateiName(o.name) + '.pdf', bytes: await eins.save(), typ: 'application/pdf' }];
+          else if (weg === 'zip') aus = [{ name: dateiName(o.name) + '.zip', bytes: WFP.Zip.zip(dateien), typ: 'application/zip' }];
+          else aus = dateien.map(f => Object.assign({ typ: 'application/pdf' }, f));
+          fb.zu();
+          window.__wfpdfOrdnerAusgabe = { weg, m, dateien: aus.map(f => ({ name: f.name, groesse: f.bytes.length })) };
+          if (weg !== 'teilen') laden(aus[0].name, aus[0].bytes, aus[0].typ);
+          const files = aus.map(f => new File([f.bytes], f.name, { type: f.typ }));
+          let teilbar = false; try { teilbar = !!(navigator.canShare && navigator.canShare({ files })); } catch (_) {}
+          // Teilen braucht einen frischen Tipp — nach dem Bauen ist der erste verbraucht.
+          dialog(`<h2>📤 ${weg === 'teilen' ? 'Bereit zum Teilen' : 'Gespeichert'}</h2>
+            <ul>${aus.map(f => `<li><b>${nm(f.name)}</b> · ${mbText(f.bytes.length)}</li>`).join('')}</ul>
+            ${hinweise.map(x => '<p class="hinweis">' + h(x) + '</p>').join('')}
+            ${weg === 'teilen' && !teilbar ? '<p class="hinweis">Dieses Gerät kann diese Dateien nicht zusammen teilen — bitte „🗜 Als ZIP-Datei" nehmen.</p>' : ''}
+            <div class="zeile">${teilbar ? '<button class="knopf primaer" data-teilen>📤 Jetzt teilen …</button>' : ''}<button class="knopf" data-x>Schließen</button></div>`, (d2, zu2) => {
+            d2.querySelector('[data-x]').onclick = zu2;
+            if (d2.querySelector('[data-teilen]')) d2.querySelector('[data-teilen]').onclick = () => navigator.share({ files, title: o.name }).catch(() => {});
+          });
+        } catch (e) { fb.zu(); console.error(e); toast('⚠️ Ordner-Ausgabe fehlgeschlagen: ' + (e.message || e)); }
+      });
+    });
+  }
   function exportDialog() {
     const n = offeneVorschlaege(S.doc);
     dialog(`<h2>⬇ PDF ausgeben</h2>
@@ -1165,11 +1255,7 @@
             else toast('✅ HTML gespeichert — im Browser öffnen, ausfüllen, dann „Als PDF speichern".');
             return;
           }
-          // Kyrillische Einträge (oder ein Formular zum Ausfüllen auf Russisch) brauchen
-          // eine Unicode-Schrift — die Standardschrift machte daraus „?".
-          const kyr = !!(S.doc.uebersetzung && S.doc.uebersetzung.nach === 'ru') || S.doc.fields.some(f => typeof f.value === 'string' && /[^\u0000-\u024F\u2000-\u206F€]/.test(f.value));
-          let schrift = null; if (kyr) { try { schrift = await UE.schriftLaden('vendor/'); } catch (_) {} }
-          const { bytes, hinweise } = await EX.exportieren(S.doc, S.bytes, m === 'druck' ? 'fest' : m, { schrift, unicodeFelder: !!(S.doc.uebersetzung && S.doc.uebersetzung.nach === 'ru') });
+          const { bytes, hinweise } = await ausgabeBytes(S.doc, S.bytes, m === 'druck' ? 'fest' : m);
           const zusatz = { fest: '', ausfuellbar: ' (ausfuellbar)', vorlage: ' (Vorlage)', druck: '' }[m];
           if (m === 'druck') {
             const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
@@ -2012,7 +2098,7 @@
     ladeBibliothek().then(chromeTabRueckweg).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
     window.__wfpdf = { beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner,
       // für tests/sprache.mjs: jeden Dialog einmal öffnen und seine Texte nachschlagen
-      dlg: { neuerOrdner, verschieben, loeschen, speichernDialog, aufnahmeDialog, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart } };   // für die Probe
+      dlg: { neuerOrdner, verschieben, loeschen, speichernDialog, aufnahmeDialog, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe } };   // für die Probe
   }
   start();
 })();
