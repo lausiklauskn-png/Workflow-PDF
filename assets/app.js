@@ -5,7 +5,7 @@
    Ins Netz geht nur, was der Nutzer ausdrücklich an eine KI schickt. */
 (function () {
   'use strict';
-  const { DB, Erkennung: ER, Export: EX, Uebersetzung: UE, Suche: SU } = WFP;
+  const { DB, Erkennung: ER, Export: EX, Uebersetzung: UE, Suche: SU, Bedeutung: BD } = WFP;
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdfjs/pdf.worker.min.js';
   if (qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs['UTF-8']) qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
 
@@ -122,6 +122,7 @@
     try { const da = new Set(await DB.keys('texte')); for (const id of [...TEXTE.keys()]) if (!da.has(id) && TEXTE.get(id).length) TEXTE.delete(id); } catch (_) {}
     zeichneBibliothek();
     texteNachholen();
+    if (BED.zustand === 'bereit') vektorenNachholen().then(() => { bedeutungZeichnen(); if (BED.ergebnis === null && $('sc-bib').classList.contains('on')) zeichneBibliothek(); }).catch(() => {});
   }
   function offeneVorschlaege(d) { return (d.fields || []).filter(f => !f.geprueft).length; }
   /* Sortierung der Bibliothek (Klaus 2026-09-26: „Seite 1 bis 40 als erstes, dann Seite 41 bis 81
@@ -196,26 +197,34 @@
     const nurOrdner = such.length && S.aktOrdner !== 'alle' ? '<div class="hinweis such-ordner" data-suchordner><span>Gesucht nur in diesem Ordner.</span><button class="knopf klein" data-alleordner>In allen Ordnern suchen</button></div>' : '';
     const alleOrdnerKnopf = () => { const b = g.querySelector('[data-alleordner]'); if (b) b.onclick = () => { S.aktOrdner = 'alle'; zeichneBibliothek(); }; };
     if (!sicht.length) {
-      if (such.length) { g.innerHTML = nurOrdner + `<div class="leer" data-suchleer><b>Kein Dokument passt zu „${h(S.suche.trim())}".</b></div>` + suchStand(); alleOrdnerKnopf(); return; }
+      if (such.length) { const bz = bedeutungZusatz(FUND, imOrdner); g.innerHTML = nurOrdner + `<div class="leer" data-suchleer><b>Kein Dokument passt zu „${nm(S.suche.trim())}".</b>${bz.docs.length ? '<br>Nach Wörtern nicht — nach Bedeutung schon, siehe unten.' : ''}</div>` + bz.html + suchStand(); kartenBinden(g, FUND); alleOrdnerKnopf(); return; }
       g.innerHTML = `<div class="leer"><b>Noch keine Dokumente${o ? ' in diesem Ordner' : ''}.</b><br>Oben ein PDF oder Bild wählen, ein Formular fotografieren oder einen ganzen Ordner einlesen. Du kannst Dateien auch einfach hierher ziehen.</div>`;
       return;
     }
-    g.innerHTML = nurOrdner + sicht.map(d => {
+    const bz = such.length ? bedeutungZusatz(FUND, imOrdner) : { html: '', docs: [] };
+    g.innerHTML = nurOrdner + sicht.map(d => karte(d, FUND.get(d.id))).join('') + bz.html + (such.length ? suchStand() : '');
+    alleOrdnerKnopf();
+    kartenBinden(g, FUND);
+  }
+  /* Eine Dokument-Karte. fund: Wort-Treffer (assets/suche.js) oder Bedeutungs-Treffer ({ bedeutung }). */
+  function karte(d, fund) {
       const v = offeneVorschlaege(d), ord = S.ordner.find(x => x.id === d.folderId);
-      const tr = FUND.has(d.id) ? FUND.get(d.id).treffer : 0;
-      return `<div class="dok" data-id="${d.id}">${tr ? `<span class="treffer-zahl dok-treffer" data-treffer="${tr}" title="Treffer in diesem Dokument">🔎${tr}</span>` : ''}
+      const tr = fund && !fund.bedeutung ? fund.treffer : 0;
+      const nae = fund && fund.bedeutung ? `<span class="treffer-zahl naehe-zahl dok-treffer" data-naehe="${fund.w.toFixed(3)}" title="Nähe zur Frage — eine Rangfolge, keine Prozent">🧠 ${fund.w.toFixed(2).replace('.', ',')}</span>` : '';
+      return `<div class="dok" data-id="${d.id}"${fund && fund.bedeutung ? ' data-bedeutung' : ''}>${nae}${tr ? `<span class="treffer-zahl dok-treffer" data-treffer="${tr}" title="Treffer in diesem Dokument">🔎${tr}</span>` : ''}
         <button class="dok-bild" data-auf style="background-image:url('${d.thumb || ''}')" title="Öffnen">
           <span class="marken">${v ? `<span class="marke-klein ki">🤖 ${v} zu prüfen</span>` : ''}${d.quelle === 'foto' ? '<span class="marke-klein">📷 Foto</span>' : ''}${d.uebersetzung ? `<span class="marke-klein">🌐 ${h((d.uebersetzung.von || '').toUpperCase())}→${h((d.uebersetzung.nach || '').toUpperCase())}${d.uebersetzung.gegenprobe ? ' Gegenprobe' : ''}</span>` : ''}${d.ausgefuellt ? `<span class="marke-klein">↩ ausgefüllt aus ${h((d.ausgefuellt.aus || '').toUpperCase())}</span>` : ''}</span></button>
         <div class="dok-info"><div class="dok-name" data-kein-ue title="${h(d.name)}">${nm(d.name)}</div>
-          <div class="dok-meta">${d.pages.length} Seite${d.pages.length === 1 ? '' : 'n'} · ${d.fields.length} Feld${d.fields.length === 1 ? '' : 'er'}${EINST.sortierung === 'groesse' && _groesse.has(d.id) ? ' · ' + mbText(_groesse.get(d.id)) : ''}${ord && S.aktOrdner === 'alle' ? ' · 🗂️ ' + nm(ord.name) : ''}</div>${FUND.has(d.id) ? fundZeilen(FUND.get(d.id)) : ''}</div>
+          <div class="dok-meta">${d.pages.length} Seite${d.pages.length === 1 ? '' : 'n'} · ${d.fields.length} Feld${d.fields.length === 1 ? '' : 'er'}${EINST.sortierung === 'groesse' && _groesse.has(d.id) ? ' · ' + mbText(_groesse.get(d.id)) : ''}${ord && S.aktOrdner === 'alle' ? ' · 🗂️ ' + nm(ord.name) : ''}</div>${fund ? (fund.bedeutung ? bedeutungZeile(fund) : fundZeilen(fund)) : ''}</div>
         <div class="dok-akt"><button data-auf title="Öffnen">✏️</button><button data-verschieben title="In Ordner verschieben">🗂️</button><button data-kopie title="Duplizieren (z. B. als Vorlage)">⧉</button><button data-loeschen title="Löschen">🗑</button></div></div>`;
-    }).join('') + (such.length ? suchStand() : '');
-    alleOrdnerKnopf();
+  }
+  function kartenBinden(g, FUND) {
     g.querySelectorAll('.dok').forEach(el => {
       const id = el.dataset.id;
+      const fund = el.hasAttribute('data-bedeutung') ? (S.bedeutungFund && S.bedeutungFund.get(id)) : FUND.get(id);
       // Aus der Suche geöffnet: die Fundstellen kommen mit und werden auf der Seite markiert
-      el.querySelectorAll('[data-auf]').forEach(b => b.onclick = () => oeffneDok(id, FUND.get(id)));
-      const fz = el.querySelector('[data-fundzeilen]'); if (fz) fz.onclick = () => oeffneDok(id, FUND.get(id));
+      el.querySelectorAll('[data-auf]').forEach(b => b.onclick = () => oeffneDok(id, fund));
+      const fz = el.querySelector('[data-fundzeilen]'); if (fz) fz.onclick = () => oeffneDok(id, fund);
       el.querySelector('[data-verschieben]').onclick = () => verschieben(id);
       el.querySelector('[data-kopie]').onclick = () => duplizieren(id);
       el.querySelector('[data-loeschen]').onclick = () => loeschen(id);
@@ -236,6 +245,173 @@
   function suchStand() {
     const offen = S.docs.filter(d => !TEXTE.has(d.id)).length;
     return offen ? `<div class="hinweis such-stand" data-suchstand>${h('Seitentext wird noch erfasst: ' + (S.docs.length - offen) + ' von ' + S.docs.length + ' Dokumenten')}</div>` : '';
+  }
+
+  /* ---------- Suche, Stufe 2: nach Bedeutung (Klaus 2026-09-26) ----------
+     „Semantische Suche, Embedding-Modell runterladen mit Ladebalken und Ladezustandsanzeige."
+     Modell und Rechnung aus Sage (vendor/sbkim/03_embedding.js, 04_match.js — byte-1:1, dort
+     pflegen), dasselbe Modell wie in PWA Toolpoint. FREIWILLIG: erst auf Knopfdruck, und der
+     Dialog sagt VORHER, was aus dem Netz kommt. Aus dem Netz kommt nur das Modell (jsDelivr,
+     Hugging Face); die Dokumente werden auf dem Gerät eingeordnet und verlassen es nicht.
+     Die Zerlegung und Rangfolge stehen in assets/bedeutung.js. */
+  const BED = { zustand: 'aus', stand: { prozent: null, geladen: 0, gesamt: 0, datei: '' }, text: '', vek: new Map(), dateien: new Map(), ergebnis: null, fehler: '', gekuerzt: 0 };
+  S.bedeutungFund = new Map();
+  const mb = n => (n / 1048576).toFixed(1).replace('.', ',');
+  function skriptLaden(src) {
+    return new Promise((res, rej) => {
+      const el = document.createElement('script'); el.src = src; el.async = true;
+      el.onload = () => res(); el.onerror = () => rej(new Error('Datei fehlt: ' + src.split('?')[0]));
+      document.head.appendChild(el);
+    });
+  }
+  async function modulLaden() {
+    if (!window.SbkimEmbedding) await skriptLaden('vendor/sbkim/03_embedding.js?v=1');
+    if (!window.SbkimMatch) await skriptLaden('vendor/sbkim/04_match.js?v=1');
+    if (!window.SbkimEmbedding || !window.SbkimMatch) throw new Error('Modul 03/04 nicht geladen');
+  }
+  // Die Zustandsanzeige unter dem Suchfeld: aus · lädt (Balken, Prozent, MB) · ordnet ein · bereit · Fehler
+  function bedeutungZeichnen() {
+    const l = $('bedeutungLeiste'); if (!l) return;
+    l.dataset.bedZustand = BED.zustand;
+    const z = BED.zustand, st = BED.stand;
+    let html = '';
+    if (z === 'aus') html = `<button class="knopf klein" type="button" data-bed-an>🧠 Suche nach Bedeutung einschalten</button><span class="bed-t">findet auch Dokumente, in denen andere Wörter stehen</span>`;
+    else if (z === 'laedt') {
+      const p = st.prozent;
+      html = `<span class="bed-t" data-bed-text>${h(p == null ? 'Sprachmodell wird geladen …' : 'Sprachmodell wird geladen … ' + Math.floor(p) + ' %')}</span>`
+        + (st.gesamt ? `<span class="bed-mb" data-bed-mb>${h(mb(st.geladen) + ' / ' + mb(st.gesamt) + ' MB')}</span>` : '')
+        + `<div class="fortschritt${p == null ? ' laeuft' : ''}" data-bed-balken role="progressbar" aria-valuemin="0" aria-valuemax="100"${p == null ? '' : ` aria-valuenow="${Math.floor(p)}"`}><i style="width:${p == null ? 100 : p.toFixed(1)}%"></i></div>`;
+    } else if (z === 'ordnet') {
+      const [i, n] = BED.ordnetZahl || [0, 0];
+      html = `<span class="bed-t" data-bed-text>${h('Dokumente werden eingeordnet: ' + i + ' von ' + n)}</span><div class="fortschritt" data-bed-balken role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${n ? Math.floor(i / n * 100) : 0}"><i style="width:${n ? (i / n * 100).toFixed(1) : 0}%"></i></div>`;
+    } else if (z === 'bereit') html = `<span class="bed-t" data-bed-text>🧠 ${h('Suche nach Bedeutung an · ' + BED.vek.size + ' Dokumente eingeordnet')}</span><button class="knopf klein" type="button" data-bed-mehr>⚙️</button>`;
+    else html = `<span class="bed-t bed-fehler" data-bed-text>⚠️ ${'Suche nach Bedeutung ging nicht:'} <span data-kein-ue>${h(BED.fehler)}</span></span><button class="knopf klein" type="button" data-bed-nochmal>↻ Nochmal</button><button class="knopf klein" type="button" data-bed-mehr>⚙️</button>`;
+    l.innerHTML = html;
+    const b = sel => l.querySelector(sel);
+    if (b('[data-bed-an]')) b('[data-bed-an]').onclick = bedeutungDialog;
+    if (b('[data-bed-mehr]')) b('[data-bed-mehr]').onclick = bedeutungDialog;
+    if (b('[data-bed-nochmal]')) b('[data-bed-nochmal]').onclick = () => bedeutungStarten();
+  }
+  function bedeutungDialog() {
+    const an = BED.zustand !== 'aus';
+    dialog(`<h2>🧠 Suche nach Bedeutung</h2>
+      <p>Die Wortsuche findet, was wörtlich dasteht. Die Suche nach Bedeutung findet auch Dokumente, in denen <b>andere Wörter</b> stehen — „Kündigung" findet den Brief, in dem „Vertrag beenden" steht.</p>
+      <p><b>Was dafür aus dem Netz kommt:</b> einmalig ein Sprachmodell (multilingual-e5-small, rund 30 MB) von jsDelivr und Hugging Face. Der Balken zeigt, wie viel schon da ist. Danach liegt es im Speicher dieses Browsers.</p>
+      <p><b>Was NICHT ins Netz geht:</b> deine Dokumente. Sie werden auf diesem Gerät eingeordnet.</p>
+      <p class="hinweis">Sehr lange Dokumente werden nur mit ihren ersten ${BD.MAX_STUECKE} Abschnitten eingeordnet. Gezeigt wird ab einer Nähe von ${String(BD.NAEHE_MIN).replace('.', ',')}, höchstens ${BD.MAX_ZEIGEN} Dokumente.</p>
+      ${an ? `<p data-bed-dlgstand>${'Stand:'} <b>${h({ laedt: 'lädt', ordnet: 'ordnet ein', bereit: 'bereit', fehler: 'Fehler' }[BED.zustand] || BED.zustand)}</b></p>` : ''}
+      <div class="zeile">${an ? '<button class="knopf gefahr" data-bed-aus>Ausschalten</button>' : '<button class="knopf primaer" data-bed-laden>⬇️ Modell laden</button>'}<button class="knopf" data-x>Schließen</button></div>`, (d, zu) => {
+      d.querySelector('[data-x]').onclick = zu;
+      const la = d.querySelector('[data-bed-laden]'); if (la) la.onclick = () => { zu(); EINST.bedeutung = true; einstSpeichern(); bedeutungStarten(); };
+      const au = d.querySelector('[data-bed-aus]'); if (au) au.onclick = () => { zu(); bedeutungAus(); };
+    });
+  }
+  function bedeutungAus() {
+    EINST.bedeutung = false; einstSpeichern();
+    BED.zustand = 'aus'; BED.ergebnis = null; BED.fehler = ''; S.bedeutungFund = new Map(); BED._lauf = null;
+    bedeutungZeichnen(); if ($('sc-bib').classList.contains('on')) zeichneBibliothek();
+  }
+  let _bedFort = null;
+  function bedeutungStarten() {
+    if (BED._lauf) return BED._lauf;
+    BED.zustand = 'laedt'; BED.fehler = ''; BED.dateien = new Map(); BED.stand = { prozent: null, geladen: 0, gesamt: 0, datei: '' }; bedeutungZeichnen();
+    if (!_bedFort) {
+      _bedFort = ev => {
+        if (BED.zustand !== 'laedt') return;
+        BED.stand = BD.ladeStand(BED.dateien, (ev && ev.detail) || {});
+        bedeutungZeichnen();
+      };
+      window.addEventListener('sbkim:embedding-progress', _bedFort);
+    }
+    const lauf = BED._lauf = (async () => {
+      await modulLaden();
+      await window.SbkimEmbedding.init();
+      if (BED._lauf !== lauf) return;
+      BED.zustand = 'ordnet'; BED.ordnetZahl = [0, S.docs.length]; bedeutungZeichnen();
+      await vektorenNachholen();
+      if (BED._lauf !== lauf) return;
+      BED.zustand = 'bereit'; BED.ergebnis = null; bedeutungZeichnen();
+      if ($('sc-bib').classList.contains('on')) zeichneBibliothek();
+    })().catch(e => {
+      if (BED._lauf !== lauf) return;
+      BED.zustand = 'fehler'; BED.fehler = String((e && e.message) || e).slice(0, 200); BED._lauf = null; bedeutungZeichnen();
+    });
+    return lauf;
+  }
+  // Jedes Dokument einmal einordnen; unverändert Eingeordnetes kommt aus dem Speicher.
+  let _vekLauf = null, _vekNochmal = false;
+  function vektorenNachholen() {
+    if (_vekLauf) { _vekNochmal = true; return _vekLauf; }
+    _vekLauf = (async () => {
+      do {
+        _vekNochmal = false;
+        await texteNachholen();
+        const gespeichert = new Map(); try { for (const r of await DB.all('vektoren')) gespeichert.set(r.id, r); } catch (_) {}
+        const docs = S.docs.slice(); let i = 0, gekuerzt = 0;
+        for (const d of docs) {
+          i++;
+          const st = BD.stuecke(d, TEXTE.get(d.id) ? TEXTE.get(d.id) : null); if (st.gekuerzt) gekuerzt++;
+          const sig = BD.signatur(st);
+          const alt = BED.vek.get(d.id) || gespeichert.get(d.id);
+          if (alt && alt.sig === sig) { BED.vek.set(d.id, alt); continue; }
+          if (BED.zustand === 'ordnet') { BED.ordnetZahl = [i - 1, docs.length]; bedeutungZeichnen(); }
+          if (!st.length) { BED.vek.delete(d.id); continue; }
+          const vs = [];
+          for (let k = 0; k < st.length; k += 16) vs.push(...await window.SbkimEmbedding.embedPassageBatch(st.slice(k, k + 16).map(x => x.text)));
+          const e = { id: d.id, sig, st: st.map((x, k) => ({ page: x.page, text: x.text, box: x.box, v: vs[k] })) };
+          BED.vek.set(d.id, e); try { await DB.put('vektoren', e); } catch (_) {}
+          BED.ergebnis = null;
+        }
+        const da = new Set(docs.map(d => d.id)); for (const id of [...BED.vek.keys()]) if (!da.has(id)) BED.vek.delete(id);
+        BED.gekuerzt = gekuerzt;
+        if (BED.zustand === 'ordnet') { BED.ordnetZahl = [docs.length, docs.length]; bedeutungZeichnen(); }
+      } while (_vekNochmal);
+    })().finally(() => { _vekLauf = null; });
+    return _vekLauf;
+  }
+  // Die Frage einordnen und rangieren. Nur die LETZTE Frage zählt (wer weitertippt, überholt).
+  let _bedFrage = null, _bedUhr = null;
+  function bedeutungSuchen() {
+    const q = String(S.suche || '').trim();
+    if (!q || BED.zustand !== 'bereit' || _bedFrage === q) return;
+    _bedFrage = q; clearTimeout(_bedUhr);
+    _bedUhr = setTimeout(async () => {
+      try {
+        let fassungen = [q];
+        try { const v = window.SbkimMatch.expandQuerySimple(q); if (Array.isArray(v) && v.length) fassungen = v.slice(0, 4); } catch (_) {}
+        const qv = await Promise.all(fassungen.map(f => window.SbkimEmbedding.embedQuery(f)));
+        if (String(S.suche || '').trim() !== q) return;
+        BED.ergebnis = { frage: q, r: BD.rangliste(qv, BED.vek, window.SbkimMatch.match) };
+      } catch (e) { BED.ergebnis = { frage: q, fehler: String((e && e.message) || e) }; }
+      finally { if (_bedFrage === q) _bedFrage = null; }
+      if ($('sc-bib').classList.contains('on')) zeichneBibliothek();
+    }, 300);
+  }
+  // Unter den Wort-Treffern: was NUR nach Bedeutung passt.
+  function bedeutungZusatz(FUND, imOrdner) {
+    S.bedeutungFund = new Map();
+    const q = String(S.suche || '').trim();
+    if (BED.zustand === 'aus' || !q) return { html: '', docs: [] };
+    if (BED.zustand !== 'bereit') return { html: `<div class="hinweis bed-kopf" data-bed-wartet>${'🧠 Die Suche nach Bedeutung kommt dazu, sobald das Modell bereit ist.'}</div>`, docs: [] };
+    const e = BED.ergebnis;
+    if (!e || e.frage !== q) { bedeutungSuchen(); return { html: `<div class="hinweis bed-kopf" data-bed-sucht>${'🧠 Suche nach Bedeutung …'}</div>`, docs: [] }; }
+    if (e.fehler) return { html: `<div class="hinweis bed-kopf" data-bed-fehler>⚠️ ${'Suche nach Bedeutung ging nicht:'} <span data-kein-ue>${h(e.fehler)}</span></div>`, docs: [] };
+    const docs = [];
+    for (const r of e.r.gezeigt) {
+      if (FUND.has(r.id)) continue;
+      const d = S.docs.find(x => x.id === r.id); if (!d || !imOrdner(d)) continue;
+      const st = r.stueck;
+      S.bedeutungFund.set(d.id, { bedeutung: true, w: r.w, funde: [{ art: 'bedeutung', wort: q, page: st.page, text: st.text.length > 110 ? st.text.slice(0, 109) + '…' : st.text, boxen: st.box ? [st.box] : [] }] });
+      docs.push(d);
+    }
+    const grenze = `<div class="hinweis bed-grenze" data-bed-grenze>${h('Gezeigt ab Nähe ' + String(e.r.min).replace('.', ',') + ' · höchstens ' + e.r.max + ' · die Zahl ist eine Rangfolge, keine Prozent')}</div>`;
+    if (!docs.length) return { html: `<div class="hinweis bed-kopf" data-bed-nichts>${'🧠 Nach Bedeutung passt kein weiteres Dokument.'}</div>` + grenze, docs };
+    return { html: `<div class="bed-kopf" data-bed-kopf>${'🧠 Nach Bedeutung ähnlich — ohne die gesuchten Wörter'}</div>` + docs.map(d => karte(d, S.bedeutungFund.get(d.id))).join('') + grenze, docs };
+  }
+  function bedeutungZeile(fund) {
+    const f = fund.funde[0];
+    const wo = f.page == null ? 'Nach Bedeutung, im Namen oder in den Feldern' : 'Nach Bedeutung, Seite ' + (f.page + 1);
+    return `<div class="dok-fund" data-fundzeilen><div class="fund-zeile"><span class="fund-wo" data-art="bedeutung">${h(wo)}</span> <span class="fund-text" data-kein-ue>${h(f.text)}</span></div></div>`;
   }
 
   /* ---------- Seitentext für die Suche ----------
@@ -544,7 +720,11 @@
     $('edName').value = d.name; $('kopfSub').setAttribute('data-kein-ue', ''); $('kopfSub').textContent = d.name;
     history.pushState({ ed: 1 }, '', '#dok');
     zeichneSeiten(); zeichneModus();
-    if (fund) {
+    if (fund && fund.bedeutung) {
+      // Nach Bedeutung gefunden: kein Wort zum Suchen — markiert wird der Abschnitt, der am nächsten lag
+      S.funde = fundMarken(fund); S.fundIdx = S.funde.length ? 0 : -1; funde_neu_zeichnen(); zeichneSuchZahl();
+      if (S.funde.length) { springeZuFund(0); toast('🧠 Der ähnlichste Abschnitt ist markiert — antippen blendet ihn aus'); }
+    } else if (fund) {
       await imDokSuchen(S.suche, true);
       if (S.funde.length) toast('🔎 ' + S.funde.length + ' Fundstellen markiert — antippen blendet sie aus');
     }
@@ -2096,10 +2276,11 @@
     document.addEventListener('drop', e => { if (!hatDateien(e)) return; e.preventDefault(); tiefe = 0; if (ablage) { ablage.remove(); ablage = null; } if (S.doc) dateienAnhaengen(e.dataTransfer.files); else importDateien(e.dataTransfer.files); });
 
     if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
-    ladeBibliothek().then(chromeTabRueckweg).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
-    window.__wfpdf = { beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner,
+    bedeutungZeichnen();
+    ladeBibliothek().then(() => { if (EINST.bedeutung) bedeutungStarten(); }).then(chromeTabRueckweg).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
+    window.__wfpdf = { beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner,
       // für tests/sprache.mjs: jeden Dialog einmal öffnen und seine Texte nachschlagen
-      dlg: { neuerOrdner, verschieben, loeschen, speichernDialog, aufnahmeDialog, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe } };   // für die Probe
+      dlg: { neuerOrdner, verschieben, loeschen, speichernDialog, aufnahmeDialog, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe, bedeutungDialog } };   // für die Probe
   }
   start();
 })();
