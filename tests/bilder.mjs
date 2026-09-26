@@ -124,6 +124,7 @@ try {
   await page.waitForSelector('#sc-ed.on'); await page.click('#edZurueck');
   await page.evaluate(() => { const w = window.__wfpdf; w.EINST.ueRueck = false; delete w.EINST.ueBilder; w.einstSpeichern(); });
   const durchlauf = async setzen => {
+    const vorIds = await page.evaluate(async () => (await WFP.DB.all('docs')).map(x => x.id));
     await page.click('[data-ueb]'); await page.waitForSelector('.dlg [data-dok]');
     const hk = page.locator('.dlg [data-bilder]'); const vorher = (await hk.count()) === 1 ? await hk.isChecked() : null;
     if (setzen) await hk.check();
@@ -133,20 +134,22 @@ try {
     await page.waitForFunction(() => /Übersetzung fertig/.test(document.querySelector('.dlg h2')?.textContent || ''), null, { timeout: 180000 });
     await page.click('.dlg [data-x]');
     // das fertige PDF lesen: welche übersetzten Stücke stehen darin? (der Zwischenstand wird nach dem Lauf gelöscht)
-    const job = await page.evaluate(async () => {
-      const d = (await WFP.DB.all('docs')).filter(x => x.uebersetzung && x.uebersetzung.nach === 'ru').sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
-      if (!d) return null;
+    // das NEUE Ergebnis (updatedAt ist ein Text — danach zu sortieren war zufällig, Befund der Gegenprobe)
+    const job = await page.evaluate(async vorIds => {
+      const neu = (await WFP.DB.all('docs')).filter(x => x.uebersetzung && x.uebersetzung.nach === 'ru' && !vorIds.includes(x.id));
+      if (neu.length !== 1) return { anzahl: neu.length };
+      const d = neu[0];
       const pdf = await pdfjsLib.getDocument({ data: await WFP.DB.getFile(d.id) }).promise, tc = await (await pdf.getPage(1)).getTextContent();
       const ru = tc.items.map(i => i.str).join(' ').match(/\[ru\][^\[]*/g) || [];
       return { ru: ru.map(x => x.trim()), bild: ru.some(x => /Warnhinweis|Netzstecker/.test(x)) };
-    });
+    }, vorIds);
     return { vorher, merkt: await page.evaluate(() => window.__wfpdf.EINST.ueBilder), job };
   };
   const d1 = await durchlauf(false);
   ok('Übersetzen-Dialog: Haken „Text in Bildern mitübersetzen" steht da und ist aus', d1.vorher === false, d1.vorher);
-  ok('… ohne Haken: im fertigen PDF stehen nur die zwei Absätze, nichts aus dem Bild', d1.job && !d1.job.bild && d1.job.ru.length === 2, d1.job);
+  ok('… ohne Haken: im fertigen PDF stehen nur die zwei Absätze, nichts aus dem Bild', d1.job && d1.job.ru && !d1.job.bild && d1.job.ru.length === 2, d1.job);
   const d2 = await durchlauf(true);
-  ok('mit Haken: die Wahl wird gemerkt und der Bild-Text kommt an', d2.merkt === true && d2.job && d2.job.bild, d2);
+  ok('mit Haken: die Wahl wird gemerkt und der Bild-Text kommt an', d2.merkt === true && d2.job && d2.job.ru && d2.job.bild === true, d2);
   const d3 = await durchlauf(false);
   ok('beim nächsten Öffnen steht der Haken wieder so, wie zuletzt gewählt', d3.vorher === true, d3.vorher);
   ok('keine Seitenfehler', fehler.length === 0, fehler);
