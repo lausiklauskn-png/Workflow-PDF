@@ -194,11 +194,27 @@ try {
   await page.locator(`.feld[data-id="${mailId}"] input`).fill('keine-adresse'); await weg();
   const l2 = await lnk(mailId);
   ok('Link: ohne gültige Adresse kein Link', !l2.href && !l2.sichtbar && !l2.iUnsichtbar, l2);
-  const auto = [['www.musterstadt.example', 'https://www.musterstadt.example'], ['musterstadt.de', 'https://musterstadt.de'], ['post@musterstadt.example', 'mailto:post@musterstadt.example'], ['040 1234567', 'tel:0401234567'], ['24.05.1970', null], ['Erika Müller', null], ['12345', null]];
+  const auto = [['www.musterstadt.example', 'https://www.musterstadt.example'], ['musterstadt.de', 'https://musterstadt.de'], ['post@musterstadt.example', 'mailto:post@musterstadt.example'], ['040 1234567', null], ['24.05.1970', null], ['Erika Müller', null], ['12345', null]];
   const autoIst = [];
   for (const [v] of auto) { await page.locator(`.feld[data-id="${kiName.id}"] input`).fill(v); await weg(); const l = await lnk(kiName.id); autoIst.push(l.sichtbar ? l.href : null); }
-  ok('Link: ein Textfeld erkennt www…, …de, @, lange Nummer selbst — Datum, Name, PLZ bleiben Text', JSON.stringify(autoIst) === JSON.stringify(auto.map(x => x[1])), autoIst);
-  await page.locator(`.feld[data-id="${kiName.id}"] input`).fill('040 1234567'); await weg();
+  ok('Link: ein Textfeld erkennt www…, …de, @ selbst — Zahl (Kundennummer!), Datum, Name, PLZ bleiben Text', JSON.stringify(autoIst) === JSON.stringify(auto.map(x => x[1])), autoIst);
+  // Klaus 2026-09-26: Zahlen nur im Feld „Telefon" als Anruf; Kunden-/Artikelnummer führen zu den Dokumenten mit derselben Nummer
+  const art = async t => { await page.evaluate(([id, t]) => { window.__wfpdf.S.doc.fields.find(f => f.id === id).type = t; }, [kiName.id, t]); await page.click('#mBearbeiten'); await page.click('#mAusfuellen'); };
+  await art('tel'); await page.locator(`.feld[data-id="${kiName.id}"] input`).fill('040 1234567'); await weg();
+  const lTel = await lnk(kiName.id);
+  ok('Link: im Feld „Telefon" wird die Nummer ein Anruf', lTel && lTel.href === 'tel:0401234567' && lTel.sichtbar, lTel);
+  await art('kdnr'); await page.locator(`.feld[data-id="${kiName.id}"] input`).fill('10234'); await weg();
+  const lKd = await lnk(kiName.id);
+  ok('Link: Kundennummer wird zum Link, nicht zum Anruf', lKd && lKd.href === '#kunde:10234' && lKd.sichtbar, lKd);
+  if (lKd && lKd.sichtbar) await page.click(`.feld[data-id="${kiName.id}"] a.flink`);   // ohne Link wird GEMELDET, nicht geworfen
+  const dlK = await page.waitForSelector('[data-anzahl]', { timeout: 5000 }).then(() => page.evaluate(() => ({ n: document.querySelector('[data-anzahl]').textContent, doks: document.querySelectorAll('[data-dok]').length })), () => null);
+  ok('… ein Tipp zeigt die Dokumente mit dieser Kundennummer (hier: dieses)', dlK && dlK.n === '1' && dlK.doks === 1, dlK);
+  if (dlK) await page.click('[data-x]');
+  const hk = await page.evaluate(id => { let got = null; window.WF_KUNDE_OEFFNEN = nr => { got = nr; }; const a = document.querySelector('.feld[data-id="' + id + '"] a.flink'); if (a && a.getAttribute('href')) a.click(); delete window.WF_KUNDE_OEFFNEN; return { got, dialog: !!document.querySelector('[data-anzahl]') }; }, kiName.id);
+  ok('… eine angebundene Kundenverwaltung bekommt die Nummer', hk.got === '10234' && !hk.dialog, hk);
+  const typen = await page.evaluate(() => { const t = window.__wfpdf.typAusLabel || null; return t ? ['Kunden-Nr.', 'Artikelnummer', 'Telefon'].map(l => t({ type: 'text', label: l })) : null; });
+  ok('Beschriftung Kunden-Nr. / Artikelnummer / Telefon → passende Feldart', JSON.stringify(typen) === JSON.stringify(['kdnr', 'artnr', 'tel']), typen);
+  await art('text'); await page.locator(`.feld[data-id="${kiName.id}"] input`).fill('www.musterstadt.example'); await weg();
   await page.emulateMedia({ media: 'print' });
   const druckL = await page.evaluate(id => { const el = document.querySelector('.feld[data-id="' + id + '"]'), cs = getComputedStyle(el.querySelector('a.flink')); return { farbe: cs.color, strich: cs.textDecorationLine, stift: el.querySelector('.flinkedit').checkVisibility() }; }, kiName.id);
   await page.emulateMedia({ media: 'screen' });
@@ -208,6 +224,13 @@ try {
   // gespeichert? neu laden und zurück
   await page.reload(); await page.waitForFunction(() => document.querySelectorAll('.dok').length === 1);
   ok('nach Neuladen: Dokument in der Bibliothek, Felder gespeichert', await page.evaluate(() => document.querySelector('.dok-meta').textContent.includes('Felder')));
+  // Suche in der Bibliothek (Klaus 2026-09-26): findet ein Dokument über das, was in seinen Feldern steht
+  await page.fill('#bibSuche', 'erika müller'); await page.waitForTimeout(100);
+  const su1 = await page.evaluate(() => document.querySelectorAll('.dok').length);
+  await page.fill('#bibSuche', 'gibtesnicht4711'); await page.waitForTimeout(100);
+  const su2 = await page.evaluate(() => ({ n: document.querySelectorAll('.dok').length, leer: !!document.querySelector('[data-suchleer]') }));
+  await page.fill('#bibSuche', ''); await page.waitForTimeout(100);
+  ok('Bibliothek-Suche findet ein Dokument über einen Feldinhalt, und sagt es, wenn nichts passt', su1 === 1 && su2.n === 0 && su2.leer, { su1, su2 });
   await page.click('.dok [data-auf]'); await page.waitForSelector('#sc-ed.on .seite');
 
   // 7. Export
