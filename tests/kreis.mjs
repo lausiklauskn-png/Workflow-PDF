@@ -33,7 +33,7 @@ T('VOLTAGE CHECK', 60, 780, B, 13);
 T('If measurements were taken as shown in the figure at the right', 60, 700);
 T('and results are as listed below, it means that the circuit is open', 60, 685);
 T('between terminals Ⓐ and Ⓑ.', 60, 670);
-T('Voltage Between:', 80, 652, B);   // eingerückt, aber näher als 3 Schrifthöhen — sonst trennt es schon die alte Regel (Befund der Gegenprobe)
+T('Voltage Between:', 80, 655, B);   // eingerückt (unter 3 Schrifthöhen) und im normalen Zeilenabstand — sonst trennt es schon eine alte Regel, und die neue misst nichts (zweimal von der Gegenprobe gefunden)
 // eine Zeile als EIN Textstück, eine mit dem Symbol als EIGENEM Stück davor
 T('Ⓒ and body ground: Approx. 5V', 100, 636);
 T('Ⓑ and body ground: Approx. 5V', 100, 620);
