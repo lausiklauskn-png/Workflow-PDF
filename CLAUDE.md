@@ -135,10 +135,29 @@ Textfarbe an dieselbe Stelle. Zwischenstand je Seite in IndexedDB
   NICHT für Texterkennung (`ocr`): dort ist `fh` das Buchstaben-Kästchen, der Scan-Absatz zerfiel.
   **Textfarbe** (`farben`): unter den Farben, die sich klar vom Grund abheben, die dunkelste mit
   mindestens 25 % der Häufigsten — die häufigste ist oft das Kantengrau, daher blasse Beschriftungen.
-- **Bilder mit Text auf Seiten MIT Textebene** (`bildFlaechen`): größere Bilder werden bei
-  3-facher Größe per Texterkennung gelesen und übersetzt — vorher nur ganz textlose Seiten.
-  Das ist Klaus' Idee „das Bild in der anderen Sprache": der Text im Bild wird übersetzt
-  darübergelegt. Logos/Symbole (< 4 % der Seite, < 80×60 pt) bleiben unberührt.
+- **Bilder bleiben standardmäßig unberührt** (Klaus 2026-09-26, Fotos mit weißen Kästen
+  „e.g. : \\", „IE |", „Paes fe" mitten im Bild): die Texterkennung las Kanten und Muster als
+  Text. Text in Bildern auf Seiten MIT Textebene (`bildFlaechen`) wird nur noch gelesen, wenn
+  im Übersetzen-Dialog **„Text in Bildern mitübersetzen"** gesetzt ist (`EINST.ueBilder`,
+  `opt.ocr.bilder`, Vorgabe aus) — und dann mit strengerem Filter `bildZeileTaugt`
+  (Sicherheit ≥ 70, keine Rahmen-Zeichen `\ | @ © = ~ …`, ≥ 70 % Buchstaben, ein Wort aus 5
+  oder zwei aus 4 Buchstaben). Ganze Scan-Seiten liest die Texterkennung weiter wie bisher.
+  Ein gespeicherter Zwischenstand mit Bild-Text (`bildText` je Seite; alte Stände ohne das Feld:
+  Seite mit Textebene + `ocr`) wird ohne Haken neu gelesen. Proben: `tests/bilder.mjs` (echte
+  Texterkennung an einem erfundenen „Foto" aus Kerben/Bögen — nur dieses Muster erzeugte
+  Schein-Text; Gitter, Rippen, Rauschen nicht), `node tests/gegenprobe_bilder.mjs` (14 Fälle).
+  Logos/Symbole (< 4 % der Seite, < 80×60 pt) werden ohnehin nie gelesen.
+- **Buchstaben und Ziffern im Kreis (Ⓐ ① ❷) sind Symbole** (Klaus 2026-09-26, Werkstatt-Anleitung:
+  „Ⓒ and body ground" kam als „C und Karosseriemasse" an, drei Listenzeilen verschmolzen, und
+  „Voltage Between:" verschmolz mit dem Satz davor, wobei ein Wort verloren ging). Eine Zeile, die
+  mit so einem Zeichen beginnt, ist ein eigener Absatz (`KREIS_ANFANG`); ein Stück, das nur aus dem
+  Zeichen besteht, gehört zur Zeile (Ⓐ ist Kategorie „Symbol", nicht Buchstabe). Das Zeichen geht mit
+  zum Übersetzer; fehlt es danach, setzt `kreisZurueck` das erste freistehende „A"/„1" wieder als
+  Symbol (der Reihe nach, nie mitten in einem Wort). Im PDF zeichnet `pdfBauen` den Kreis selbst —
+  **Noto Sans hat keine Kreis-Zeichen** (gemessen; DejaVu hat Ⓐ auch nicht, nur ①). Nach einem
+  Satzende beginnt eine um mehr als 1,2 Schrifthöhen eingerückte Zeile einen neuen Absatz.
+  Grenze: ein gewöhnliches „A" mit GEZEICHNETEM Kreis (Grafik statt Zeichen) wird nicht erkannt.
+  Proben: `tests/kreis.mjs` (FreeSans, erfundenes Handbuch), `node tests/gegenprobe_kreis.mjs` (9 Fälle).
 - **Große Dokumente in Teilen** (Klaus 2026-09-26, 384-Seiten-Handbuch brach nach 6 Seiten ab):
   ab 41 Seiten oder 8 MB zeigt der Übersetzen-Dialog einen Kasten mit der VORHER gerechneten
   Aufteilung (`teilPlan` in `uebersetzung.js`: Datei ÷ Seiten = KB je Seite, Ziel ≤ 8 MB je Teil

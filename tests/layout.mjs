@@ -95,7 +95,7 @@ try {
     const UE = WFP.Uebersetzung, bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
     const kyr = 'абвгдежзиклмнопрстуфхцчшщыэюя', hin = [];
     const ueb = async l => l.map(t => { hin.push(t); return t.split(' ').map(w => { let x = ''; for (let i = 0; i < Math.max(1, Math.round(w.length * 1.34)); i++) x += kyr[(w.charCodeAt(i % w.length) + i) % kyr.length]; return x; }).join(' '); });
-    const lauf = await UE.lauf({ bytes: bytes.slice(), uebersetzer: ueb, ocr: { basis: 'vendor/', von: 'de' } });
+    const lauf = await UE.lauf({ bytes: bytes.slice(), uebersetzer: ueb, ocr: { basis: 'vendor/', von: 'de', bilder: true } });
     const s = lauf.stand.seiten[0];
     const sch = await UE.schriftLaden('vendor/');
     const e = await UE.pdfBauen(bytes, lauf.stand.seiten, sch, { nach: 'ru' });
@@ -139,7 +139,7 @@ try {
   const liste = r.ru.filter(x => Math.abs(x.x - 320) < 2).map(x => x.g);
   ok('Liste mit einem eingeengten Punkt: alle Punkte der Spalte gleich groß (angeglichen)', liste.length >= 3 && Math.max(...liste) - Math.min(...liste) < 0.3, liste);
   ok('Abdeckung nur über den Zeilen: der Stempel neben der kurzen Zeile bleibt blau', r.stempel.filter(c => c[2] > 150 && c[0] < 80).length >= 3, r.stempel);
-  ok('Bild mit Text auf einer Seite MIT Textebene: der Text im Bild wird gelesen und übersetzt', r.ocr && r.hin.some(t => /Kurzanleitung/.test(t)) && r.hin.some(t => /Formular einlesen/.test(t)), r.hin);
+  ok('Bild mit Text auf einer Seite MIT Textebene: mit „Text in Bildern mitübersetzen" wird der Text im Bild gelesen und übersetzt', r.ocr && r.hin.some(t => /Kurzanleitung/.test(t)) && r.hin.some(t => /Formular einlesen/.test(t)), r.hin);
   ok('… und der Bericht nennt die Texterkennung', r.hinweise.some(h => /Texterkennung|OCR/.test(h)), r.hinweise);
   ok('HTML zum Ausfüllen trägt die Sprache der Übersetzung (ru), das Original bleibt de', r.htmlLang[0] && r.htmlLang[1], r.htmlLang);
   // Seite 2: Fragebogen
