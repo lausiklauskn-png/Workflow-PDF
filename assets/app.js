@@ -5,7 +5,7 @@
    Ins Netz geht nur, was der Nutzer ausdrücklich an eine KI schickt. */
 (function () {
   'use strict';
-  const { DB, Erkennung: ER, Export: EX, Uebersetzung: UE } = WFP;
+  const { DB, Erkennung: ER, Export: EX, Uebersetzung: UE, Suche: SU } = WFP;
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdfjs/pdf.worker.min.js';
   if (qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs['UTF-8']) qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
 
@@ -39,7 +39,7 @@
 
   /* ---------- Zustand ---------- */
   const S = { ordner: [], docs: [], aktOrdner: 'alle', doc: null, bytes: null, pdf: null, modus: 'bearbeiten', sel: null,
-    zoom: 1, platzieren: null, aufnahme: [], aufnahmeZiel: null, beob: null };
+    zoom: 1, platzieren: null, aufnahme: [], aufnahmeZiel: null, beob: null, funde: [], fund: new Map() };
 
   /* ---------- Kleinkram ---------- */
   let _tt = null;
@@ -118,7 +118,10 @@
   async function ladeBibliothek() {
     S.ordner = (await DB.all('folders')).sort((a, b) => a.name.localeCompare(b.name, 'de'));
     S.docs = (await DB.all('docs')).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    // Was DB.putFile/del weggeworfen hat, fällt auch aus dem Vorrat
+    try { const da = new Set(await DB.keys('texte')); for (const id of [...TEXTE.keys()]) if (!da.has(id) && TEXTE.get(id).length) TEXTE.delete(id); } catch (_) {}
     zeichneBibliothek();
+    texteNachholen();
   }
   function offeneVorschlaege(d) { return (d.fields || []).filter(f => !f.geprueft).length; }
   function zeichneBibliothek() {
@@ -132,10 +135,14 @@
     ol.querySelector('[data-neu]').onclick = neuerOrdner;
 
     const akt = $('ordnerAktionen'); const o = S.ordner.find(x => x.id === S.aktOrdner);
-    // Suche (Klaus 2026-09-26): nach Name UND nach allem, was in den Feldern steht — z. B. einer Kundennummer
-    const such = String(S.suche || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
-    const passt = d => !such.length || such.every(t => [d.name].concat((d.fields || []).map(f => typeof f.value === 'string' && !/^data:/.test(f.value) ? f.value : '')).join(' ').toLowerCase().includes(t));
-    const sicht = S.docs.filter(d => (such.length ? true : S.aktOrdner === 'alle' ? true : S.aktOrdner === 'ohne' ? !d.folderId || !S.ordner.some(x => x.id === d.folderId) : d.folderId === S.aktOrdner) && passt(d));
+    // Suche (Klaus 2026-09-26): Name, Feldinhalte UND der Text der Seiten — mit Fundstellen.
+    // Die Rechnung steht in assets/suche.js (Umlaute, Nummern, Daten); hier nur Auswahl und Anzeige.
+    const such = SU.anfrage(S.suche);
+    const FUND = new Map();
+    if (such.length) for (const d of S.docs) { const r = SU.sucheDok(d, TEXTE.get(d.id) || null, such); if (r) FUND.set(d.id, r); }
+    S.fund = FUND;
+    const sicht = S.docs.filter(d => such.length ? FUND.has(d.id) : S.aktOrdner === 'alle' ? true : S.aktOrdner === 'ohne' ? !d.folderId || !S.ordner.some(x => x.id === d.folderId) : d.folderId === S.aktOrdner);
+    if (such.length) sicht.sort((a, b) => FUND.get(b.id).punkte - FUND.get(a.id).punkte);
     akt.innerHTML = (sicht.length ? `<button class="knopf" data-ueb>🌐 Übersetzen${sicht.length > 1 ? ' — Dokumente wählen' : ''}</button><button class="knopf" data-erk>🤖 Felder erkennen${sicht.length > 1 ? ' — Dokumente wählen' : ''}</button>` : '')
       + (o ? `<button class="knopf" data-ren>✎ Ordner umbenennen</button><button class="knopf gefahr" data-del>🗑 Ordner löschen</button>` : '');
     const q = s => akt.querySelector(s);
@@ -154,7 +161,7 @@
 
     const g = $('dokGitter');
     if (!sicht.length) {
-      if (such.length) { g.innerHTML = `<div class="leer" data-suchleer><b>Kein Dokument passt zu „${h(S.suche.trim())}".</b></div>`; return; }
+      if (such.length) { g.innerHTML = `<div class="leer" data-suchleer><b>Kein Dokument passt zu „${h(S.suche.trim())}".</b></div>` + suchStand(); return; }
       g.innerHTML = `<div class="leer"><b>Noch keine Dokumente${o ? ' in diesem Ordner' : ''}.</b><br>Oben ein PDF oder Bild wählen, ein Formular fotografieren oder einen ganzen Ordner einlesen. Du kannst Dateien auch einfach hierher ziehen.</div>`;
       return;
     }
@@ -164,17 +171,81 @@
         <button class="dok-bild" data-auf style="background-image:url('${d.thumb || ''}')" title="Öffnen">
           <span class="marken">${v ? `<span class="marke-klein ki">🤖 ${v} zu prüfen</span>` : ''}${d.quelle === 'foto' ? '<span class="marke-klein">📷 Foto</span>' : ''}${d.uebersetzung ? `<span class="marke-klein">🌐 ${h((d.uebersetzung.von || '').toUpperCase())}→${h((d.uebersetzung.nach || '').toUpperCase())}${d.uebersetzung.gegenprobe ? ' Gegenprobe' : ''}</span>` : ''}${d.ausgefuellt ? `<span class="marke-klein">↩ ausgefüllt aus ${h((d.ausgefuellt.aus || '').toUpperCase())}</span>` : ''}</span></button>
         <div class="dok-info"><div class="dok-name" data-kein-ue title="${h(d.name)}">${nm(d.name)}</div>
-          <div class="dok-meta">${d.pages.length} Seite${d.pages.length === 1 ? '' : 'n'} · ${d.fields.length} Feld${d.fields.length === 1 ? '' : 'er'}${ord && S.aktOrdner === 'alle' ? ' · 🗂️ ' + nm(ord.name) : ''}</div></div>
+          <div class="dok-meta">${d.pages.length} Seite${d.pages.length === 1 ? '' : 'n'} · ${d.fields.length} Feld${d.fields.length === 1 ? '' : 'er'}${ord && S.aktOrdner === 'alle' ? ' · 🗂️ ' + nm(ord.name) : ''}</div>${FUND.has(d.id) ? fundZeilen(FUND.get(d.id)) : ''}</div>
         <div class="dok-akt"><button data-auf title="Öffnen">✏️</button><button data-verschieben title="In Ordner verschieben">🗂️</button><button data-kopie title="Duplizieren (z. B. als Vorlage)">⧉</button><button data-loeschen title="Löschen">🗑</button></div></div>`;
-    }).join('');
+    }).join('') + (such.length ? suchStand() : '');
     g.querySelectorAll('.dok').forEach(el => {
       const id = el.dataset.id;
-      el.querySelectorAll('[data-auf]').forEach(b => b.onclick = () => oeffneDok(id));
+      // Aus der Suche geöffnet: die Fundstellen kommen mit und werden auf der Seite markiert
+      el.querySelectorAll('[data-auf]').forEach(b => b.onclick = () => oeffneDok(id, FUND.get(id)));
+      const fz = el.querySelector('[data-fundzeilen]'); if (fz) fz.onclick = () => oeffneDok(id, FUND.get(id));
       el.querySelector('[data-verschieben]').onclick = () => verschieben(id);
       el.querySelector('[data-kopie]').onclick = () => duplizieren(id);
       el.querySelector('[data-loeschen]').onclick = () => loeschen(id);
     });
   }
+  // „gefunden wegen …": woran die Suche das Dokument erkannt hat (höchstens drei Zeilen)
+  function fundZeilen(r) {
+    const z = [], gesehen = new Set();
+    for (const f of r.funde) {
+      const key = f.art + '|' + (f.page != null ? f.page : '') + '|' + (f.feldId || '') + '|' + f.text; if (gesehen.has(key)) continue; gesehen.add(key);
+      const wo = f.art === 'name' ? 'Im Namen' : f.art === 'feld' ? (f.label ? 'Feld' : 'Feld auf Seite ' + (f.page + 1)) : 'Auf Seite ' + (f.page + 1);
+      z.push(`<div class="fund-zeile"><span class="fund-wo" data-art="${f.art}">${h(wo)}</span>${f.art === 'feld' && f.label ? ' ' + nm('„' + f.label + '"') : ''} <span class="fund-text" data-kein-ue>${h(f.text)}</span></div>`);
+    }
+    const mehr = z.length - 3;
+    return `<div class="dok-fund" data-fundzeilen>${z.slice(0, 3).join('')}${mehr > 0 ? `<div class="fund-zeile"><span class="fund-wo" data-art="mehr">${h('und ' + mehr + ' weitere Fundstellen')}</span></div>` : ''}</div>`;
+  }
+  // Solange der Seitentext noch erfasst wird, sagt die Suche das — sonst sähe „nichts gefunden" endgültig aus.
+  function suchStand() {
+    const offen = S.docs.filter(d => !TEXTE.has(d.id)).length;
+    return offen ? `<div class="hinweis such-stand" data-suchstand>${h('Seitentext wird noch erfasst: ' + (S.docs.length - offen) + ' von ' + S.docs.length + ' Dokumenten')}</div>` : '';
+  }
+
+  /* ---------- Seitentext für die Suche ----------
+     Je Seite die Textstücke mit ihrer Lage in Prozent der angezeigten Seite (wie die Felder),
+     damit eine Fundstelle markiert werden kann. Liegt im Fach „texte", getrennt von den Docs:
+     die Bibliothek lädt die Docs bei jedem Öffnen, den Text braucht nur die Suche.
+     Gescannte Seiten ohne Textebene tragen nichts bei (Texterkennung: später, Stufe 4). */
+  const TEXTE = new Map();   // id → vorbereiteter Seitentext (SU.vorbereiten)
+  const r2 = v => Math.round(v * 100) / 100;
+  async function seitenText(pdf) {
+    const seiten = [];
+    for (let n = 1; n <= pdf.numPages; n++) {
+      const items = [];
+      try {
+        const p = await pdf.getPage(n); const vp = p.getViewport({ scale: 1 });
+        const tc = await p.getTextContent();
+        for (const t of tc.items) {
+          if (!t.str || !t.str.trim()) continue;
+          const tr = pdfjsLib.Util.transform(vp.transform, t.transform); const fh = Math.hypot(tr[2], tr[3]) || Math.abs(t.height) || 8;
+          items.push([t.str, r2(tr[4] / vp.width * 100), r2((tr[5] - fh) / vp.height * 100), r2(Math.max(0.3, t.width * vp.scale / vp.width * 100)), r2(fh * 1.2 / vp.height * 100)]);
+        }
+      } catch (_) {}
+      seiten.push(items);
+    }
+    return seiten;
+  }
+  async function textAblegen(id, seiten) { try { await DB.put('texte', { id, v: 1, seiten }); TEXTE.set(id, SU.vorbereiten(seiten)); } catch (_) {} }
+  let _nachholen = null;
+  function texteNachholen() {
+    if (_nachholen) return _nachholen;
+    _nachholen = (async () => {
+      try { for (const r of await DB.all('texte')) if (!TEXTE.has(r.id)) TEXTE.set(r.id, SU.vorbereiten(r.seiten)); } catch (_) {}
+      let neu = false;
+      for (const d of S.docs.slice()) {
+        if (TEXTE.has(d.id)) continue;
+        const b = await DB.getFile(d.id); if (!b) continue;
+        let pdf = null;
+        try { pdf = await pdfjsLib.getDocument({ data: b.slice(0) }).promise; await textAblegen(d.id, await seitenText(pdf)); neu = true; }
+        catch (_) { TEXTE.set(d.id, []); }   // unlesbar: nicht bei jedem Öffnen neu versuchen
+        finally { if (pdf) { try { pdf.destroy(); } catch (_) {} } }
+        if (S.suche && $('sc-bib').classList.contains('on')) zeichneBibliothek();
+      }
+      if (neu && S.suche && $('sc-bib').classList.contains('on')) zeichneBibliothek();
+    })().finally(() => { _nachholen = null; });
+    return _nachholen;
+  }
+
   async function neuerOrdner() {
     const n = await eingabe('Neuer Ordner', 'Name des Ordners', ''); if (!n) return null;
     const o = { id: uid(), name: n, createdAt: jetzt() }; await DB.put('folders', o);
@@ -277,8 +348,9 @@
     const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
     const d = { id: uid(), name, folderId: folderId || null, quelle, createdAt: jetzt(), updatedAt: jetzt(),
       pages: await seitenInfo(pdf), thumb: await vorschaubild(pdf), fields: await vorhandeneFelder(pdf) };
+    const text = await seitenText(pdf);
     try { pdf.destroy(); } catch (_) {}
-    await DB.putFile(d.id, bytes); await DB.put('docs', d);
+    await DB.putFile(d.id, bytes); await DB.put('docs', d); await textAblegen(d.id, text);
     return d;
   }
   let _persistGefragt = false;
@@ -415,8 +487,9 @@
   // Öffnen ist asynchron (PDF laden): wer inzwischen zurück tippt oder ein anderes
   // Dokument öffnet, darf nicht von einem verspäteten Öffnen überholt werden.
   let _oeffnenNr = 0;
-  async function oeffneDok(id) {
+  async function oeffneDok(id, fund) {
     const nr = ++_oeffnenNr;
+    S.funde = fundMarken(fund);
     const d = await DB.get('docs', id); const b = await DB.getFile(id);
     if (nr !== _oeffnenNr) return;
     if (!d || !b) { toast('⚠️ Dokument nicht gefunden'); return; }
@@ -432,6 +505,32 @@
     $('edName').value = d.name; $('kopfSub').setAttribute('data-kein-ue', ''); $('kopfSub').textContent = d.name;
     history.pushState({ ed: 1 }, '', '#dok');
     zeichneSeiten(); zeichneModus();
+    if (S.funde.length) {
+      const erste = Math.min(...S.funde.map(m => m.page));
+      setTimeout(() => { const el = document.querySelector(`.seite[data-i="${erste}"] .fund`) || document.querySelector(`.seite[data-i="${erste}"]`); if (el) el.scrollIntoView({ block: 'center' }); }, 80);
+      toast('🔎 ' + S.funde.length + ' Fundstellen markiert — antippen blendet sie aus');
+    }
+  }
+  // Aus den Funden der Suche die Markierungen für die Seiten (Feld und Seitentext; der Name hat keine Stelle)
+  function fundMarken(fund) {
+    const out = [];
+    if (!fund) return out;
+    for (const f of fund.funde) for (const b of f.boxen || []) if (f.page != null && b) out.push({ id: uid(), page: f.page, x: b.x, y: b.y, w: b.w, h: b.h, wort: f.wort, art: f.art });
+    return out;
+  }
+  function zeichneFunde(i, lage) {
+    for (const m of S.funde || []) {
+      if (m.page !== i) continue;
+      const el = document.createElement('div'); el.className = 'fund'; el.dataset.fund = m.id; el.dataset.art = m.art;
+      el.setAttribute('data-kein-ue', '');   // der Titel ist schon übersetzt (T) und trägt das Suchwort des Nutzers
+      el.style.left = (m.x - 0.4) + '%'; el.style.top = (m.y - 0.3) + '%'; el.style.width = (m.w + 0.8) + '%'; el.style.height = (m.h + 0.6) + '%';
+      el.title = T('Gefunden wegen') + ' „' + m.wort + '" — ' + T('antippen blendet es aus');
+      // Ein Tipp nimmt die Markierung weg — nur diese; das Feld darunter bleibt, wie es war
+      const weg = e => { e.preventDefault(); e.stopPropagation(); S.funde = S.funde.filter(x => x.id !== m.id); el.remove(); };
+      el.addEventListener('pointerdown', e => e.stopPropagation());
+      el.addEventListener('click', weg);
+      lage.appendChild(el);
+    }
   }
   async function schliesseEditor(ohneHistory) {
     _oeffnenNr++;
@@ -439,7 +538,7 @@
     $('sc-ed').classList.remove('on'); $('sc-bib').classList.add('on');
     $('kopfSub').removeAttribute('data-kein-ue'); $('kopfSub').textContent = 'Formulare einlesen · Felder setzen · übersetzen · PDF ausgeben';
     if (S.beob) { S.beob.disconnect(); S.beob = null; }
-    S.doc = null; S.sel = null;
+    S.doc = null; S.sel = null; S.funde = [];
     if (!ohneHistory && location.hash === '#dok') history.back();
     ladeBibliothek();
   }
@@ -494,6 +593,7 @@
     const lage = document.querySelector(`.seite[data-i="${i}"] .lage`); if (!lage) return;
     lage.innerHTML = '';
     for (const f of S.doc.fields) if (f.page === i) lage.appendChild(feldElement(f));
+    zeichneFunde(i, lage);
     markiere();
   }
   function feldElement(f) {
@@ -1742,7 +1842,7 @@
 
     if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
     ladeBibliothek().then(chromeTabRueckweg).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
-    window.__wfpdf = { beispieleLaden, S, EINST, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner,
+    window.__wfpdf = { beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner,
       // für tests/sprache.mjs: jeden Dialog einmal öffnen und seine Texte nachschlagen
       dlg: { neuerOrdner, verschieben, loeschen, speichernDialog, aufnahmeDialog, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart } };   // für die Probe
   }
