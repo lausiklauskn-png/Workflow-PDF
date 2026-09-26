@@ -180,6 +180,31 @@ try {
   await page.locator(`.feld[data-id="${quer}"] input`).fill('Quertext');
   await page.waitForTimeout(500);
   ok('Ausfüllen: Werte stehen im Dokument', await page.evaluate(([a, b]) => { const d = window.__wfpdf.S.doc; return d.fields.find(f => f.id === a).value === 'Erika Müller' && d.fields.find(f => f.id === b).value === true; }, [kiName.id, k1.id]));
+  // Klaus 2026-09-26: E-Mail, Internet und Telefon werden zum Link (blau, antippbar), beim Drucken schwarz
+  const mailId = F.find(f => f.label === 'E-Mail' && f.type === 'email').id;
+  const weg = () => page.evaluate(() => document.activeElement && document.activeElement.blur());
+  const lnk = id => page.evaluate(id => { const el = document.querySelector('.feld[data-id="' + id + '"]'), a = el.querySelector('a.flink'), i = el.querySelector('input,textarea');
+    if (!a) return null; const r = a.getBoundingClientRect(), cs = getComputedStyle(a), m = document.elementFromPoint(r.left + Math.min(20, r.width / 2), r.top + r.height / 2);
+    return { href: a.getAttribute('href'), text: a.textContent, sichtbar: a.checkVisibility(), trifft: m === a || a.contains(m), blau: cs.color === 'rgb(6, 69, 173)', unter: /underline/.test(cs.textDecorationLine), iUnsichtbar: getComputedStyle(i).color === 'rgba(0, 0, 0, 0)', stift: el.querySelector('.flinkedit').checkVisibility() }; }, id);
+  await page.locator(`.feld[data-id="${mailId}"] input`).fill('info@musterstadt.example'); await weg();
+  const l1 = await lnk(mailId);
+  ok('Link: E-Mail wird blau, unterstrichen, antippbar → mailto:, ✏️ daneben', l1 && l1.href === 'mailto:info@musterstadt.example' && l1.text === 'info@musterstadt.example' && l1.sichtbar && l1.trifft && l1.blau && l1.unter && l1.iUnsichtbar && l1.stift, l1);
+  const l1b = await page.evaluate(id => { const el = document.querySelector('.feld[data-id="' + id + '"]'); el.querySelector('.flinkedit').click(); const i = el.querySelector('input'); return { fokus: document.activeElement === i, weg: !el.querySelector('a.flink').checkVisibility() }; }, mailId);
+  ok('Link: ✏️ öffnet das Feld zum Ändern', l1b.fokus && l1b.weg, l1b);
+  await page.locator(`.feld[data-id="${mailId}"] input`).fill('keine-adresse'); await weg();
+  const l2 = await lnk(mailId);
+  ok('Link: ohne gültige Adresse kein Link', !l2.href && !l2.sichtbar && !l2.iUnsichtbar, l2);
+  const auto = [['www.musterstadt.example', 'https://www.musterstadt.example'], ['musterstadt.de', 'https://musterstadt.de'], ['post@musterstadt.example', 'mailto:post@musterstadt.example'], ['040 1234567', 'tel:0401234567'], ['24.05.1970', null], ['Erika Müller', null], ['12345', null]];
+  const autoIst = [];
+  for (const [v] of auto) { await page.locator(`.feld[data-id="${kiName.id}"] input`).fill(v); await weg(); const l = await lnk(kiName.id); autoIst.push(l.sichtbar ? l.href : null); }
+  ok('Link: ein Textfeld erkennt www…, …de, @, lange Nummer selbst — Datum, Name, PLZ bleiben Text', JSON.stringify(autoIst) === JSON.stringify(auto.map(x => x[1])), autoIst);
+  await page.locator(`.feld[data-id="${kiName.id}"] input`).fill('040 1234567'); await weg();
+  await page.emulateMedia({ media: 'print' });
+  const druckL = await page.evaluate(id => { const el = document.querySelector('.feld[data-id="' + id + '"]'), cs = getComputedStyle(el.querySelector('a.flink')); return { farbe: cs.color, strich: cs.textDecorationLine, stift: el.querySelector('.flinkedit').checkVisibility() }; }, kiName.id);
+  await page.emulateMedia({ media: 'screen' });
+  ok('Link: beim Drucken dunkel ohne Unterstrich und ohne ✏️', druckL.farbe === 'rgb(11, 26, 82)' && druckL.strich === 'none' && !druckL.stift, druckL);
+  await page.locator(`.feld[data-id="${mailId}"] input`).fill(''); await page.locator(`.feld[data-id="${kiName.id}"] input`).fill('Erika Müller'); await weg();
+  await page.waitForTimeout(500);
   // gespeichert? neu laden und zurück
   await page.reload(); await page.waitForFunction(() => document.querySelectorAll('.dok').length === 1);
   ok('nach Neuladen: Dokument in der Bibliothek, Felder gespeichert', await page.evaluate(() => document.querySelector('.dok-meta').textContent.includes('Felder')));

@@ -165,6 +165,14 @@ Die Wahl liegt in `localStorage` `wfpdf_sprache_v1`.
   es durch Neuladen).
 - Die Dokument-Übersetzung (🌐) ist davon getrennt und kennt weiter DE ↔ RU ↔ EN.
 
+## 🔗 Links im Feld (Klaus 2026-09-26)
+
+Beim Ausfüllen wird eine E-Mail, eine Internetadresse (www…, …de) oder eine Telefonnummer
+(ab 6 Ziffern) selbst zum Link: blau, unterstrichen, ein Tipp öffnet Mailprogramm, Telefon oder
+Browser, ✏️ daneben zum Ändern (`linkZiel`, `linkFeld` in `app.js`). Textfelder erkennen das
+selbst — Workflow PDF hat keine Feldart „Telefon". Datum, Name, PLZ bleiben Text. Beim Drucken
+dunkel ohne Unterstrich. Dieselben Regeln wie `ovLinkZiel` in den WorkFlohs.
+
 ## 📘 Handbuch und Beispiel-Formular (Klaus 2026-09-25)
 
 `beispiele/Workfloh-PDF-Benutzerhandbuch.pdf` (14 Seiten) und

@@ -4,6 +4,10 @@
    (fail-soft). Geprüft von tests/sprache.mjs. */
 (function(){ (window.WFP=window.WFP||{}).SPRACH_TEXTE = {
  "en": {
+  "Ändern": "Edit",
+  "E-Mail schreiben": "Write an email",
+  "Anrufen": "Call",
+  "Im Browser öffnen": "Open in browser",
   "⬇ PDF<span> ausgeben</span>": "⬇ PDF<span> export</span>",
   "💾<span> Speichern</span>": "💾<span> Save</span>",
   "🤖<span> Felder</span> erkennen": "🤖 Detect<span> fields</span>",
@@ -449,6 +453,10 @@
   "Welche Dokumente?": "Which documents?"
  },
  "ru": {
+  "Ändern": "Изменить",
+  "E-Mail schreiben": "Написать письмо",
+  "Anrufen": "Позвонить",
+  "Im Browser öffnen": "Открыть в браузере",
   "⬇ PDF<span> ausgeben</span>": "⬇ Выгрузить<span> PDF</span>",
   "💾<span> Speichern</span>": "💾<span> Сохранить</span>",
   "🤖<span> Felder</span> erkennen": "🤖 Найти<span> поля</span>",
@@ -894,6 +902,10 @@
   "Welche Dokumente?": "Какие документы?"
  },
  "ar": {
+  "Ändern": "تعديل",
+  "E-Mail schreiben": "كتابة بريد إلكتروني",
+  "Anrufen": "اتصال",
+  "Im Browser öffnen": "فتح في المتصفح",
   "⬇ PDF<span> ausgeben</span>": "⬇ تصدير<span> PDF</span>",
   "💾<span> Speichern</span>": "💾<span> حفظ</span>",
   "🤖<span> Felder</span> erkennen": "🤖 اكتشاف<span> الحقول</span>",
