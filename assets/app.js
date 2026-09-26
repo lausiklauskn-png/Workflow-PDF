@@ -23,9 +23,10 @@
 
   const TYPEN = {
     text: { name: 'Text', ico: '📝' }, datum: { name: 'Datum', ico: '📅' }, check: { name: 'Kästchen', ico: '☑️' },
-    email: { name: 'E-Mail', ico: '✉️' }, url: { name: 'Internetadresse', ico: '🔗' }, qr: { name: 'QR-Code', ico: '▦' }, unterschrift: { name: 'Unterschrift', ico: '✒️' }
+    email: { name: 'E-Mail', ico: '✉️' }, tel: { name: 'Telefon', ico: '📞' }, url: { name: 'Internetadresse', ico: '🔗' },
+    kdnr: { name: 'Kundennummer', ico: '🔢' }, artnr: { name: 'Artikelnummer', ico: '🏷️' }, qr: { name: 'QR-Code', ico: '▦' }, unterschrift: { name: 'Unterschrift', ico: '✒️' }
   };
-  const GROESSE = { text: [28, 2.2], datum: [16, 2.2], email: [28, 2.2], url: [28, 2.2], check: [2.6, 1.9], qr: [14, 10], unterschrift: [30, 4.5] };
+  const GROESSE = { text: [28, 2.2], datum: [16, 2.2], email: [28, 2.2], tel: [20, 2.2], url: [28, 2.2], kdnr: [16, 2.2], artnr: [16, 2.2], check: [2.6, 1.9], qr: [14, 10], unterschrift: [30, 4.5] };
 
   /* ---------- Einstellungen ---------- */
   const EINST_KEY = 'wfpdf_einst_v1';
@@ -131,7 +132,10 @@
     ol.querySelector('[data-neu]').onclick = neuerOrdner;
 
     const akt = $('ordnerAktionen'); const o = S.ordner.find(x => x.id === S.aktOrdner);
-    const sicht = S.docs.filter(d => S.aktOrdner === 'alle' ? true : S.aktOrdner === 'ohne' ? !d.folderId || !S.ordner.some(x => x.id === d.folderId) : d.folderId === S.aktOrdner);
+    // Suche (Klaus 2026-09-26): nach Name UND nach allem, was in den Feldern steht — z. B. einer Kundennummer
+    const such = String(S.suche || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const passt = d => !such.length || such.every(t => [d.name].concat((d.fields || []).map(f => typeof f.value === 'string' && !/^data:/.test(f.value) ? f.value : '')).join(' ').toLowerCase().includes(t));
+    const sicht = S.docs.filter(d => (such.length ? true : S.aktOrdner === 'alle' ? true : S.aktOrdner === 'ohne' ? !d.folderId || !S.ordner.some(x => x.id === d.folderId) : d.folderId === S.aktOrdner) && passt(d));
     akt.innerHTML = (sicht.length ? `<button class="knopf" data-ueb>🌐 Übersetzen${sicht.length > 1 ? ' — Dokumente wählen' : ''}</button><button class="knopf" data-erk>🤖 Felder erkennen${sicht.length > 1 ? ' — Dokumente wählen' : ''}</button>` : '')
       + (o ? `<button class="knopf" data-ren>✎ Ordner umbenennen</button><button class="knopf gefahr" data-del>🗑 Ordner löschen</button>` : '');
     const q = s => akt.querySelector(s);
@@ -150,6 +154,7 @@
 
     const g = $('dokGitter');
     if (!sicht.length) {
+      if (such.length) { g.innerHTML = `<div class="leer" data-suchleer><b>Kein Dokument passt zu „${h(S.suche.trim())}".</b></div>`; return; }
       g.innerHTML = `<div class="leer"><b>Noch keine Dokumente${o ? ' in diesem Ordner' : ''}.</b><br>Oben ein PDF oder Bild wählen, ein Formular fotografieren oder einen ganzen Ordner einlesen. Du kannst Dateien auch einfach hierher ziehen.</div>`;
       return;
     }
@@ -513,7 +518,7 @@
         el.onclick = () => { S.sel = f.id; markiere(); zeichneFuss(); };
       } else {
         const inp = document.createElement(f.mehrzeilig ? 'textarea' : 'input');
-        if (!f.mehrzeilig) inp.type = f.type === 'datum' ? 'date' : f.type === 'email' ? 'email' : f.type === 'url' ? 'url' : 'text';
+        if (!f.mehrzeilig) inp.type = f.type === 'datum' ? 'date' : f.type === 'email' ? 'email' : f.type === 'url' ? 'url' : f.type === 'tel' ? 'tel' : 'text';
         inp.value = f.value || ''; inp.placeholder = ''; inp.title = f.label || T(TYPEN[f.type].name); inp.setAttribute('aria-label', f.label || T(TYPEN[f.type].name));
         inp.oninput = () => { f.value = inp.value; speichern(); };
         inp.onblur = () => speichernJetzt();
@@ -544,11 +549,14 @@
     const mail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/, web = u => { if (/\s/.test(u)) return ''; const w = /^https?:\/\//i.test(u) ? u : 'https://' + u; return /^https?:\/\/[^\/\s]+\.[^\/\s]+/i.test(w) ? w : ''; };
     if (typ === 'email') return mail.test(v) ? 'mailto:' + v : '';
     if (typ === 'url') return web(v);
+    if (typ === 'tel') { const n = v.replace(/[^\d+]/g, ''); return n.replace(/\D/g, '').length >= 3 ? 'tel:' + n : ''; }
+    if (typ === 'kdnr') return '#kunde:' + encodeURIComponent(v);     // führt zu allem unter dieser Kundennummer
+    if (typ === 'artnr') return '#artikel:' + encodeURIComponent(v);
     if (mail.test(v)) return 'mailto:' + v;
     if (!/[\s@]/.test(v) && /^(https?:\/\/|www\.)/i.test(v)) return web(v);
     if (!/[\s@]/.test(v) && /^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}(\/\S*)?$/i.test(v)) return web(v);
-    if (/^\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4}$/.test(v)) return '';   // ein Datum, keine Nummer
-    if (/^\+?[\d \/()-]+$/.test(v) && v.replace(/\D/g, '').length >= 6) return 'tel:' + v.replace(/[^\d+]/g, '');
+    // Zahlen NICHT (Klaus 2026-09-26): eine Kunden- oder Auftragsnummer ist kein Anruf.
+    // Telefonnummern werden nur in Feldern der Art „Telefon" zum Link.
     return '';
   }
   function linkFeld(f, inp, el) {
@@ -557,17 +565,40 @@
     const zeige = () => {
       const z = linkZiel(f.type, inp.value);
       if (z && document.activeElement !== inp) {
-        const art = z.startsWith('mailto:') ? 'email' : z.startsWith('tel:') ? 'tel' : 'url';
-        a.dataset.link = art; a.title = T(art === 'email' ? 'E-Mail schreiben' : art === 'tel' ? 'Anrufen' : 'Im Browser öffnen');
+        const art = z.startsWith('mailto:') ? 'email' : z.startsWith('tel:') ? 'tel' : z.startsWith('#kunde:') ? 'kdnr' : z.startsWith('#artikel:') ? 'artnr' : 'url';
+        a.dataset.link = art; a.title = T(art === 'email' ? 'E-Mail schreiben' : art === 'tel' ? 'Anrufen' : art === 'kdnr' ? 'Alles zu dieser Kundennummer' : art === 'artnr' ? 'Alles zu dieser Artikelnummer' : 'Im Browser öffnen');
         if (art === 'url') { a.target = '_blank'; a.rel = 'noopener'; } else { a.removeAttribute('target'); a.removeAttribute('rel'); }
         a.href = z; a.textContent = inp.value.trim(); a.style.fontSize = inp.style.fontSize || ''; el.classList.add('verlinkt');
       } else { a.removeAttribute('href'); el.classList.remove('verlinkt'); }
     };
-    a.addEventListener('click', e => { e.stopPropagation(); if (S.modus !== 'ausfuellen' || !a.getAttribute('href')) e.preventDefault(); });
+    a.addEventListener('click', e => { e.stopPropagation(); if (S.modus !== 'ausfuellen' || !a.getAttribute('href')) { e.preventDefault(); return; }
+      if (a.dataset.link === 'kdnr' || a.dataset.link === 'artnr') { e.preventDefault(); nummerOeffnen(a.dataset.link, inp.value.trim()); } });
     b.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); el.classList.remove('verlinkt'); inp.focus(); try { const n = inp.value.length; inp.setSelectionRange(n, n); } catch (_) {} });
     inp.addEventListener('focus', () => el.classList.remove('verlinkt'));
     inp.addEventListener('blur', zeige);
     el.appendChild(a); el.appendChild(b); zeige(); requestAnimationFrame(zeige);
+  }
+  /* Kunden-/Artikelnummer antippen (Klaus 2026-09-26): zeigt jedes Dokument, das dieselbe Nummer trägt.
+     Eine Kundenverwaltung oder Warenwirtschaft kann sich später einhängen:
+     window.WF_KUNDE_OEFFNEN(nr) bzw. window.WF_ARTIKEL_OEFFNEN(nr) — liefert sie nicht false, übernimmt sie. */
+  function nrGleich(a, b) { a = String(a || '').trim().toLowerCase(); return !!a && a === String(b || '').trim().toLowerCase(); }
+  function dokeMitNummer(art, nr) {   // das offene Dokument zählt mit seinem AKTUELLEN Stand, nicht dem der Bibliothek
+    const alle = S.docs.filter(d => !S.doc || d.id !== S.doc.id).concat(S.doc ? [S.doc] : []);
+    return alle.filter(d => (d.fields || []).some(f => f.type === art && nrGleich(f.value, nr)));
+  }
+  function nummerOeffnen(art, nr) {
+    const hook = window[art === 'kdnr' ? 'WF_KUNDE_OEFFNEN' : 'WF_ARTIKEL_OEFFNEN'];
+    if (typeof hook === 'function') { try { if (hook(nr) !== false) return; } catch (_) {} }
+    speichernJetzt();
+    const treffer = dokeMitNummer(art, nr);
+    dialog(`<h2>${art === 'kdnr' ? '🔢 Kundennummer' : '🏷️ Artikelnummer'} <span data-kein-ue>${h(nr)}</span></h2>
+      <p>${h(T('Dokumente mit dieser Nummer'))}: <b data-anzahl>${treffer.length}</b></p>
+      ${treffer.map(d => `<button class="wahl" data-dok="${d.id}"><b>${nm(d.name)}</b><span>${d.id === (S.doc && S.doc.id) ? h(T('dieses Dokument')) : d.pages.length + ' ' + h(T('Seiten'))}</span></button>`).join('')}
+      <p style="color:var(--gedaempft,#666)">${h(T('Eine Kundenverwaltung oder Warenwirtschaft ist noch nicht angebunden — gezeigt wird, wo die Nummer vorkommt.'))}</p>
+      <div class="zeile"><button class="knopf" data-x>${h(T('Schließen'))}</button></div>`, (dl, zu) => {
+      dl.querySelector('[data-x]').onclick = zu;
+      dl.querySelectorAll('[data-dok]').forEach(b => b.onclick = () => { zu(); if (!S.doc || b.dataset.dok !== S.doc.id) oeffneDok(b.dataset.dok); });
+    });
   }
   function ziehen(e, f, el, art) {
     if (S.modus !== 'bearbeiten') return;
@@ -828,7 +859,10 @@
     if (f.type !== 'text') return f.type;
     if (/unterschrift|signatur|signature/.test(l)) return 'unterschrift';
     if (/datum|geburtstag|geb\.|date\b/.test(l)) return 'datum';
+    if (/kunden\s*-?\s*(nr|nummer)|\bkd\.?\s*-?\s*nr|kundennr/.test(l)) return 'kdnr';
+    if (/artikel\s*-?\s*(nr|nummer)|\bart\.?\s*-?\s*nr|artikelnr/.test(l)) return 'artnr';
     if (/e-?mail/.test(l)) return 'email';
+    if (/telefon|\btel\b|tel\.|handy|mobil|phone|fax/.test(l)) return 'tel';
     if (/internet|webseite|homepage|url\b|www/.test(l)) return 'url';
     return 'text';
   }
@@ -1342,7 +1376,7 @@
      Übersetzen gleich, also passen die Prozent-Lagen 1:1. Übersetzt werden die
      Beschriftung und Text-Einträge; Datum, E-Mail, Internetadresse, QR, Unterschrift
      und Kästchen gehen unverändert mit. quellFeld merkt das Feld im Original. */
-  const OHNE_UEBERSETZUNG = new Set(['datum', 'email', 'url', 'qr', 'unterschrift', 'check']);
+  const OHNE_UEBERSETZUNG = new Set(['datum', 'email', 'tel', 'url', 'kdnr', 'artnr', 'qr', 'unterschrift', 'check']);
   async function felderUebersetzen(felder, uebersetzer, mitLabel) {
     const texte = [], ziel = [];
     const neu = felder.map(f => Object.assign(JSON.parse(JSON.stringify(f)), { id: uid(), quellFeld: f.quellFeld || f.id }));
@@ -1643,6 +1677,7 @@
     $('inUeOrdner').onchange = e => { const fs = Array.from(e.target.files || []); const n = fs[0] && fs[0].webkitRelativePath ? fs[0].webkitRelativePath.split('/')[0] : null; ueEinlesen(fs, n); e.target.value = ''; };
     $('inUeDateien').onchange = e => { ueEinlesen(e.target.files, null); e.target.value = ''; };
     $('btnEinst').onclick = einstellungen; $('btnHilfe').onclick = hilfe;
+    $('bibSuche').oninput = e => { S.suche = e.target.value; zeichneBibliothek(); };
     $('btnSprache').onclick = spracheWaehlen; spracheKnopf();
     // Installieren: eigener Knopf, damit es nicht vom Chrome-Menü abhängt.
     // Läuft die App schon installiert (eigenes Fenster), bleibt er verborgen.
@@ -1707,7 +1742,7 @@
 
     if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
     ladeBibliothek().then(chromeTabRueckweg).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
-    window.__wfpdf = { beispieleLaden, S, EINST, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner,
+    window.__wfpdf = { beispieleLaden, S, EINST, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner,
       // für tests/sprache.mjs: jeden Dialog einmal öffnen und seine Texte nachschlagen
       dlg: { neuerOrdner, verschieben, loeschen, speichernDialog, aufnahmeDialog, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart } };   // für die Probe
   }

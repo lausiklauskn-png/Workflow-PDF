@@ -59,6 +59,7 @@ button{cursor:pointer}
 .ordner-chip{border:2px solid var(--linie);background:var(--flaeche);border-radius:999px;padding:7px 14px;white-space:nowrap;font-weight:600}
 .ordner-chip.on{border-color:var(--rot);background:var(--rot-h);color:var(--rot-d)}
 .ordner-chip .anz{font-weight:400;color:var(--ink2);margin-left:4px}
+.bib-suche{width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--linie,#ccc);border-radius:10px;font:inherit;margin:0 0 10px;background:var(--flaeche,#fff);color:inherit}
 .ordner-aktionen{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
 .dok-gitter{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
 .dok{background:var(--flaeche);border:1px solid var(--linie);border-radius:var(--r);overflow:hidden;box-shadow:var(--schatten);display:flex;flex-direction:column}

@@ -178,6 +178,13 @@ Browser, ✏️ daneben zum Ändern (`linkZiel`, `linkFeld` in `app.js`). Textfe
 selbst — Workflow PDF hat keine Feldart „Telefon". Datum, Name, PLZ bleiben Text. Beim Drucken
 dunkel ohne Unterstrich. Dieselben Regeln wie `ovLinkZiel` in den WorkFlohs.
 
+**Zahlen sind kein Anruf** (Klaus 2026-09-26): in einem normalen Textfeld wird eine Zahl NICHT
+zum Telefon-Link — sie kann eine Kunden- oder Auftragsnummer sein. Anruf nur in der Feldart
+**Telefon**. Dazu die Feldarten **Kundennummer** und **Artikelnummer**: antippen zeigt alle Dokumente
+mit derselben Nummer (`nummerOeffnen`); eine Kundenverwaltung/Warenwirtschaft hängt sich später über
+`window.WF_KUNDE_OEFFNEN(nr)` / `window.WF_ARTIKEL_OEFFNEN(nr)` ein. Die Bibliothek hat ein Suchfeld,
+das auch in den Feldinhalten sucht. Nummern werden beim Übersetzen nicht übersetzt.
+
 ## 📘 Handbuch und Beispiel-Formular (Klaus 2026-09-25)
 
 `beispiele/Workfloh-PDF-Benutzerhandbuch.pdf` (14 Seiten) und
