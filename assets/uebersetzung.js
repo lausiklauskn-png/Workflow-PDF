@@ -800,7 +800,7 @@
   }
   function saeubern(font, s) {
     let out = '', ersetzt = 0;
-    for (const ch of String(s || '')) { if (KREIS.test(ch)) { out += ch; continue; } try { font.widthOfTextAtSize(ch, 10); out += ch; } catch (_) { out += '?'; ersetzt++; } }
+    for (const ch of String(s || '')) { try { font.widthOfTextAtSize(ch, 10); out += ch; } catch (_) { out += '?'; ersetzt++; } }
     return { text: out, ersetzt };
   }
   let _schrift = null;

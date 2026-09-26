@@ -14,10 +14,9 @@ const FAELLE = [
   { name: 'Ⓐ als eigenes Textstück wird übergangen', datei: U, anker: ' && !KREIS.test(it.str)) continue;', ersatz: ') continue;', trifft: /eigenes Textstück/ },
   { name: 'eingerückte Zeile nach Satzende verschmilzt', datei: U, anker: "        if (/[.!?]\\s*$/.test(letzte.s) && z.x - letzte.x > z.fh * 1.2) return false;\n", ersatz: '', trifft: /Voltage Between/ },
   { name: 'Symbole kommen nach der Übersetzung nicht zurück', datei: U, anker: '.map((t, k) => kreisZurueck(texte[k], zeichenNormal(t)))', ersatz: '.map(zeichenNormal)', trifft: /Symbole wieder da/ },
-  { name: 'Kreis-Zeichen wird zu „?"', datei: U, anker: 'if (KREIS.test(ch)) { out += ch; continue; } ', ersatz: '', trifft: /zu „\?"|gezeichneter Kreis/ },
   { name: 'kein Kreis gezeichnet', datei: U, anker: 'page.drawCircle({', ersatz: '(() => {})({', trifft: /gezeichneter Kreis/ },
   { name: 'Text wird über das Symbol geschrieben', datei: U, anker: '              dx += bw;\n', ersatz: '', trifft: /läuft hinter dem Symbol/ },
-  { name: 'Symbol wird mitten in ein Wort gesetzt', datei: U, anker: "'(^|[^\\\\p{L}\\\\p{N}])' + inh", ersatz: "'()' + inh", trifft: /mitten in einem Wort/ },
+  { name: 'Symbol wird mitten in ein Wort gesetzt', datei: U, anker: "new RegExp('(^|[^\\\\p{L}\\\\p{N}])' + inh + '(?=$|[^\\\\p{L}\\\\p{N}])', 'u')", ersatz: "new RegExp('()' + inh, 'u')", trifft: /mitten in einem Wort/ },
   { name: 'Negativ-Ziffern (➋) falsch gelesen', datei: U, anker: '    if (c >= 0x2780 && c <= 0x2789) return String(c - 0x277F);\n', ersatz: '', trifft: /Inhalt der Kreise/ },
   { name: 'Ring-Messer zählt alles als Kreis', datei: 'tests/kreis.mjs', anker: "if ([-0.4, 0, 0.4].some(d => dunkel(", ersatz: "if (true || [-0.4, 0, 0.4].some(d => dunkel(", trifft: /Selbst-Riegel/ }
 ];

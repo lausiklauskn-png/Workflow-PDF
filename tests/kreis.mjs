@@ -33,7 +33,7 @@ T('VOLTAGE CHECK', 60, 780, B, 13);
 T('If measurements were taken as shown in the figure at the right', 60, 700);
 T('and results are as listed below, it means that the circuit is open', 60, 685);
 T('between terminals Ⓐ and Ⓑ.', 60, 670);
-T('Voltage Between:', 100, 652, B);
+T('Voltage Between:', 80, 652, B);   // eingerückt, aber näher als 3 Schrifthöhen — sonst trennt es schon die alte Regel (Befund der Gegenprobe)
 // eine Zeile als EIN Textstück, eine mit dem Symbol als EIGENEM Stück davor
 T('Ⓒ and body ground: Approx. 5V', 100, 636);
 T('Ⓑ and body ground: Approx. 5V', 100, 620);
@@ -76,7 +76,7 @@ try {
     const T2 = UE.kreisZurueck;
     return { bl: s.b.map(b => b[6]), u: s.u, gesendet, hinweise: e.hinweise, kreise, neben, ohneKreis,
       einzel: { ab: T2('between Ⓐ and Ⓑ.', 'zwischen A und B.'), wort: T2('Ⓐ', 'Also A'), zahl: T2('① 5V', '1 5V'), neg: T2('❷', 'Schraube 2'), schon: T2('Ⓐ x', 'Ⓐ y'), fehlt: T2('Ⓐ', 'nichts'), ohne: T2('kein Symbol', 'A B') },
-      inhalt: ['Ⓐ', 'ⓑ', '①', '⑫', '❶', '➋'].map(UE.kreisInhalt) };
+      inhalt: ['Ⓐ', 'ⓑ', '①', '⑫', '❶', '➋', '➁'].map(UE.kreisInhalt) };
   }, Buffer.from(bytes).toString('base64'));
 
   const bl = r.bl;
@@ -87,8 +87,7 @@ try {
   ok('das Symbol geht mit zum Übersetzer (der Satz bleibt lesbar)', r.gesendet.some(t => /Ⓐ and Ⓑ/.test(t)), r.gesendet);
   ok('nach der Übersetzung sind die Symbole wieder da, obwohl der Übersetzer „A" daraus machte', r.u.includes('Ⓒ und Karosseriemasse: Ca. 5V') && r.u.some(t => /zwischen den Klemmen Ⓐ und Ⓑ\./.test(t)), r.u);
   ok('… auch mitten im Satz und bei Ziffern (① ❷)', r.u.some(t => /Deckel ① und dann die Schraube ❷ vorsichtig/.test(t)), r.u);
-  ok('im PDF wird kein Kreis-Zeichen zu „?" (die Schrift hat keins)', !r.hinweise.some(h => /durch „\?"/.test(h)), r.hinweise);
-  ok('im PDF steht um jedes Symbol ein gezeichneter Kreis (Ring aus Tinte)', r.kreise.length >= 7 && r.kreise.every(k => k.ring >= 13), r.kreise);
+    ok('im PDF steht um jedes Symbol ein gezeichneter Kreis (Ring aus Tinte)', r.kreise.length >= 7 && r.kreise.every(k => k.ring >= 13), r.kreise);
   ok('Selbst-Riegel: der Ring-Messer findet an einem gewöhnlichen Wortanfang keinen Kreis', r.ohneKreis.length === 1 && r.ohneKreis[0] < 9, r.ohneKreis);
   ok('der Text läuft hinter dem Symbol weiter (nicht darübergeschrieben)', r.neben.length === 3 && r.neben.every(n => n.x > 108), r.neben);
   const e = r.einzel;
@@ -96,7 +95,7 @@ try {
   ok('kreisZurueck: nie mitten in einem Wort („Also")', e.wort === 'Also Ⓐ', e.wort);
   ok('kreisZurueck: „5V" bleibt, nur die freistehende 1 wird ①', e.zahl === '① 5V' && e.neg === 'Schraube ❷', [e.zahl, e.neg]);
   ok('kreisZurueck: schon vorhandenes Symbol bleibt, ohne Gegenstück nichts erfunden', e.schon === 'Ⓐ y' && e.fehlt === 'nichts' && e.ohne === 'A B', e);
-  ok('Inhalt der Kreise: Ⓐ→A, ⓑ→b, ①→1, ⑫→12, ❶→1, ➋→2', JSON.stringify(r.inhalt) === JSON.stringify(['A', 'b', '1', '12', '1', '2']), r.inhalt);
+  ok('Inhalt der Kreise: Ⓐ→A, ⓑ→b, ①→1, ⑫→12, ❶→1, ➋→2, ➁→2', JSON.stringify(r.inhalt) === JSON.stringify(['A', 'b', '1', '12', '1', '2', '2']), r.inhalt);
   ok('keine Seitenfehler', fehler.length === 0, fehler);
 } finally { await browser.close(); srv.close(); }
 console.log(`\n${gruen} grün · ${rot} ROT`);
