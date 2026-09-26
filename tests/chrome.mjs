@@ -46,7 +46,7 @@ await ctx.addInitScript(() => {
   let an = false, beob = null;
   const gesperrt = n => { for (let e = n.nodeType === 1 ? n : n.parentElement; e; e = e.parentElement) { const t = e.getAttribute && e.getAttribute('translate'); if (t === 'no') return true; if (t === 'yes') return false; } return false; };
   const kyr = t => t.replace(/[a-zäöüß]/gi, c => 'абвгдежзийклмнопрстуфхцчшщыэюя'[(c.toLowerCase().charCodeAt(0) - 97 + 30) % 30]);   // „Russisch": wirklich kyrillisch
-  const zu = t => t.trim() === 'Hamburg' ? t : (window.__chromeZiel || 'ru') === 'ru' ? '[ру] ' + kyr(t) : '[en] ' + t;   // Chrome übersetzt in die Sprache, die man DORT gewählt hat
+  const zu = t => t.trim() === 'Hamburg' ? t : (window.__chromeZiel || 'ru') === 'ru' ? '[ру] ' + kyr(t) : window.__chromeZiel === 'ps' ? '[پښتو] دا یوه ژباړه ده چې په پښتو ژبه لیکل شوې ده ' + t.length : '[en] ' + t;   // Chrome übersetzt in die Sprache, die man DORT gewählt hat
   const lauf = wurzel => {
     const w = document.createTreeWalker(wurzel, NodeFilter.SHOW_TEXT); const ns = [];
     for (let n; (n = w.nextNode());) if (n.nodeValue.trim() && !gesperrt(n) && !(n.parentElement && n.parentElement.closest('font,script,style'))) ns.push(n);
@@ -176,6 +176,14 @@ try {
   ok('Chrome übersetzt in die FALSCHE Sprache: die App sagt es und nennt den Weg (⋮ → Übersetzen → Englisch)', /Russisch/.test(falsch.anl) && /Englisch/.test(falsch.anl) && /umstellen/.test(falsch.anl), falsch);
   await tab.waitForTimeout(1200);
   ok('… und übernimmt nichts (noch keine Datei „Chrome [EN]")', await tab.evaluate(async () => !(await WFP.DB.all('docs')).some(d => /Chrome \[EN\]/.test(d.name))));
+  // Mitten im Lauf auf Paschtu umgestellt (Klaus 2026-09-26): arabische Schrift, im PDF nur
+  // Kästchen. Die Prüfung kannte bis dahin nur kyrillisch ⟷ lateinisch und ließ es durch.
+  await tab.evaluate(() => { window.__chromeOriginal(); window.__chromeZiel = 'ps'; window.__chromeUebersetzen(); });
+  await tab.waitForFunction(() => /arabisch/.test(document.querySelector('#wfp-chrome [data-anl]')?.textContent || ''), null, { timeout: 15000 }).catch(() => {});
+  const ps = await tab.evaluate(() => document.querySelector('#wfp-chrome [data-anl]')?.textContent || '');
+  ok('Chrome übersetzt in eine ANDERE Schrift (Paschtu): die App sagt es', /arabischer Schrift/.test(ps) && /Englisch/.test(ps), ps);
+  await tab.waitForTimeout(1200);
+  ok('… und übernimmt auch das nicht', await tab.evaluate(async () => !(await WFP.DB.all('docs')).some(d => /Chrome \[EN\]/.test(d.name))));
   // Nutzer stellt in Chrome auf Englisch um → Chrome übersetzt neu
   await tab.evaluate(() => { window.__chromeOriginal(); window.__chromeZiel = 'en'; window.__chromeUebersetzen(); });
   await tab.waitForFunction(() => /Übersetzung fertig/.test(document.querySelector('.dlg h2')?.textContent || ''), null, { timeout: 60000 });

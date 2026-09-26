@@ -326,11 +326,27 @@
   // kopieren" — nur er kennt Adresse und Dokumente (Klaus 2026-09-25: im installierten
   // App-Fenster fehlt oft „Übersetzen", und die Adresse kennt kaum jemand).
   // Welche Schrift steht da? null = passt (oder zu wenig Text, um es zu sagen)
+  // Chrome merkt sich die zuletzt gewählte Zielsprache — und man kann sie mitten im Lauf
+  // umstellen (Klaus 2026-09-26: Paschtu statt Englisch, im PDF standen Kästchen, weil die
+  // Schrift keine arabischen Zeichen hat). Geprüft wird deshalb JEDE Schrift, nicht nur
+  // kyrillisch ⟷ lateinisch: die Zielschrift muss den Text tragen. Namen und Kürzel in
+  // fremder Schrift (PDF, Chrome) sind erlaubt, darum ein Anteil, keine Reinheit.
+  // Benannte Grenze: DE und EN teilen die lateinische Schrift und sind so nicht zu trennen.
+  const SCHRIFTEN = [
+    ['Latin', 'eine Sprache in lateinischer Schrift'],
+    ['Cyrillic', 'Russisch (kyrillische Schrift)'],
+    ['Arabic', 'eine Sprache in arabischer Schrift (z. B. Arabisch, Persisch, Paschtu)'],
+    ['Han', 'Chinesisch oder Japanisch'], ['Hiragana', 'Japanisch'], ['Katakana', 'Japanisch'], ['Hangul', 'Koreanisch'],
+    ['Hebrew', 'Hebräisch'], ['Greek', 'Griechisch'], ['Devanagari', 'eine Sprache in Devanagari (z. B. Hindi)'], ['Thai', 'Thailändisch']];
   function falscheSchrift(text, nach) {
-    const kyr = (String(text).match(/[\u0400-\u04FF]/g) || []).length, lat = (String(text).match(/[A-Za-zÀ-ÿ]/g) || []).length;
-    if (kyr + lat < 20) return null;
-    if (nach === 'ru') return kyr === 0 ? 'eine Sprache in lateinischer Schrift' : null;
-    return kyr > lat ? 'Russisch (kyrillische Schrift)' : null;
+    const t = String(text), buchstaben = (t.match(/\p{L}/gu) || []).length;
+    if (buchstaben < 20) return null;
+    const ziel = nach === 'ru' ? 'Cyrillic' : 'Latin';
+    const zahl = n => (t.match(new RegExp('\\p{Script=' + n + '}', 'gu')) || []).length;
+    if (zahl(ziel) / buchstaben >= 0.4) return null;
+    let best = null, bestN = 0;
+    for (const [n, name] of SCHRIFTEN) if (n !== ziel) { const z = zahl(n); if (z > bestN) { best = name; bestN = z; } }
+    return best || 'eine andere Schrift';
   }
   function chromeUebersetzer(von, nach, opt) {
     opt = opt || {};

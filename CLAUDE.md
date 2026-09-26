@@ -98,6 +98,9 @@ Textfarbe an dieselbe Stelle. Zwischenstand je Seite in IndexedDB
 - **Chrome merkt sich die Zielsprache** und fragt nicht nach: wer vorher Russisch hatte, bekommt
   bei „Englisch" wieder Russisch. `falscheSchrift()` prüft die Schrift (kyrillisch ⟷ lateinisch)
   und übernimmt dann NICHTS, sondern nennt den Weg (⋮ → Übersetzen → Sprache umstellen).
+  Seit 2026-09-26 für JEDE Schrift (Klaus stellte mitten im Lauf auf Paschtu um — arabische
+  Schrift, im PDF nur Kästchen): die Zielschrift muss ≥ 40 % der Buchstaben tragen, sonst
+  wird die gefundene Schrift genannt. Unter 20 Buchstaben wird nicht geurteilt.
   DE und EN sind darüber nicht zu unterscheiden — benannte Grenze.
 - **Ergebnisse gehören zum Stamm-Ordner** (Klaus 2026-09-26, „Beispiele · ausgefüllt (aus EN) · RU"):
   `ergebnisOrdner()` geht über `stammOrdner()` die Kette `quelle` hinauf — wer die ausgefüllte
