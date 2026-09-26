@@ -123,6 +123,13 @@ Textfarbe an dieselbe Stelle. Zwischenstand je Seite in IndexedDB
   und unten (`b[10]`, `b[11]`) wird genutzt, BEVOR die Schrift kleiner wird · gleiche
   Originalgröße in derselben Spalte oder Ankreuz-Zeile bekommt dieselbe Größe (nicht unter
   70 % des Originals).
+- **Beschriftungs-Spalten** (Klaus 2026-09-26, Fragebogen auf EN: „Postal code, / City: Email:"):
+  eine Zeile, die auf „:" endet, beendet den Absatz, und ein Zeilenabstand über 1,6 Schrifthöhen
+  auch — sonst wurden Beschriftungen neben ihren Feldern zu einem Absatz zusammengezogen und neu
+  umbrochen, und die Überschrift verschmolz mit der ersten Beschriftung. Der Abstands-Riegel gilt
+  NICHT für Texterkennung (`ocr`): dort ist `fh` das Buchstaben-Kästchen, der Scan-Absatz zerfiel.
+  **Textfarbe** (`farben`): unter den Farben, die sich klar vom Grund abheben, die dunkelste mit
+  mindestens 25 % der Häufigsten — die häufigste ist oft das Kantengrau, daher blasse Beschriftungen.
 - **Bilder mit Text auf Seiten MIT Textebene** (`bildFlaechen`): größere Bilder werden bei
   3-facher Größe per Texterkennung gelesen und übersetzt — vorher nur ganz textlose Seiten.
   Das ist Klaus' Idee „das Bild in der anderen Sprache": der Text im Bild wird übersetzt
