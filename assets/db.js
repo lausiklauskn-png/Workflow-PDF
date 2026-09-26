@@ -41,7 +41,11 @@
     }));
   }
 
-  const abgeleitetWeg = id => tx('texte', 'readwrite', st => st.delete(id)).then(() => tx('vektoren', 'readwrite', st => st.delete(id)));
+  /* Vektoren liegen je Dokument als Kopf (id) plus Blöcke (id#00000, id#00001 …) — ein
+     400-Seiten-Handbuch wird so Stück für Stück gespeichert und nach einer Unterbrechung
+     fortgesetzt, statt als ein Riesen-Eintrag bei jedem Zwischenstand neu geschrieben. */
+  const vektorenWeg = id => tx('vektoren', 'readwrite', st => { st.delete(id); return st.delete(IDBKeyRange.bound(id + '#', id + '#\uffff')); });
+  const abgeleitetWeg = id => tx('texte', 'readwrite', st => st.delete(id)).then(() => vektorenWeg(id));
 
   const DB = {
     all: store => tx(store, 'readonly', st => st.getAll()),
@@ -51,6 +55,7 @@
     // Der Seitentext hängt an den Bytes: wer sie ersetzt oder löscht, wirft ihn mit weg.
     // Die Suche erfasst ihn dann neu (app.js, texteNachholen) — ein veralteter Text
     // fände Dinge, die im PDF nicht mehr stehen. Die Bedeutungs-Vektoren ebenso.
+    vektorenWeg,
     del: (store, id) => tx(store, 'readwrite', st => st.delete(id)).then(r => (store === 'files' ? abgeleitetWeg(id).then(() => r) : r)),
     async putFile(id, bytes) { await DB.put('files', { id, bytes }); await abgeleitetWeg(id); },
     async getFile(id) { const r = await DB.get('files', id); return r ? r.bytes : null; },

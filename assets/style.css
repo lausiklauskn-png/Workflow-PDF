@@ -270,6 +270,8 @@ label.haken { display: flex; gap: 8px; align-items: center; font-weight: 400; ma
 .bedeutung-leiste .bed-mb{font-variant-numeric:tabular-nums;color:var(--ink2)}
 .bedeutung-leiste .fortschritt{flex:1 1 100%;margin:2px 0 0}
 .bedeutung-leiste .bed-fehler{color:#9a1c12}
+.bedeutung-leiste .bed-klein{flex:1 1 100%;font-size:.8rem}
+.dok[data-schwach] .naehe-zahl{background:#EEE;color:#555}
 .bed-kopf{grid-column:1/-1;margin:14px 0 2px;font-weight:700}
 .bed-grenze{grid-column:1/-1;margin-top:4px}
 .naehe-zahl{background:#DCE8FF;color:#1c3a7a}

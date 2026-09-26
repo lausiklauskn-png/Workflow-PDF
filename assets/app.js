@@ -211,7 +211,7 @@
       const v = offeneVorschlaege(d), ord = S.ordner.find(x => x.id === d.folderId);
       const tr = fund && !fund.bedeutung ? fund.treffer : 0;
       const nae = fund && fund.bedeutung ? `<span class="treffer-zahl naehe-zahl dok-treffer" data-naehe="${fund.w.toFixed(3)}" title="Nähe zur Frage — eine Rangfolge, keine Prozent">🧠 ${fund.w.toFixed(2).replace('.', ',')}</span>` : '';
-      return `<div class="dok" data-id="${d.id}"${fund && fund.bedeutung ? ' data-bedeutung' : ''}>${nae}${tr ? `<span class="treffer-zahl dok-treffer" data-treffer="${tr}" title="Treffer in diesem Dokument">🔎${tr}</span>` : ''}
+      return `<div class="dok" data-id="${d.id}"${fund && fund.bedeutung ? ' data-bedeutung' + (fund.schwach ? ' data-schwach' : '') : ''}>${nae}${tr ? `<span class="treffer-zahl dok-treffer" data-treffer="${tr}" title="Treffer in diesem Dokument">🔎${tr}</span>` : ''}
         <button class="dok-bild" data-auf style="background-image:url('${d.thumb || ''}')" title="Öffnen">
           <span class="marken">${v ? `<span class="marke-klein ki">🤖 ${v} zu prüfen</span>` : ''}${d.quelle === 'foto' ? '<span class="marke-klein">📷 Foto</span>' : ''}${d.uebersetzung ? `<span class="marke-klein">🌐 ${h((d.uebersetzung.von || '').toUpperCase())}→${h((d.uebersetzung.nach || '').toUpperCase())}${d.uebersetzung.gegenprobe ? ' Gegenprobe' : ''}</span>` : ''}${d.ausgefuellt ? `<span class="marke-klein">↩ ausgefüllt aus ${h((d.ausgefuellt.aus || '').toUpperCase())}</span>` : ''}</span></button>
         <div class="dok-info"><div class="dok-name" data-kein-ue title="${h(d.name)}">${nm(d.name)}</div>
@@ -254,7 +254,7 @@
      Dialog sagt VORHER, was aus dem Netz kommt. Aus dem Netz kommt nur das Modell (jsDelivr,
      Hugging Face); die Dokumente werden auf dem Gerät eingeordnet und verlassen es nicht.
      Die Zerlegung und Rangfolge stehen in assets/bedeutung.js. */
-  const BED = { zustand: 'aus', stand: { prozent: null, geladen: 0, gesamt: 0, datei: '' }, text: '', vek: new Map(), dateien: new Map(), ergebnis: null, fehler: '', gekuerzt: 0 };
+  const BED = { zustand: 'aus', stand: { prozent: null, geladen: 0, gesamt: 0, datei: '' }, text: '', vek: new Map(), dateien: new Map(), ergebnis: null, fehler: '', ordnet: null };
   S.bedeutungFund = new Map();
   const mb = n => (n / 1048576).toFixed(1).replace('.', ',');
   function skriptLaden(src) {
@@ -282,8 +282,16 @@
         + (st.gesamt ? `<span class="bed-mb" data-bed-mb>${h(mb(st.geladen) + ' / ' + mb(st.gesamt) + ' MB')}</span>` : '')
         + `<div class="fortschritt${p == null ? ' laeuft' : ''}" data-bed-balken role="progressbar" aria-valuemin="0" aria-valuemax="100"${p == null ? '' : ` aria-valuenow="${Math.floor(p)}"`}><i style="width:${p == null ? 100 : p.toFixed(1)}%"></i></div>`;
     } else if (z === 'ordnet') {
-      const [i, n] = BED.ordnetZahl || [0, 0];
-      html = `<span class="bed-t" data-bed-text>${h('Dokumente werden eingeordnet: ' + i + ' von ' + n)}</span><div class="fortschritt" data-bed-balken role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${n ? Math.floor(i / n * 100) : 0}"><i style="width:${n ? (i / n * 100).toFixed(1) : 0}%"></i></div>`;
+      const o = BED.ordnet;
+      const p = o && o.gesamt ? Math.min(100, o.fertig / o.gesamt * 100) : 0;
+      const sek = ms => (ms / 1000).toFixed(1).replace('.', ',');
+      const min = ms => ms < 60000 ? 'unter 1' : String(Math.round(ms / 60000));
+      html = o
+        ? `<span class="bed-t" data-bed-text>${'Wird eingeordnet: ' + nm(o.name) + h(' · Seite ' + o.seite + ' von ' + o.seiten)}</span>`
+          + `<span class="bed-mb" data-bed-zeit>${h('Dokument ' + o.dok + ' von ' + o.doks + ' · ' + (o.msSeite == null ? 'Zeit je Seite wird gemessen …' : '≈ ' + sek(o.msSeite) + ' s je Seite · noch ≈ ' + min(o.restMs) + ' min'))}</span>`
+        : `<span class="bed-t" data-bed-text>${h('Dokumente werden geprüft …')}</span>`;
+      html += `<div class="fortschritt" data-bed-balken role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.floor(p)}"><i style="width:${p.toFixed(1)}%"></i></div>`;
+      if (o) html += `<span class="bed-t bed-klein" data-bed-schon>${h('Suchen geht schon — was eingeordnet ist, wird gefunden.')}</span>`;
     } else if (z === 'bereit') html = `<span class="bed-t" data-bed-text>🧠 ${h('Suche nach Bedeutung an · ' + BED.vek.size + ' Dokumente eingeordnet')}</span><button class="knopf klein" type="button" data-bed-mehr>⚙️</button>`;
     else html = `<span class="bed-t bed-fehler" data-bed-text>⚠️ ${'Suche nach Bedeutung ging nicht:'} <span data-kein-ue>${h(BED.fehler)}</span></span><button class="knopf klein" type="button" data-bed-nochmal>↻ Nochmal</button><button class="knopf klein" type="button" data-bed-mehr>⚙️</button>`;
     l.innerHTML = html;
@@ -298,7 +306,8 @@
       <p>Die Wortsuche findet, was wörtlich dasteht. Die Suche nach Bedeutung findet auch Dokumente, in denen <b>andere Wörter</b> stehen — „Kündigung" findet den Brief, in dem „Vertrag beenden" steht.</p>
       <p><b>Was dafür aus dem Netz kommt:</b> einmalig ein Sprachmodell (multilingual-e5-small, rund 30 MB) von jsDelivr und Hugging Face. Der Balken zeigt, wie viel schon da ist. Danach liegt es im Speicher dieses Browsers.</p>
       <p><b>Was NICHT ins Netz geht:</b> deine Dokumente. Sie werden auf diesem Gerät eingeordnet.</p>
-      <p class="hinweis">Sehr lange Dokumente werden nur mit ihren ersten ${BD.MAX_STUECKE} Abschnitten eingeordnet. Gezeigt wird ab einer Nähe von ${String(BD.NAEHE_MIN).replace('.', ',')}, höchstens ${BD.MAX_ZEIGEN} Dokumente.</p>
+      <p class="hinweis">Eingeordnet werden <b>alle Seiten</b>, Satz für Satz. Bei einem langen Handbuch dauert das — die Leiste zeigt die Seite und die gemessene Zeit, und nach einer Unterbrechung geht es an derselben Stelle weiter. Suchen geht schon währenddessen.</p>
+      <p class="hinweis">Gezeigt wird, was höchstens ${String(BD.ABSTAND).replace('.', ',')} hinter dem besten Treffer liegt (nie unter ${String(BD.NAEHE_MIN).replace('.', ',')}), höchstens ${BD.MAX_ZEIGEN} Dokumente. Bei Fragen aus mehreren Wörtern zählen die Wörter mit.</p>
       ${an ? `<p data-bed-dlgstand>${'Stand:'} <b>${h({ laedt: 'lädt', ordnet: 'ordnet ein', bereit: 'bereit', fehler: 'Fehler' }[BED.zustand] || BED.zustand)}</b></p>` : ''}
       <div class="zeile">${an ? '<button class="knopf gefahr" data-bed-aus>Ausschalten</button>' : '<button class="knopf primaer" data-bed-laden>⬇️ Modell laden</button>'}<button class="knopf" data-x>Schließen</button></div>`, (d, zu) => {
       d.querySelector('[data-x]').onclick = zu;
@@ -327,7 +336,7 @@
       await modulLaden();
       await window.SbkimEmbedding.init();
       if (BED._lauf !== lauf) return;
-      BED.zustand = 'ordnet'; BED.ordnetZahl = [0, S.docs.length]; bedeutungZeichnen();
+      BED.zustand = 'ordnet'; BED.ordnet = null; if (!BED.msStueck && EINST.bedMsStueck) { BED.msStueck = EINST.bedMsStueck; BED.gemessen = 32; } bedeutungZeichnen();
       await vektorenNachholen();
       if (BED._lauf !== lauf) return;
       BED.zustand = 'bereit'; BED.ergebnis = null; bedeutungZeichnen();
@@ -338,7 +347,30 @@
     });
     return lauf;
   }
-  // Jedes Dokument einmal einordnen; unverändert Eingeordnetes kommt aus dem Speicher.
+  /* Jedes Dokument einordnen — ALLE Seiten (seit 2026-09-26 ohne Deckel). Unverändert
+     Eingeordnetes kommt aus dem Speicher. Gespeichert wird in Blöcken zu VEK_BLOCK Abschnitten
+     (DB-Schlüssel id#00000 …, Kopf unter id mit sig und fertig): wird die App geschlossen,
+     geht es beim nächsten Start an derselben Stelle weiter. Die Anzeige nennt Dokument, Seite
+     und die GEMESSENE Zeit je Seite — geschätzt wird erst, wenn etwas gemessen ist. */
+  const VEK_BLOCK = 64;
+  const blockId = (id, b) => id + '#' + String(b).padStart(5, '0');
+  async function vektorenAusSpeicher() {
+    if (BED.speicherGelesen) return;
+    let alle = []; try { alle = await DB.all('vektoren'); } catch (_) {}
+    const koepfe = new Map(), bloecke = new Map();
+    for (const r of alle) {
+      const i = r.id.indexOf('#');
+      if (i < 0) koepfe.set(r.id, r);
+      else { const id = r.id.slice(0, i); if (!bloecke.has(id)) bloecke.set(id, new Map()); bloecke.get(id).set(+r.id.slice(i + 1), r.st || []); }
+    }
+    for (const [id, k] of koepfe) {
+      if (!k.sig || !k.n || BED.vek.has(id)) continue;   // alte Fassung (ein Eintrag mit st) wird neu eingeordnet
+      const st = [], bs = bloecke.get(id) || new Map();
+      for (let b = 0; bs.has(b); b++) st.push(...bs.get(b));   // nur lückenlos — ein fehlender Block wird neu gerechnet
+      BED.vek.set(id, { id, sig: k.sig, n: k.n, st: st.slice(0, k.n) });
+    }
+    BED.speicherGelesen = true;
+  }
   let _vekLauf = null, _vekNochmal = false;
   function vektorenNachholen() {
     if (_vekLauf) { _vekNochmal = true; return _vekLauf; }
@@ -346,25 +378,52 @@
       do {
         _vekNochmal = false;
         await texteNachholen();
-        const gespeichert = new Map(); try { for (const r of await DB.all('vektoren')) gespeichert.set(r.id, r); } catch (_) {}
-        const docs = S.docs.slice(); let i = 0, gekuerzt = 0;
-        for (const d of docs) {
-          i++;
-          const st = BD.stuecke(d, TEXTE.get(d.id) ? TEXTE.get(d.id) : null); if (st.gekuerzt) gekuerzt++;
-          const sig = BD.signatur(st);
-          const alt = BED.vek.get(d.id) || gespeichert.get(d.id);
-          if (alt && alt.sig === sig) { BED.vek.set(d.id, alt); continue; }
-          if (BED.zustand === 'ordnet') { BED.ordnetZahl = [i - 1, docs.length]; bedeutungZeichnen(); }
-          if (!st.length) { BED.vek.delete(d.id); continue; }
-          const vs = [];
-          for (let k = 0; k < st.length; k += 16) vs.push(...await window.SbkimEmbedding.embedPassageBatch(st.slice(k, k + 16).map(x => x.text)));
-          const e = { id: d.id, sig, st: st.map((x, k) => ({ page: x.page, text: x.text, box: x.box, v: vs[k] })) };
-          BED.vek.set(d.id, e); try { await DB.put('vektoren', e); } catch (_) {}
-          BED.ergebnis = null;
+        await vektorenAusSpeicher();
+        const plan = [];
+        for (const d of S.docs.slice()) {
+          const st = BD.stuecke(d, TEXTE.get(d.id) ? TEXTE.get(d.id) : null);
+          const sig = BD.signatur(st), alt = BED.vek.get(d.id);
+          if (!st.length) { if (alt) { BED.vek.delete(d.id); DB.vektorenWeg(d.id).catch(() => {}); } continue; }
+          const ab = alt && alt.sig === sig ? Math.min(alt.st.length, st.length) : 0;
+          if (ab < st.length) plan.push({ d, st, sig, ab });
         }
-        const da = new Set(docs.map(d => d.id)); for (const id of [...BED.vek.keys()]) if (!da.has(id)) BED.vek.delete(id);
-        BED.gekuerzt = gekuerzt;
-        if (BED.zustand === 'ordnet') { BED.ordnetZahl = [docs.length, docs.length]; bedeutungZeichnen(); }
+        const da = new Set(S.docs.map(d => d.id)); for (const id of [...BED.vek.keys()]) if (!da.has(id)) BED.vek.delete(id);
+        const gesamt = plan.reduce((n, x) => n + x.st.length - x.ab, 0);
+        let fertig = 0;
+        for (let i = 0; i < plan.length; i++) {
+          const { d, st, sig, ab } = plan[i];
+          let e = BED.vek.get(d.id);
+          if (!ab || !e || e.sig !== sig) {
+            e = { id: d.id, sig, n: st.length, st: [] }; BED.vek.set(d.id, e);
+            try { await DB.vektorenWeg(d.id); await DB.put('vektoren', { id: d.id, sig, n: st.length, fertig: 0 }); } catch (_) {}
+          }
+          for (let k = e.st.length; k < st.length; k += 16) {
+            if (BED.zustand === 'aus' || BED.zustand === 'fehler') return;
+            const teil = st.slice(k, k + 16), t0 = performance.now();
+            const vs = await window.SbkimEmbedding.embedPassageBatch(teil.map(x => x.text));
+            const ms = (performance.now() - t0) / teil.length;
+            BED.msStueck = BED.msStueck ? BED.msStueck * 0.8 + ms * 0.2 : ms; BED.gemessen = (BED.gemessen || 0) + teil.length;
+            teil.forEach((x, j) => e.st.push({ page: x.page, text: x.text, box: x.box, v: vs[j] }));
+            fertig += teil.length;
+            const n = e.st.length;
+            if (n % VEK_BLOCK === 0 || n === st.length) {
+              const b = Math.floor((n - 1) / VEK_BLOCK);
+              try {
+                await DB.put('vektoren', { id: blockId(d.id, b), st: e.st.slice(b * VEK_BLOCK, (b + 1) * VEK_BLOCK) });
+                await DB.put('vektoren', { id: d.id, sig, n: st.length, fertig: n });
+              } catch (_) {}
+              BED.ergebnis = null;
+            }
+            const letzte = e.st[n - 1];
+            BED.ordnet = { dok: i + 1, doks: plan.length, name: d.name, seite: letzte && letzte.page != null ? letzte.page + 1 : 1, seiten: d.pages.length || 1, fertig, gesamt,
+              msSeite: BED.gemessen >= 32 ? BED.msStueck * st.length / Math.max(1, d.pages.length) : null,
+              restMs: BED.gemessen >= 32 ? BED.msStueck * (gesamt - fertig) : null };
+            if (BED.zustand === 'ordnet') bedeutungZeichnen();
+          }
+          BED.ergebnis = null;
+          if (BED.zustand === 'ordnet' && String(S.suche || '').trim() && $('sc-bib').classList.contains('on')) zeichneBibliothek();
+        }
+        if (BED.gemessen >= 32) { EINST.bedMsStueck = Math.round(BED.msStueck * 10) / 10; einstSpeichern(); }
       } while (_vekNochmal);
     })().finally(() => { _vekLauf = null; });
     return _vekLauf;
@@ -373,7 +432,7 @@
   let _bedFrage = null, _bedUhr = null;
   function bedeutungSuchen() {
     const q = String(S.suche || '').trim();
-    if (!q || BED.zustand !== 'bereit' || _bedFrage === q) return;
+    if (!q || !bedeutungSucht() || _bedFrage === q) return;
     _bedFrage = q; clearTimeout(_bedUhr);
     _bedUhr = setTimeout(async () => {
       try {
@@ -381,37 +440,64 @@
         try { const v = window.SbkimMatch.expandQuerySimple(q); if (Array.isArray(v) && v.length) fassungen = v.slice(0, 4); } catch (_) {}
         const qv = await Promise.all(fassungen.map(f => window.SbkimEmbedding.embedQuery(f)));
         if (String(S.suche || '').trim() !== q) return;
-        BED.ergebnis = { frage: q, r: BD.rangliste(qv, BED.vek, window.SbkimMatch.match) };
+        const wa = wortAnteil(q);
+        BED.ergebnis = { frage: q, woerter: wa ? wa.anzahl : 0, r: BD.rangliste(qv, BED.vek, window.SbkimMatch.match, { wortAnteil: wa }) };
       } catch (e) { BED.ergebnis = { frage: q, fehler: String((e && e.message) || e) }; }
       finally { if (_bedFrage === q) _bedFrage = null; }
       if ($('sc-bib').classList.contains('on')) zeichneBibliothek();
     }, 300);
+  }
+  // Gesucht wird, sobald das Modell da ist — auch während noch eingeordnet wird.
+  const bedeutungSucht = () => BED.zustand === 'bereit' || (BED.zustand === 'ordnet' && BED.vek.size > 0);
+  /* Lange Fragen: wie viele der Suchwörter stehen im Abschnitt? Gezählt werden Wörter ab vier
+     Buchstaben und Daten (Füllwörter wie „der", „und" tragen nichts), und erst ab ZWEI solchen
+     Wörtern — ein einzelnes Wort ist Sache der Wortsuche. Gleiche Angleichung wie die Wortsuche. */
+  const _vorbereitet = new WeakMap();
+  function wortAnteil(q) {
+    const toks = SU.anfrage(q).filter(t => t.datum || t.k.length >= 4);
+    if (toks.length < 2) return null;
+    const fn = text => {
+      let b = _vorbereitet.get(toks); if (!b) { b = new Map(); _vorbereitet.set(toks, b); }
+      let v = b.get(text); if (!v) { v = SU.bereite(text); b.set(text, v); }
+      let n = 0; for (const t of toks) if (SU.trifft(t, v)) n++;
+      return n / toks.length;
+    };
+    fn.anzahl = toks.length;
+    return fn;
   }
   // Unter den Wort-Treffern: was NUR nach Bedeutung passt.
   function bedeutungZusatz(FUND, imOrdner) {
     S.bedeutungFund = new Map();
     const q = String(S.suche || '').trim();
     if (BED.zustand === 'aus' || !q) return { html: '', docs: [] };
-    if (BED.zustand !== 'bereit') return { html: `<div class="hinweis bed-kopf" data-bed-wartet>${'🧠 Die Suche nach Bedeutung kommt dazu, sobald das Modell bereit ist.'}</div>`, docs: [] };
+    if (!bedeutungSucht()) return { html: `<div class="hinweis bed-kopf" data-bed-wartet>${'🧠 Die Suche nach Bedeutung kommt dazu, sobald das Modell bereit ist.'}</div>`, docs: [] };
     const e = BED.ergebnis;
     if (!e || e.frage !== q) { bedeutungSuchen(); return { html: `<div class="hinweis bed-kopf" data-bed-sucht>${'🧠 Suche nach Bedeutung …'}</div>`, docs: [] }; }
     if (e.fehler) return { html: `<div class="hinweis bed-kopf" data-bed-fehler>⚠️ ${'Suche nach Bedeutung ging nicht:'} <span data-kein-ue>${h(e.fehler)}</span></div>`, docs: [] };
-    const docs = [];
-    for (const r of e.r.gezeigt) {
-      if (FUND.has(r.id)) continue;
-      const d = S.docs.find(x => x.id === r.id); if (!d || !imOrdner(d)) continue;
-      const st = r.stueck;
-      S.bedeutungFund.set(d.id, { bedeutung: true, w: r.w, funde: [{ art: 'bedeutung', wort: q, page: st.page, text: st.text.length > 110 ? st.text.slice(0, 109) + '…' : st.text, boxen: st.box ? [st.box] : [] }] });
-      docs.push(d);
-    }
-    const grenze = `<div class="hinweis bed-grenze" data-bed-grenze>${h('Gezeigt ab Nähe ' + String(e.r.min).replace('.', ',') + ' · höchstens ' + e.r.max + ' · die Zahl ist eine Rangfolge, keine Prozent')}</div>`;
-    if (!docs.length) return { html: `<div class="hinweis bed-kopf" data-bed-nichts>${'🧠 Nach Bedeutung passt kein weiteres Dokument.'}</div>` + grenze, docs };
-    return { html: `<div class="bed-kopf" data-bed-kopf>${'🧠 Nach Bedeutung ähnlich — ohne die gesuchten Wörter'}</div>` + docs.map(d => karte(d, S.bedeutungFund.get(d.id))).join('') + grenze, docs };
+    const nochNicht = BED.zustand === 'ordnet' ? `<div class="hinweis bed-grenze" data-bed-nochnicht>${h('Noch wird eingeordnet — was danach dazukommt, wird mitgefunden.')}</div>` : '';
+    const liste = (rs, schwach) => {
+      const docs = [];
+      for (const r of rs || []) {
+        if (FUND.has(r.id)) continue;
+        const d = S.docs.find(x => x.id === r.id); if (!d || !imOrdner(d)) continue;
+        const st = r.stueck;
+        S.bedeutungFund.set(d.id, { bedeutung: true, schwach, w: r.w, anteil: r.anteil, woerter: e.woerter, funde: [{ art: 'bedeutung', wort: q, page: st.page, text: st.text.length > 160 ? st.text.slice(0, 159) + '…' : st.text, boxen: st.box ? [st.box] : [] }] });
+        docs.push(d);
+      }
+      return docs;
+    };
+    const komma = x => String(x).replace('.', ',');
+    const grenze = `<div class="hinweis bed-grenze" data-bed-grenze>${h('Gezeigt: höchstens ' + komma(e.r.abstand) + ' hinter dem besten Treffer, nie unter ' + komma(e.r.min) + ' · höchstens ' + e.r.max + ' · die Zahl ist eine Rangfolge, keine Prozent')}</div>`;
+    let docs = liste(e.r.gezeigt, false);
+    if (docs.length) return { html: `<div class="bed-kopf" data-bed-kopf>${'🧠 Nach Bedeutung ähnlich — ohne die gesuchten Wörter'}</div>` + docs.map(d => karte(d, S.bedeutungFund.get(d.id))).join('') + grenze + nochNicht, docs };
+    docs = liste(e.r.schwach, true);
+    if (docs.length) return { html: `<div class="bed-kopf" data-bed-schwach>${'🧠 Nichts liegt klar nah — die nächsten, mit schwacher Nähe:'}</div>` + docs.map(d => karte(d, S.bedeutungFund.get(d.id))).join('') + grenze + nochNicht, docs };
+    return { html: `<div class="hinweis bed-kopf" data-bed-nichts>${'🧠 Nach Bedeutung passt kein weiteres Dokument.'}</div>` + grenze + nochNicht, docs };
   }
   function bedeutungZeile(fund) {
     const f = fund.funde[0];
-    const wo = f.page == null ? 'Nach Bedeutung, im Namen oder in den Feldern' : 'Nach Bedeutung, Seite ' + (f.page + 1);
-    return `<div class="dok-fund" data-fundzeilen><div class="fund-zeile"><span class="fund-wo" data-art="bedeutung">${h(wo)}</span> <span class="fund-text" data-kein-ue>${h(f.text)}</span></div></div>`;
+    const wo = (f.page == null ? 'Nach Bedeutung, im Namen oder in den Feldern' : 'Nach Bedeutung, Seite ' + (f.page + 1)) + (fund.anteil > 0 && fund.woerter ? ' · ' + Math.round(fund.anteil * fund.woerter) + ' von ' + fund.woerter + ' Suchwörtern' : '');
+    return `<div class="dok-fund" data-fundzeilen><div class="fund-zeile"><span class="fund-wo" data-art="bedeutung"${fund.anteil > 0 ? ' data-woerter="' + fund.anteil.toFixed(2) + '"' : ''}>${h(wo)}</span> <span class="fund-text" data-kein-ue>${h(f.text)}</span></div></div>`;
   }
 
   /* ---------- Seitentext für die Suche ----------
