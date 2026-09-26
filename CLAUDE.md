@@ -46,6 +46,47 @@ npm install && npm test     # Syntax + Probe im echten Browser
 - **KI ist BYOK und freiwillig**, Standard Mistral (EU). Ohne Bestätigung geht
   nichts ins Netz.
 
+## 📷 Scannen · Foto → PDF (Klaus 2026-09-26)
+
+„Ein umfangreiches PDF-Scan-Tool … aus Foto PDF scannen." Knopf **📷 Scannen** in der
+Bibliothek; dasselbe Werkzeug öffnen „📷 Brief fotografieren" (Übersetzen) und „Seiten
+fotografieren" (an ein Dokument anhängen). Der alte Aufnahme-Dialog ist weg.
+
+- **Ablauf je Seite:** Foto → Blatt finden → Ecken prüfen/ziehen (Lupe) → gerade ziehen
+  (A4 · US Letter · wie das Blatt) → drehen → Filter (Original · Farbe · Graustufen ·
+  Dokument · Schwarzweiß), Helligkeit, Kontrast → Texterkennung, Zeilen ändern →
+  PDF (auf Wunsch durchsuchbar) · Teilen · Herunterladen · Bilder als ZIP. Ohne KI, ohne Netz.
+- `assets/scan-bild.js`: die Rechnung, ohne DOM, in Node geprüft. `assets/scanner.js`: die
+  Oberfläche (`WFP.Scanner`), Vollbild über der App (z-index 55, Dialoge 60 liegen darüber).
+- **Blatt finden = drei Meinungen** (`entscheiden`): Scanic-Modell (ML), Scanic-Kanten,
+  `blatt.js`. „Sicher" nur, wenn das Modell mit einem der anderen auf ≤ 4 % der Diagonale
+  übereinstimmt (ohne Modell: Blatt + Kanten). Sonst **„bitte prüfen"** — nie still
+  schneiden. „Fertig" fragt, solange eine Seite ungeprüft ist.
+- **Gemessen an 17 Testfotos** (`tests/scan-fotos/`, Ecken aus Scanics `ground-truth.json`):
+  blatt.js allein 10 richtig, aber **3 sicher und 11–27 % daneben**; Scanic-Modell 14 richtig.
+  Die Entscheidung: **12 sicher und richtig · 5 zum Prüfen · 0 sicher und falsch.**
+  ⚠ Die Ecken dort hat Scanic mit seinem Modell vorbelegt und von Hand nachgezogen — das
+  Modell wird an Daten gemessen, die es mit erzeugt hat. Ein Tablet-Foto ist nicht gemessen.
+- `vendor/scanic/` ist **unverändert aus npm** (scanic 1.6.0, scanic-ml 0.2.0, siehe
+  THIRD_PARTY.md). Das Modell braucht `ml: { assetBaseUrl }` auf `vendor/scanic/` — ohne
+  das holt es sich die Dateien von jsDelivr. Nicht im Installations-Vorrat (3,5 MB), der
+  Worker legt es beim ersten Scannen ab. `.mjs` muss als JavaScript ausgeliefert werden
+  (die Proben-Server tun das seitdem).
+- **Filter sind eigene Arbeit:** Papier-Helligkeit je Block (90. Perzentil), geglättet, dann
+  herausgerechnet — Schatten verschwinden, statt nur heller zu werden.
+- **Text ändern** geht auf dem BILD: Tesseract (DE/EN/RU, auf dem Gerät) liefert Zeilen;
+  eine geänderte Zeile wird in Papierfarbe überdeckt und in Schriftfarbe neu geschrieben
+  (`textFarben`). Die Textebene des durchsuchbaren PDFs trägt den geänderten Text
+  (unsichtbar, Noto ganz eingebettet, falls nötig). Ecken, Drehen oder Format ändern
+  verwirft die Erkennung.
+- Fotos werden auf ≤ 2400 px lange Kante verkleinert, nie abgewiesen. Einstellungen
+  (Filter, Format, Qualität, durchsuchbar, Sprache) in `localStorage` `wfpdf_scan_v1`.
+- Proben: `tests/scan.mjs` (in `npm test`, A Rechnung · B 17 Fotos · C ganzer Weg mit echtem
+  Tesseract) · `node tests/gegenprobe_scan.mjs` (22 Fälle, Wegwerf-Kopie; `NUR_ANKER=1`).
+- ⚠ **Nicht gemessen:** echte Handy-Kamera, Modell auf dem Tablet (Zeit, Speicher),
+  Qualität der Texterkennung auf echten Briefen. Die Bildschirmfotos im Handbuch zeigen noch
+  den alten Aufnahme-Dialog (`node tools/handbuch-bauen.mjs` baut sie neu).
+
 ## 🌐 Übersetzen (seit 2026-09-25)
 
 Eigener Bereich (Knopf „🌐 Übersetzen …", Ordner mit `bereich:'uebersetzung'`,

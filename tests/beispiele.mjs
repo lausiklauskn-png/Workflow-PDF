@@ -30,7 +30,7 @@ ok('Handbuch und App nennen „Beispiele zum Ausprobieren"', /Beispiele zum Ausp
 ok('beide Dateinamen stehen in der App', app.includes('beispiele/Workfloh-PDF-Benutzerhandbuch.pdf') && app.includes('beispiele/Beispiel-Amtsformular-Bewohnerparkausweis.pdf'));
 
 function server() {
-  const typ = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.ttf': 'font/ttf', '.webmanifest': 'application/manifest+json', '.json': 'application/json', '.pdf': 'application/pdf' };
+  const typ = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.css': 'text/css', '.png': 'image/png', '.ttf': 'font/ttf', '.webmanifest': 'application/manifest+json', '.json': 'application/json', '.pdf': 'application/pdf' };
   const s = http.createServer((q, r) => {
     let p = decodeURIComponent(new URL(q.url, 'http://x').pathname); if (p.endsWith('/')) p += 'index.html';
     const f = path.join(WURZEL, p); if (!f.startsWith(WURZEL) || !fs.existsSync(f)) { r.writeHead(404); r.end(); return; }

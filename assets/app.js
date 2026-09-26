@@ -39,7 +39,7 @@
 
   /* ---------- Zustand ---------- */
   const S = { ordner: [], docs: [], aktOrdner: 'alle', doc: null, bytes: null, pdf: null, modus: 'bearbeiten', sel: null,
-    zoom: 1, platzieren: null, aufnahme: [], aufnahmeZiel: null, beob: null, funde: [], fund: new Map() };
+    zoom: 1, platzieren: null, beob: null, funde: [], fund: new Map() };
 
   /* ---------- Kleinkram ---------- */
   let _tt = null;
@@ -604,7 +604,6 @@
     window.__wfpdfBlatt = { erkannt: !!gerade, grund: fund.grund || '', ecken: fund.ecken, quelle: [c.width, c.height] };
     return b;
   }
-  function fassungWaehlen(b, welche) { const v = b.fassungen && b.fassungen[welche]; if (!v) return; Object.assign(b, v); b.gewaehlt = welche; }
 
   async function seitenInfo(pdf) {
     const pages = [];
@@ -744,42 +743,22 @@
     return neu;
   }
 
-  /* ---------- Kamera: mehrere Seiten sammeln ---------- */
-  async function kameraBild(file, ziel) {
-    if (!file) return;
-    try {
-      const b = await bildNormalisieren(file);
-      if (!S.aufnahme.length) S.aufnahmeUe = ziel === 'uebersetzung';   // kein alter Merker aus einer abgebrochenen Aufnahme
-      if (ziel === 'anhang' && S.doc) { await seitenAnhaengen([await EX.bilderZuPdf([b])]); return; }
-      S.aufnahme.push(b); aufnahmeDialog();
-    } catch (e) { toast('⚠️ ' + (e.message || e)); }
-  }
-  let _aufZu = null;
-  function aufnahmeDialog() {
-    if (_aufZu) _aufZu();
-    _aufZu = dialog(`<h2>📷 Formular fotografieren</h2>
-      <p class="hinweis">Blatt gerade und gut beleuchtet aufnehmen. Weitere Seiten einfach dazunehmen.</p>
-      <div class="aufnahme-bilder">${S.aufnahme.map((b, i) => `<div style="background-image:url('${b.vorschau}')"><button data-weg="${i}" title="Seite entfernen">✕</button>${b.fassungen && b.fassungen.gerade ? `<button class="blatt-um" data-um="${i}" title="Zwischen gerade gezogenem Blatt und ganzem Foto umschalten">${b.gewaehlt === 'gerade' ? '✂ Blatt · A4' : '▢ ganzes Foto'}</button>` : `<span class="blatt-um" title="${h((b.blatt && b.blatt.grund) || '')}">▢ Blatt nicht erkannt</span>`}</div>`).join('')}</div>
-      <p class="hinweis">Das Blatt wird im Foto gesucht und auf <b>A4</b> gerade gezogen — ausgedruckt (Drucker auf „Tatsächliche Größe / 100 %") ist es so groß wie das Papier, mit seinem Rand. Wird der Rand nicht sicher erkannt, bleibt das ganze Foto auf A4 und nichts wird abgeschnitten. Tipp: Blatt auf einen dunklen Untergrund legen.</p>
-      <div class="zeile"><button class="knopf" data-x>Verwerfen</button><button class="knopf" data-mehr>📷 Weitere Seite</button><button class="knopf rot" data-ok>✓ Dokument erstellen (${S.aufnahme.length} Seite${S.aufnahme.length === 1 ? '' : 'n'})</button></div>`,
-      (d, zu) => {
-        d.querySelectorAll('[data-um]').forEach(b => b.onclick = () => { const a = S.aufnahme[+b.dataset.um]; fassungWaehlen(a, a.gewaehlt === 'gerade' ? 'ganz' : 'gerade'); aufnahmeDialog(); });
-        d.querySelectorAll('[data-weg]').forEach(b => b.onclick = () => { S.aufnahme.splice(+b.dataset.weg, 1); if (S.aufnahme.length) aufnahmeDialog(); else { zu(); _aufZu = null; } });
-        d.querySelector('[data-x]').onclick = () => { S.aufnahme = []; S.aufnahmeUe = false; zu(); _aufZu = null; };
-        d.querySelector('[data-mehr]').onclick = () => { S.aufnahmeZiel = S.aufnahmeUe ? 'uebersetzung' : 'neu'; $('inKamera').click(); };
-        d.querySelector('[data-ok]').onclick = async () => {
-          zu(); _aufZu = null;
-          const bilder = S.aufnahme; S.aufnahme = []; const fuerUe = S.aufnahmeUe; S.aufnahmeUe = false;
-          try {
-            const bytes = await EX.bilderZuPdf(bilder);
-            if (fuerUe) { await ueFotoAblegen(bytes); return; }
-            const folderId = S.ordner.some(o => o.id === S.aktOrdner) ? S.aktOrdner : null;
-            const name = 'Foto-Formular ' + new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-            const doc = await neuesDok(name, bytes, 'foto', folderId);
-            await ladeBibliothek(); hops(); oeffneDok(doc.id);
-          } catch (e) { toast('⚠️ ' + (e.message || e)); }
-        };
-      });
+  /* ---------- Scannen: Foto → PDF (assets/scanner.js, Klaus 2026-09-26) ----------
+     Ersetzt die frühere Aufnahme-Liste: jedes Foto bekommt Zuschnitt mit Ecken zum
+     Nachziehen, Filter, Drehen, Texterkennung und änderbaren Text. Drei Wege führen
+     hinein: „📷 Scannen" in der Bibliothek, „Brief fotografieren" beim Übersetzen und
+     „Seite fotografieren" beim Anhängen. */
+  function scanStarten(ziel, start) {
+    const titel = ziel === 'uebersetzung' ? 'Brief fotografieren' : ziel === 'anhang' ? 'Seiten fotografieren und anhängen' : 'Scannen';
+    const fertigText = ziel === 'uebersetzung' ? 'Weiter zum Übersetzen' : ziel === 'anhang' ? 'Seiten anhängen' : 'PDF erstellen';
+    return WFP.Scanner.oeffnen({ titel, fertigText, start, toast, dialog, frage, fortschritt, laden,
+      fertig: async (bytes, info) => {
+        if (ziel === 'uebersetzung') { await ueFotoAblegen(bytes); return; }
+        if (ziel === 'anhang' && S.doc) { await seitenAnhaengen([bytes]); return; }
+        const folderId = S.ordner.some(o => o.id === S.aktOrdner) ? S.aktOrdner : null;
+        const doc = await neuesDok(info.name, bytes, 'foto', folderId);
+        await ladeBibliothek(); hops(); oeffneDok(doc.id);
+      } });
   }
 
   /* ---------- Editor ---------- */
@@ -1209,7 +1188,7 @@
       <div class="zeile"><button class="knopf" data-x>Abbrechen</button></div>`, (d, zu) => {
       d.querySelector('[data-x]').onclick = zu;
       d.querySelector('[data-d]').onclick = () => { zu(); $('inAnhang').click(); };
-      d.querySelector('[data-k]').onclick = () => { zu(); S.aufnahmeZiel = 'anhang'; $('inKamera').click(); };
+      d.querySelector('[data-k]').onclick = () => { zu(); scanStarten('anhang', 'kamera'); };
     });
   }
   async function dateienAnhaengen(files) {
@@ -1590,7 +1569,7 @@
       dl.querySelector('[data-uo]').onclick = () => { zu(); $('inUeOrdner').click(); };
       dl.querySelector('[data-ud]').onclick = () => { zu(); $('inUeDateien').click(); };
       dl.querySelector('[data-ubsp]').onclick = async () => { zu(); const d = await beispieleLaden(); if (d.length) uebersetzenDialog(d.map(x => x.id), true); };
-      dl.querySelector('[data-uk]').onclick = () => { zu(); S.aufnahmeZiel = 'uebersetzung'; S.aufnahmeUe = true; $('inKamera').click(); };
+      dl.querySelector('[data-uk]').onclick = () => { zu(); scanStarten('uebersetzung', 'kamera'); };
       dl.querySelectorAll('[data-o]').forEach(b => b.onclick = () => { zu(); S.aktOrdner = b.dataset.o; zeichneBibliothek(); uebersetzenDialog(S.docs.filter(d => d.folderId === b.dataset.o && !d.uebersetzung).map(d => d.id), true); });
     });
   }
@@ -2272,7 +2251,7 @@
   function start() {
     $('inDatei').onchange = e => { importDateien(e.target.files); e.target.value = ''; };
     $('inOrdner').onchange = e => { const fs = Array.from(e.target.files || []); const n = fs[0] && fs[0].webkitRelativePath ? fs[0].webkitRelativePath.split('/')[0] : null; importDateien(fs, n); e.target.value = ''; };
-    $('inKamera').onchange = e => { const f = e.target.files && e.target.files[0]; const ziel = S.aufnahmeZiel; S.aufnahmeZiel = null; e.target.value = ''; kameraBild(f, ziel); };
+    $('btnScan').onclick = () => scanStarten('neu');
     $('inAnhang').onchange = e => { dateienAnhaengen(e.target.files); e.target.value = ''; };
     $('btnUebersetzen').onclick = uebersetzenStart;
     $('inUeOrdner').onchange = e => { const fs = Array.from(e.target.files || []); const n = fs[0] && fs[0].webkitRelativePath ? fs[0].webkitRelativePath.split('/')[0] : null; ueEinlesen(fs, n); e.target.value = ''; };
@@ -2366,7 +2345,7 @@
     ladeBibliothek().then(() => { if (EINST.bedeutung) bedeutungStarten(); }).then(chromeTabRueckweg).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
     window.__wfpdf = { beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner,
       // für tests/sprache.mjs: jeden Dialog einmal öffnen und seine Texte nachschlagen
-      dlg: { neuerOrdner, verschieben, loeschen, speichernDialog, aufnahmeDialog, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe, bedeutungDialog } };   // für die Probe
+      dlg: { neuerOrdner, verschieben, loeschen, speichernDialog, scanStarten, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe, bedeutungDialog } };   // für die Probe
   }
   start();
 })();
