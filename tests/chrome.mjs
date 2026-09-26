@@ -166,6 +166,7 @@ try {
   const tz = await tab.evaluate(() => ({ url: location.search, gewaehlt: [...document.querySelectorAll('.dlg [data-dok]')].filter(c => c.checked).map(c => c.dataset.dok), von: document.querySelector('.dlg [data-von]').value, nach: document.querySelector('.dlg [data-nach]').value, mark: getComputedStyle(document.querySelector('.dlg [data-weg="chrome"]')).outlineStyle }));
   ok('Rückweg: der Tab öffnet den Übersetzer mit demselben Dokument und denselben Sprachen', tz.gewaehlt.length === 1 && tz.gewaehlt[0] === docId && tz.von === 'de' && tz.nach === 'en', tz);
   ok('… „Mit Chrome übersetzen" ist hervorgehoben, die Adresse wieder sauber', tz.mark === 'solid' && !/ue=/.test(tz.url), tz);
+  ok('im Tab steht oben: zurück in der App ⟳ (Aktualisieren) tippen', await tab.evaluate(() => /⟳/.test(document.querySelector('[data-zurueckband]')?.textContent || '') && /zurück in die App/.test(document.querySelector('[data-zurueckband]').textContent)));
   await tab.click('.dlg [data-weg="chrome"]');
   await tab.waitForSelector('#wfp-chrome');
   ok('im Chrome-Tab keine „In Chrome öffnen"-Knöpfe (man ist ja schon dort)', await tab.evaluate(() => !document.querySelector('#wfp-chrome [data-tab] button')));
@@ -232,6 +233,17 @@ try {
   await page.evaluate(() => document.querySelector('.dlg [data-hinok]')?.click());
   await page.waitForTimeout(300);
   ok('… „OK" schließt die Anleitung', await page.evaluate(() => !document.querySelector('.dlg [data-chromehinweis]')));
+  // 5b. Samsung DeX (Klaus 2026-09-26): Chrome gibt sich dort als Linux aus, nicht als Android —
+  //     „In Chrome öffnen" (window.open) blitzte nur auf. Im App-Fenster wird geteilt, sobald es geht.
+  await page.evaluate(() => { document.querySelectorAll('.dlg [data-x]').forEach(b => b.click());
+    Object.defineProperty(navigator, 'userAgent', { get: () => 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140 Safari/537.36', configurable: true });
+    window.__geteilt = []; navigator.share = d => { window.__geteilt.push({ d, aktiv: navigator.userActivation.isActive }); return new Promise(() => {}); }; });
+  await oeffne('en');
+  const dexSeiten = ctx.pages().length;
+  ok('DeX (Linux-Kennung) im App-Fenster: der Knopf heißt „Mit Browser öffnen zum Übersetzen", kein „In Chrome öffnen"', await page.evaluate(() => { const r = document.querySelector('.dlg [data-tabreihe]').textContent; return /Mit Browser öffnen zum Übersetzen/.test(r) && !/In Chrome öffnen/.test(r); }));
+  await page.click('.dlg [data-tabreihe] button');
+  await page.waitForFunction(() => window.__geteilt.length, null, { timeout: 3000 }).catch(() => {});
+  ok('… er teilt, aus dem Tipp heraus, und öffnet kein neues Fenster', await page.evaluate(() => window.__geteilt.length === 1 && window.__geteilt[0].aktiv) && ctx.pages().length === dexSeiten);
 
   const ohneIntent = konsole.filter(k => !/intent:/.test(k));   // „scheme does not have a registered handler" ist gewollt
   ok('keine Fehler in der Konsole', ohneIntent.length === 0, ohneIntent);

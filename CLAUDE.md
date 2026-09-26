@@ -85,6 +85,11 @@ Textfarbe an dieselbe Stelle. Zwischenstand je Seite in IndexedDB
   Übersetzungsprogramm". Selbst abgebrochen → nichts; Teilen verweigert → Adresse kopieren +
   Anleitung. Kein eigener „Teilen"-Knopf daneben, kein `intent:` mehr. Dass Chrome dieselben
   Dokumente sieht, hat Klaus am Tablet gezeigt.
+  **Samsung DeX** (Klaus 2026-09-26): Chrome meldet dort Linux statt Android — `istAndroid()`
+  war falsch, und „In Chrome öffnen" blitzte nur auf. Entschieden wird jetzt über
+  `teilenWeg()`: Android ODER (App-Fenster UND `navigator.share`). Im Tab steht oben ein Band
+  (`data-zurueckband`): zurück in der App ⟳ tippen, dann ist das Ergebnis dort (von Klaus
+  am Tablet bestätigt).
   **Im App-Fenster auf Android öffnet „Mit Chrome übersetzen" die Fläche gar nicht erst**
   (Klaus 2026-09-25: „ich kann von da aus nur abbrechen") — dort gibt es ⋮ → „Übersetzen"
   nicht. Es geht sofort ins Teilen-Fenster. Auch der **Rückweg** („↩ Einträge ins
