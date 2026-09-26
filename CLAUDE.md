@@ -188,11 +188,19 @@ Suche geöffnet: keine Markierung. Ohne Modell, ohne Netz.
   sagt die Suche das („Seitentext wird noch erfasst").
 - Gescannte Seiten ohne Textebene tragen nichts bei (Texterkennung: Stufe 4). Unter einer
   Übersetzung liegt der Originaltext abgedeckt — er ist mit findbar.
+- **Ordner, Trefferzahlen, Suche im Dokument** (Klaus 2026-09-26): der Ordnername zählt als Fundstelle;
+  ist ein Ordner gewählt, zeigt die Suche nur ihn („In allen Ordnern suchen" hebt es auf). Jede Karte und
+  jeder Ordner-Knopf trägt eine kleine Trefferzahl (🔎n, `treffer` aus `sucheDok`: jede Stelle auf einer
+  Seite einzeln). Im Editor: Suchfeld wie im PDF-Programm, alle Stellen markiert, „n / m", ▲▼ und die
+  Lupe der Tastatur springen. Das Suchfeld der Bibliothek ist ein `<form>` — sonst tut die Lupe der
+  Tablet-Tastatur nichts; Mikrofon (Chrome schickt die Aufnahme an Google, das steht im Titel).
+  Titel/Texte hier NICHT mit `T()` setzen, das übernimmt die Sprachschicht — sonst meldet `sprache.mjs`
+  die schon übersetzten Wörter als fehlend.
 - **Plan danach** (Klaus' Wahl): Stufe 2 Bedeutungssuche mit Modul 03/04 aus Sage (dasselbe
   Modell wie PWA Toolpoint), freiwillig einschaltbar, lernt aus den geöffneten Treffern ·
   Stufe 3 dieselbe Suche in den WorkFlohs — **Mein-WorkFloh und Tomys WorkFloh getrennt**, und
   **nur entsperrt** · Stufe 4 Scans und E-Mails.
-- Proben: `tests/suche.mjs` (in `npm test`) · `node tests/gegenprobe_suche.mjs` (12 Fälle,
+- Proben: `tests/suche.mjs` (in `npm test`) · `node tests/gegenprobe_suche.mjs` (22 Fälle,
   Wegwerf-Kopie; zwei Riegel, die einander decken — Öffnen und Schließen leeren die
   Markierungen — nimmt EIN Fall zusammen weg).
 

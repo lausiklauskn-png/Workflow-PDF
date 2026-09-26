@@ -237,3 +237,25 @@ label.haken { display: flex; gap: 8px; align-items: center; font-weight: 400; ma
 .such-stand{grid-column:1/-1;margin-top:6px}
 .fund{position:absolute;z-index:6;border:2.5px solid #f5b400;background:rgba(255,214,0,.30);border-radius:3px;cursor:pointer;box-shadow:0 0 0 2px rgba(255,255,255,.7)}
 @media print{.fund{display:none}}
+/* Suchzeile mit Mikrofon und Lupe im Feld (2026-09-26) */
+.bib-suchform{position:relative;margin:0 0 10px}
+.bib-suchform .bib-suche{margin:0;padding-right:96px}
+.bib-suche::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none;display:none}
+.bib-knopf{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border:0;border-radius:50%;background:transparent;font-size:1.25rem;cursor:pointer;line-height:1}
+#bibLos{right:4px}
+#bibMic{right:46px}
+.bib-knopf:hover{background:rgba(0,0,0,.06)}
+.bib-knopf:disabled{opacity:.35;cursor:not-allowed}
+#bibMic.hoert{background:#E0231B;color:#fff;animation:hoert 1.2s ease-in-out infinite}
+@keyframes hoert{50%{box-shadow:0 0 0 6px rgba(224,35,27,.25)}}
+/* Im Dokument suchen (2026-09-26) */
+.ed-such{display:flex;gap:6px;align-items:center;padding:6px 10px;background:var(--flaeche);border-bottom:1px solid var(--linie)}
+.ed-such .bib-suche{margin:0;flex:1;min-width:0}
+.ed-such-zahl{font-size:.85rem;color:var(--ink2);min-width:4.5em;text-align:center;white-space:nowrap}
+.fund.akt{border-color:#E0231B;background:rgba(255,160,0,.38);box-shadow:0 0 0 3px rgba(224,35,27,.35)}
+.such-ordner{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 6px}
+@media print{.ed-such{display:none}}
+/* Trefferzahl je Ordner und Dokument (Klaus 2026-09-26) */
+.treffer-zahl{display:inline-block;margin-left:5px;padding:0 6px;border-radius:9px;background:#FFE08A;color:#5a3d00;font-size:.72rem;font-weight:700;line-height:1.5;vertical-align:middle}
+.dok{position:relative}
+.dok-treffer{position:absolute;top:6px;right:6px;z-index:2;margin:0;box-shadow:0 1px 3px rgba(0,0,0,.25)}
