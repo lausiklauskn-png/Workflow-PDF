@@ -233,6 +233,9 @@ Ordner als Ganzes mit den integrierten PDFs freigeben oder ausgeben".
   benannt wie der Ordner) · **alle Dateien teilen** (nur wenn `navigator.canShare`) · **zu einem
   PDF zusammenfügen** (z. B. die übersetzten Teile wieder als ein Buch; Felder werden fest).
   Teilen braucht einen frischen Tipp — nach dem Bauen steht deshalb „📤 Jetzt teilen …" da.
+- `assets/zip.js` wird **byte-1:1 in die WorkFlohs kopiert** (`assets/wfpdf/zip.js`, dort per SHA
+  gepinnt) — nur hier ändern, dann dort neu kopieren. Die WorkFlohs haben dieselbe Ausgabe für die
+  Dateien am Auftrag (Sortieren, „📤 Alle ausgeben") und den Aufteilen-Kasten (seit 2026-09-26).
 - `assets/zip.js`: ZIP ohne Bibliothek, nur „gespeichert" (PDFs sind schon gepackt), Namen UTF-8,
   gleiche Namen bekommen „ (2)". Läuft auch in Node.
 - ⚠ **Headless-Chromium meldet für JEDEN Dateinamen mit Nicht-ASCII-Zeichen („·", Umlaut) beim
