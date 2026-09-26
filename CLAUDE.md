@@ -229,13 +229,49 @@ Suche geöffnet: keine Markierung. Ohne Modell, ohne Netz.
   Tablet-Tastatur nichts; Mikrofon (Chrome schickt die Aufnahme an Google, das steht im Titel).
   Titel/Texte hier NICHT mit `T()` setzen, das übernimmt die Sprachschicht — sonst meldet `sprache.mjs`
   die schon übersetzten Wörter als fehlend.
-- **Plan danach** (Klaus' Wahl): Stufe 2 Bedeutungssuche mit Modul 03/04 aus Sage (dasselbe
+- **Plan danach** (Klaus' Wahl): Stufe 2 Bedeutungssuche (**gebaut 2026-09-26**, siehe unten) mit Modul 03/04 aus Sage (dasselbe
   Modell wie PWA Toolpoint), freiwillig einschaltbar, lernt aus den geöffneten Treffern ·
   Stufe 3 dieselbe Suche in den WorkFlohs — **Mein-WorkFloh und Tomys WorkFloh getrennt**, und
   **nur entsperrt** · Stufe 4 Scans und E-Mails.
 - Proben: `tests/suche.mjs` (in `npm test`) · `node tests/gegenprobe_suche.mjs` (22 Fälle,
   Wegwerf-Kopie; zwei Riegel, die einander decken — Öffnen und Schließen leeren die
   Markierungen — nimmt EIN Fall zusammen weg).
+
+
+## 🧠 Suche, Stufe 2 — nach Bedeutung (Klaus 2026-09-26)
+
+„Semantische Suche, Embedding-Modell runterladen mit Ladebalken und Ladezustandsanzeige."
+Unter dem Suchfeld steht eine Leiste mit **🧠 Suche nach Bedeutung einschalten**. Der Dialog
+sagt VORHER, was aus dem Netz kommt (einmalig das Sprachmodell von jsDelivr + Hugging Face)
+und dass die Dokumente das Gerät nicht verlassen. Erst „⬇️ Modell laden" holt etwas.
+Die Leiste zeigt danach den Zustand (`data-bed-zustand`): **lädt** (Balken, Prozent, „x / y MB")
+· **ordnet ein** („Dokumente werden eingeordnet: i von n") · **bereit** · **Fehler** (mit Grund
+und „↻ Nochmal"). Die Wahl liegt in `EINST.bedeutung`; danach startet sie beim Öffnen von selbst.
+
+- `vendor/sbkim/03_embedding.js` und `04_match.js` sind **byte-1:1 aus Sage** (`src/modules/`,
+  Stand 4fe124d), in `tests/bedeutung.mjs` per SHA-256 gepinnt — dort pflegen, hier neu kopieren.
+  Dasselbe Modell wie PWA Toolpoint (multilingual-e5-small). Geladen werden sie erst auf Knopfdruck.
+- Die Rechnung steht in `assets/bedeutung.js` (Node-prüfbar, später in die WorkFlohs kopierbar):
+  Abschnitte ≤ 500 Zeichen je Seite (+ ein Abschnitt aus Name und Feldern, ohne Seite), höchstens
+  **80 je Dokument**; jedes Dokument zählt mit seinem BESTEN Abschnitt; gezeigt ab Nähe **0,80**,
+  höchstens **12**. Die Zahl an der Karte ist eine Nähe (Rangfolge), keine Prozent — das steht dabei.
+  ⚠ 0,80 · 80 · 12 sind **gewählt, nicht an echten Dokumenten gemessen**.
+- Die Bedeutungs-Treffer stehen UNTER den Wort-Treffern („🧠 Nach Bedeutung ähnlich — ohne die
+  gesuchten Wörter"); ein Wort-Treffer steht nie zweimal da. Aus so einer Karte geöffnet, wird der
+  ähnlichste Abschnitt markiert (`.fund[data-art="bedeutung"]`).
+- Vektoren liegen im Fach **`vektoren`** (DB-Version 3), mit Fingerabdruck der Texte: unverändert
+  = aus dem Speicher, geändert = nur dieses Dokument neu. `DB.putFile`/`del('files')` werfen sie
+  mit dem Seitentext weg.
+- Der Service-Worker legt transformers.js (jsDelivr, feste Fassung 2.17.2) in einen eigenen Vorrat
+  `workfloh-pdf-modell-v1`; er und `transformers-cache` (das Modell) überleben ein neues CACHE_VERSION.
+- ⚠ **Das echte Modell ist hier NICHT gelaufen.** Der Behälter erreicht jsDelivr und Hugging Face
+  nicht (CONNECT 403). Die Probe ersetzt Modul 03 durch einen Stellvertreter mit derselben
+  Oberfläche und denselben Fortschritts-Meldungen; Modul 04 ist echt. Ungemessen: die wirkliche
+  Größe (Sage nennt ~30 MB), ob die Nähe-Schwelle bei e5 passt, wie lange das Einordnen am Tablet
+  dauert, ob es offline weiterläuft.
+- Noch nicht gebaut: „lernt aus den geöffneten Treffern" (Klaus' Plan), Stufe 3 (WorkFlohs).
+- Proben: `tests/bedeutung.mjs` (in `npm test`) · `node tests/gegenprobe_bedeutung.mjs`
+  (19 Fälle, Wegwerf-Kopie; `NUR_ANKER=1` nur die Anker).
 
 ## 🗂 Sortieren und Ordner ausgeben (Klaus 2026-09-26)
 

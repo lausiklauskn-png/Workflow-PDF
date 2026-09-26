@@ -13,7 +13,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1">
 <link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png?v=1">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1">
-<link rel="stylesheet" href="assets/style.css?v=14">
+<link rel="stylesheet" href="assets/style.css?v=15">
 </head>
 <body>
 <header class="kopf">
@@ -62,6 +62,8 @@
       <button class="bib-knopf" id="bibMic" type="button" title="Sprechen statt tippen" aria-label="Spracheingabe">🎤</button>
       <button class="bib-knopf" id="bibLos" type="submit" title="Suchen" aria-label="Suchen">🔍</button>
     </form>
+    <!-- Suche nach Bedeutung (Stufe 2): Knopf zum Einschalten, Ladebalken, Zustand -->
+    <div class="bedeutung-leiste" id="bedeutungLeiste" data-bed-zustand="aus"></div>
     <div class="ordner-aktionen" id="ordnerAktionen"></div>
     <div class="dok-gitter" id="dokGitter"></div>
   </section>
@@ -103,16 +105,17 @@
 <script src="vendor/pdfjs/pdf.min.js"></script>
 <script src="vendor/pdf-lib.min.js"></script>
 <script src="vendor/qrcode.js"></script>
-<script src="assets/db.js?v=3"></script>
+<script src="assets/db.js?v=4"></script>
 <script src="assets/suche.js?v=2"></script>
+<script src="assets/bedeutung.js?v=1"></script>
 <script src="assets/zip.js?v=1"></script>
 <script src="assets/erkennung.js?v=5"></script>
 <script src="assets/blatt.js?v=1"></script>
 <script src="assets/export.js?v=7"></script>
 <script src="assets/html-export.js?v=2"></script>
 <script src="assets/uebersetzung.js?v=12"></script>
-<script src="assets/sprache-texte.js?v=8"></script>
+<script src="assets/sprache-texte.js?v=9"></script>
 <script src="assets/sprache.js?v=1"></script>
-<script src="assets/app.js?v=34"></script>
+<script src="assets/app.js?v=35"></script>
 </body>
 </html>

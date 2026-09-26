@@ -264,3 +264,13 @@ label.haken { display: flex; gap: 8px; align-items: center; font-weight: 400; ma
 .sortier{display:inline-flex;align-items:center;gap:6px;font-size:.9rem;margin-right:6px}
 .sortier select{padding:6px 8px;border-radius:8px}
 .aus-liste{max-height:30vh;overflow:auto;margin:4px 0 10px;padding-left:22px}
+/* Suche nach Bedeutung (Stufe 2): Zustandsleiste unter dem Suchfeld, Abschnitt unter den Wort-Treffern */
+.bedeutung-leiste{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:-2px 0 10px;min-height:32px;font-size:.88rem}
+.bedeutung-leiste .bed-t{color:var(--ink2)}
+.bedeutung-leiste .bed-mb{font-variant-numeric:tabular-nums;color:var(--ink2)}
+.bedeutung-leiste .fortschritt{flex:1 1 100%;margin:2px 0 0}
+.bedeutung-leiste .bed-fehler{color:#9a1c12}
+.bed-kopf{grid-column:1/-1;margin:14px 0 2px;font-weight:700}
+.bed-grenze{grid-column:1/-1;margin-top:4px}
+.naehe-zahl{background:#DCE8FF;color:#1c3a7a}
+.fund[data-art="bedeutung"]{border-color:#3d6fd6;background:rgba(61,111,214,.18)}

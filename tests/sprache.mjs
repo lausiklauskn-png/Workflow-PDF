@@ -71,6 +71,20 @@ async function rundreise(p) {
     if (id) { await p.evaluate(([W, id]) => window[W].oeffneDok(id, window[W].S.fund.get(id)), [W, id]); await p.waitForSelector('#sc-ed.on .seite canvas'); await p.waitForTimeout(150); await p.click('#flohKnopf'); await p.waitForSelector('#sc-bib.on'); }
     await p.evaluate(W => { const w = window[W]; w.S.suche = ''; w.suche.zeichneBibliothek(); }, W);
   });
+  // Suche nach Bedeutung (2026-09-26): Dialog aus und an, jede Lage der Zustandsleiste, der Abschnitt unter den Treffern
+  await schritt(p, 'Bedeutung: Dialog', () => p.evaluate(W => window[W].dlg.bedeutungDialog(), W));
+  await schritt(p, 'Bedeutung: Lagen', async () => {
+    await p.evaluate(W => { const w = window[W], B = w.bedeutung.BED; B.zustand = 'laedt'; B.stand = { prozent: null, geladen: 0, gesamt: 0 }; w.bedeutung.bedeutungZeichnen(); }, W); await ruhe(p);
+    await p.evaluate(W => { const w = window[W], B = w.bedeutung.BED; B.stand = { prozent: 45.2, geladen: 20e6, gesamt: 47e6 }; w.bedeutung.bedeutungZeichnen(); }, W); await ruhe(p);
+    await p.evaluate(W => { const w = window[W], B = w.bedeutung.BED; B.zustand = 'ordnet'; B.ordnetZahl = [1, 3]; w.bedeutung.bedeutungZeichnen(); }, W); await ruhe(p);
+    await p.evaluate(W => { const w = window[W], B = w.bedeutung.BED; B.zustand = 'fehler'; B.fehler = 'x'; w.bedeutung.bedeutungZeichnen(); w.dlg.bedeutungDialog(); }, W); await ruhe(p);
+    await p.evaluate(() => { for (const g of document.querySelectorAll('.dlg-grund')) g.remove(); });
+    await p.evaluate(W => { const w = window[W], B = w.bedeutung.BED; B.zustand = 'laedt'; w.S.suche = 'qqqq'; w.suche.zeichneBibliothek(); }, W); await ruhe(p);
+    await p.evaluate(W => { const w = window[W], B = w.bedeutung.BED; B.zustand = 'bereit'; w.bedeutung.bedeutungZeichnen(); B.ergebnis = { frage: 'qqqq', r: { gezeigt: [], alle: [], unter: 0, min: 0.8, max: 12 } }; w.suche.zeichneBibliothek(); }, W); await ruhe(p);
+    await p.evaluate(W => { const w = window[W], B = w.bedeutung.BED, d = w.S.docs[0]; B.ergebnis = { frage: 'qqqq', r: { gezeigt: [{ id: d.id, w: 0.91, stueck: { page: 0, text: 'Beispieltext', box: null } }, { id: w.S.docs[1].id, w: 0.85, stueck: { page: null, text: 'Kopf', box: null } }], alle: [], unter: 0, min: 0.8, max: 12 } }; w.suche.zeichneBibliothek(); }, W); await ruhe(p);
+    await p.evaluate(W => { const w = window[W], B = w.bedeutung.BED; B.ergebnis = { frage: 'qqqq', fehler: 'x' }; w.suche.zeichneBibliothek(); }, W); await ruhe(p);
+    await p.evaluate(W => { const w = window[W]; w.bedeutung.bedeutungAus(); w.S.suche = ''; w.suche.zeichneBibliothek(); }, W);
+  });
   await schritt(p, 'Verschieben', () => p.evaluate(([W, id]) => { window[W].dlg.verschieben(id); }, [W, ids[0]]));
   await schritt(p, 'Löschen-Frage', () => p.evaluate(([W, id]) => { window[W].dlg.loeschen(id); }, [W, ids[0]]));
   await schritt(p, 'Ordner ausgeben', () => p.evaluate(W => { const w = window[W]; const o = w.S.ordner.find(o => w.S.docs.some(d => d.folderId === o.id)); if (o) w.dlg.ordnerAusgabe(o); }, W));

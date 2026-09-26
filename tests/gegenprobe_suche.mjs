@@ -21,13 +21,13 @@ const FAELLE = [
   { name: 'Markierung klebt am Öffnen ohne Suche', datei: 'assets/app.js', anker: '    S.funde = []; S.fundIdx = -1;\n    // Aus der Bibliothek', ersatz: '    // Aus der Bibliothek',
     // zwei Riegel decken einander (Öffnen UND Schließen leeren) — beide weg, sonst misst der Fall nichts
     extra: { datei: 'assets/app.js', anker: 'S.doc = null; S.sel = null; S.funde = []; S.fundIdx = -1;', ersatz: 'S.doc = null; S.sel = null; S.fundIdx = -1;' }, trifft: /ohne Suche geöffnet/ },
-  { name: 'neue Bytes behalten den alten Text', datei: 'assets/db.js', anker: "await DB.put('files', { id, bytes }); await tx('texte', 'readwrite', st => st.delete(id));", ersatz: "await DB.put('files', { id, bytes });", trifft: /neue Bytes werfen/ },
-  { name: 'beim Einlesen wird kein Text erfasst, nachgeholt wird nie', datei: 'assets/app.js', anker: '    texteNachholen();\n  }', ersatz: '  }', extra: { datei: 'assets/app.js', anker: " await textAblegen(d.id, text);\n", ersatz: '\n' }, trifft: /Probe lief durch|Seitentext/ },
+  { name: 'neue Bytes behalten den alten Text', datei: 'assets/db.js', anker: "await DB.put('files', { id, bytes }); await abgeleitetWeg(id);", ersatz: "await DB.put('files', { id, bytes });", trifft: /neue Bytes werfen/ },
+  { name: 'beim Einlesen wird kein Text erfasst, nachgeholt wird nie', datei: 'assets/app.js', anker: '    texteNachholen();\n    if (BED.zustand', ersatz: '    if (BED.zustand', extra: { datei: 'assets/app.js', anker: " await textAblegen(d.id, text);\n", ersatz: '\n' }, trifft: /Probe lief durch|Seitentext/ },
   { name: 'Suche liest den Seitentext nicht', datei: 'assets/app.js', anker: 'TEXTE.get(d.id) || null, such)', ersatz: 'null, such)', trifft: /SEITENTEXT/ },
   // --- Trefferzahlen, Ordner, Suche im Dokument (2026-09-26)
   { name: 'eine Seite zählt nur einen Treffer', datei: 'assets/suche.js', anker: 'anzahl: st.length || 1,', ersatz: 'anzahl: 1,', trifft: /zwei Stellen|zweimal/ },
   { name: 'Ordnername zählt nicht', datei: 'assets/suche.js', anker: "      if (doc.ordner && trifft(tok, bereite(doc.ordner)))", ersatz: "      if (false && doc.ordner)", trifft: /Ordnername/ },
-  { name: 'Dokument zeigt keine Trefferzahl', datei: 'assets/app.js', anker: 'const tr = FUND.has(d.id) ? FUND.get(d.id).treffer : 0;', ersatz: 'const tr = 0;', trifft: /am Dokument steht/ },
+  { name: 'Dokument zeigt keine Trefferzahl', datei: 'assets/app.js', anker: 'const tr = fund && !fund.bedeutung ? fund.treffer : 0;', ersatz: 'const tr = 0;', trifft: /am Dokument steht/ },
   { name: 'Ordner-Knopf zählt Dokumente statt Treffer', datei: 'assets/app.js', anker: 'imO(d, id) ? FUND.get(d.id).treffer : 0)', ersatz: 'imO(d, id) ? 1 : 0)', trifft: /Alle/ },
   { name: 'gewählter Ordner begrenzt die Suche nicht', datei: 'assets/app.js', anker: 'const imOrdner = d => imO(d, S.aktOrdner);', ersatz: 'const imOrdner = d => !SU.anfrage(S.suche).length ? imO(d, S.aktOrdner) : true;', trifft: /nur darin/ },
   { name: 'Lupe der Tastatur lädt die Seite neu', datei: 'assets/app.js', anker: '      e.preventDefault(); suchen(); $(\'bibSuche\').blur();', ersatz: '      suchen();', trifft: /Tastatur/ },
