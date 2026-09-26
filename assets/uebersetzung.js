@@ -306,6 +306,21 @@
   }
 
   /* ---------- 2. Übersetzer ---------- */
+  // Sätze zu Stücken von höchstens max Zeichen; ein einzelner überlanger Satz wird an Leerzeichen geteilt.
+  const ZERLEGEN_AB = 4000, SATZ_MAX = 600;
+  function saetze(t, max) {
+    const roh = String(t).match(/[^.!?;:\n]+[.!?;:\n]*\s*/g) || [String(t)];
+    const out = []; let akt = '';
+    const leg = x => { x = x.trim(); if (x) out.push(x); };
+    for (let s of roh) {
+      while (s.length > max) { const cut = s.lastIndexOf(' ', max) > max / 2 ? s.lastIndexOf(' ', max) : max; if (akt) { leg(akt); akt = ''; } leg(s.slice(0, cut)); s = s.slice(cut); }
+      if ((akt + s).length > max && akt) { leg(akt); akt = ''; }
+      akt += s;
+    }
+    leg(akt);
+    return out;
+  }
+
   function browserDa() { return typeof self !== 'undefined' && 'Translator' in self; }
   // 'available' | 'downloadable' | 'downloading' | 'unavailable' | 'fehlt' (kein Translator im Browser)
   async function browserVerfuegbar(von, nach) {
@@ -315,10 +330,40 @@
   // Muss aus einem Tipp heraus aufgerufen werden, falls das Sprachpaket erst geladen wird.
   async function browserUebersetzer(von, nach, meldeLaden) {
     if (!browserDa()) throw new Error('Dieser Browser hat keinen eingebauten Übersetzer.');
-    const tr = await self.Translator.create({ sourceLanguage: von, targetLanguage: nach,
+    let tr = await self.Translator.create({ sourceLanguage: von, targetLanguage: nach,
       monitor(m) { m.addEventListener('downloadprogress', e => { if (meldeLaden) meldeLaden(e.loaded); }); } });
-    const stat = { zeichen: 0, anfragen: 0 };
-    const fn = async texte => { const out = []; for (const t of texte) { stat.zeichen += t.length; stat.anfragen++; out.push(await tr.translate(t)); } return out; };
+    const stat = { zeichen: 0, anfragen: 0, neustarts: 0, zerlegt: 0 };
+    /* Klaus 2026-09-26: ein 384-Seiten-Handbuch brach nach 6 Seiten ab mit
+       „Other generic failures occurred" — der allgemeine Fehler von Chromes
+       eingebautem Übersetzer, keine Speichermeldung der App. Er ist oft
+       vorübergehend (das Sprachmodell wurde entladen) oder kommt von einem zu
+       langen Absatz. Deshalb: einmal einen NEUEN Übersetzer holen und noch einmal
+       versuchen; scheitert es wieder, den Absatz in Sätze zerlegen. Erst dann
+       gilt der Fehler — und wird gemeldet wie bisher. Ein Kontingent/429 und
+       ein Abbruch durch den Nutzer werden NICHT wiederholt. */
+    const nichtWiederholen = e => e && (e.name === 'AbortError' || e.name === 'NotAllowedError' || /429|Kontingent/i.test(e.message || ''));
+    const einer = async t => {
+      if (t.length > ZERLEGEN_AB) return stueckweise(t);
+      try { return await tr.translate(t); }
+      catch (e) {
+        if (nichtWiederholen(e)) throw e;
+        if (e && e.name === 'QuotaExceededError') return stueckweise(t, e);
+        stat.neustarts++;
+        try { tr.destroy && tr.destroy(); } catch (_) {}
+        tr = await self.Translator.create({ sourceLanguage: von, targetLanguage: nach });
+        try { return await tr.translate(t); }
+        catch (e2) { if (nichtWiederholen(e2)) throw e2; return stueckweise(t, e2); }
+      }
+    };
+    const stueckweise = async (t, fehler) => {
+      // Bei einem Fehler höchstens halb so lang wie der Absatz, sonst bliebe ein kurzer Absatz ein Stück.
+      const st = saetze(t, fehler ? Math.min(SATZ_MAX, Math.max(40, Math.floor(t.length / 2))) : SATZ_MAX);
+      if (st.length < 2) { if (fehler) throw fehler; return tr.translate(t); }
+      stat.zerlegt++;
+      const out = []; for (const x of st) out.push(await tr.translate(x));
+      return out.join(' ');
+    };
+    const fn = async texte => { const out = []; for (const t of texte) { stat.zeichen += t.length; stat.anfragen++; out.push(await einer(t)); } return out; };
     fn.stat = stat; fn.art = 'browser'; fn.zu = () => { try { tr.destroy && tr.destroy(); } catch (_) {} };
     return fn;
   }
@@ -553,6 +598,37 @@
     return fn;
   }
 
+  /* ---------- Aufteilen in Teile, VOR dem Übersetzen gerechnet (Klaus 2026-09-26) ----------
+     „dass er vorher misst … in wie viele Teile muss ich die Datei teilen … rechnerisch
+     nachweisbar". Gerechnet wird mit dem, was vor dem Lauf feststeht: Dateigröße und
+     Seitenzahl. Jede Zahl steht mit ihrer Rechnung im Ergebnis (rechnung[]).
+     Die Grenzen sind gewählt, nicht gemessen, und heißen so:
+       TEIL_ZIEL_MB    — das Ergebnis-PDF eines Teils soll höchstens so groß werden
+                         (es enthält die Originalseiten des Teils plus die Schrift)
+       TEIL_MAX_SEITEN — höchstens so viele Seiten je Teil (wie in den WorkFlohs)
+     Der Durchschnitt je Seite ist ein Durchschnitt: einzelne Teile werden größer oder
+     kleiner. Die echte Größe jedes Teils steht nach dem Aufteilen daneben (gemessen). */
+  const TEIL_ZIEL_MB = 8, TEIL_MAX_SEITEN = 40, SCHRIFT_MB = 0.3, MB = 1048576;
+  function teilPlan(groesse, seiten, jeTeil) {
+    seiten = Math.max(1, Math.floor(seiten || 1)); groesse = Math.max(0, +groesse || 0);
+    const jeSeite = groesse / seiten, platz = TEIL_ZIEL_MB * MB - SCHRIFT_MB * MB;
+    const nachGroesse = jeSeite > 0 ? Math.max(1, Math.floor(platz / jeSeite)) : seiten;
+    const auto = Math.max(1, Math.min(TEIL_MAX_SEITEN, nachGroesse, seiten));
+    const n = jeTeil > 0 ? Math.max(1, Math.min(seiten, Math.floor(jeTeil))) : auto;
+    const teile = [];
+    for (let v = 1; v <= seiten; v += n) { const bis = Math.min(seiten, v + n - 1); teile.push({ nr: teile.length + 1, von: v, bis, seiten: bis - v + 1, mb: ((bis - v + 1) * jeSeite + SCHRIFT_MB * MB) / MB }); }
+    const f = x => x.toLocaleString('de-DE', { maximumFractionDigits: 1 });
+    const rechnung = [
+      `Datei ${f(groesse / MB)} MB ÷ ${seiten} Seiten = ${f(jeSeite / 1024)} KB je Seite (Durchschnitt)`,
+      `Ziel je Teil höchstens ${TEIL_ZIEL_MB} MB, davon ${f(SCHRIFT_MB)} MB Schrift → ${f(platz / MB)} MB ÷ ${f(jeSeite / 1024)} KB = ${nachGroesse} Seiten`,
+      `gedeckelt auf ${TEIL_MAX_SEITEN} Seiten je Teil → ${auto} Seiten je Teil`,
+      (n !== auto ? `selbst gewählt: ${n} Seiten je Teil → ` : '') + `${seiten} Seiten ÷ ${n} = ${teile.length} Teil${teile.length === 1 ? '' : 'e'}` +
+        (teile.length > 1 ? (teile[teile.length - 1].seiten === n ? ` (${teile.length} × ${n})` : ` (${teile.length - 1} × ${n} + 1 × ${teile[teile.length - 1].seiten})`) : '')
+    ];
+    return { groesse, seiten, jeSeiteKB: jeSeite / 1024, auto, jeTeil: n, teile, rechnung,
+      noetig: seiten > TEIL_MAX_SEITEN || groesse > TEIL_ZIEL_MB * MB };
+  }
+
   /* ---------- 3. Lauf über ein Dokument, Seite für Seite ----------
      opt: { bytes, uebersetzer, stand (gespeicherte Seiten oder null),
             speichere(stand) — nach JEDER Seite, abbruch() → true zum Anhalten,
@@ -769,5 +845,5 @@
   }
 
   window.WFP = window.WFP || {};
-  window.WFP.Uebersetzung = { zeichenNormal, SPRACHEN, NAME_DE, KI_TEXTMODELL, bloecke, browserDa, browserVerfuegbar, browserUebersetzer, chromeUebersetzer, falscheSchrift, chromeAn, kiUebersetzer, lauf, rueck, schriftLaden, pdfBauen, anzeige, farben, ocrStarten };
+  window.WFP.Uebersetzung = { zeichenNormal, saetze, teilPlan, TEIL_ZIEL_MB, TEIL_MAX_SEITEN, SPRACHEN, NAME_DE, KI_TEXTMODELL, bloecke, browserDa, browserVerfuegbar, browserUebersetzer, chromeUebersetzer, falscheSchrift, chromeAn, kiUebersetzer, lauf, rueck, schriftLaden, pdfBauen, anzeige, farben, ocrStarten };
 })();

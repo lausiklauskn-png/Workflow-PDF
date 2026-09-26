@@ -1415,6 +1415,67 @@
     }
     return q;
   }
+  /* Große Dokumente VOR dem Übersetzen in Teile schneiden (Klaus 2026-09-26: „vorher
+     messen … in wie viele Teile … rechnerisch nachweisbar … Teil 1 zum Übersetzen,
+     Teil 2, Teil 3"). Die Rechnung steht in UE.teilPlan, hier nur Anzeige und Schnitt.
+     Die Teile sind eigene Dokumente in „<Ordner> · Teile"; ihre Übersetzungen landen
+     alle im selben Ergebnis-Ordner wie die des ganzen Dokuments („<Ordner> · RU"). */
+  const _groesse = new Map();
+  async function dateiGroesse(id) { if (!_groesse.has(id)) { const b = await DB.getFile(id); _groesse.set(id, b ? b.length : 0); } return _groesse.get(id); }
+  const zeitText = p => EINST.ueMsSeite ? 'Zuletzt gemessen: ' + (EINST.ueMsSeite / 1000).toFixed(1).replace('.', ',') + ' s je Seite → ein Teil mit ' + p.jeTeil + ' Seiten etwa ' + Math.max(1, Math.round(EINST.ueMsSeite * p.jeTeil / 60000)) + ' min.' : 'Zeit je Seite: noch nicht gemessen — nach dem ersten Teil steht sie hier.';
+  async function teilPlanZeigen(dl, g, zu) {
+    const box = dl.querySelector('[data-teilplan]'); if (!box) return;
+    const gross = [];
+    for (const d of g) { if (d.teilVon || d.uebersetzung) continue; const p = UE.teilPlan(await dateiGroesse(d.id), d.pages.length); if (p.noetig) gross.push({ d, p }); }
+    box.innerHTML = gross.map(({ d, p }) => `<div class="teilplan" data-plan="${h(d.id)}" style="background:#fff3cd;padding:8px;border-radius:8px;margin:6px 0">
+      <b>📚 ${nm(d.name)}: ${p.seiten} Seiten — in Teilen übersetzen?</b>
+      <p class="hinweis" style="margin:4px 0">Ein Lauf über alle Seiten dauert lange, und bricht der Übersetzer ab, fehlt der Rest. In Teilen geht jeder Teil für sich, und jedes Ergebnis ist ein eigenes, kleineres PDF. Vorher gerechnet:</p>
+      <ul class="hinweis" data-rechnung style="margin:2px 0 6px 18px;padding:0">${p.rechnung.map(r => '<li>' + h(r) + '</li>').join('')}</ul>
+      <p class="hinweis" data-zeit style="margin:2px 0">${zeitText(p)}</p>
+      <label style="font-weight:400">Seiten je Teil <input type="number" min="1" max="${p.seiten}" value="${p.jeTeil}" data-jeteil style="width:5em"></label>
+      <button class="knopf klein" data-teilen="${h(d.id)}">✂️ In ${p.teile.length} Teile aufteilen</button>
+    </div>`).join('');
+    box.querySelectorAll('[data-plan]').forEach(el => {
+      const d = gross.find(x => x.d.id === el.dataset.plan).d, inp = el.querySelector('[data-jeteil]'), knopf = el.querySelector('[data-teilen]');
+      const neuRechnen = async () => {
+        const p = UE.teilPlan(await dateiGroesse(d.id), d.pages.length, +inp.value || 0);
+        el.querySelector('[data-rechnung]').innerHTML = p.rechnung.map(r => '<li>' + h(r) + '</li>').join('');
+        knopf.textContent = '✂️ In ' + p.teile.length + ' Teile aufteilen';
+        el.querySelector('[data-zeit]').textContent = zeitText(p);
+        return p;
+      };
+      inp.oninput = neuRechnen;
+      knopf.onclick = async () => { const p = await neuRechnen(); zu(); const teile = await teileAnlegen(d, p); if (teile && teile.length) uebersetzenDialog(teile.map(x => x.id), false, { gewaehlt: [teile[0].id] }); };
+    });
+  }
+  async function teileAnlegen(d, plan) {
+    const bytes = await DB.getFile(d.id); if (!bytes) { toast('⚠️ Die Datei fehlt.'); return null; }
+    // Schon mit denselben Grenzen geschnitten? Dann dieselben Teile nehmen, nichts doppelt.
+    const da = (await DB.all('docs')).filter(x => x.teilVon && x.teilVon.quelle === d.id);
+    const gleich = plan.teile.map(t => da.find(x => x.teilVon.von === t.von && x.teilVon.bis === t.bis && x.teilVon.n === plan.teile.length));
+    if (gleich.every(Boolean)) { toast('📚 Diese ' + plan.teile.length + ' Teile gibt es schon — sie werden genommen.'); return gleich; }
+    const fb = fortschritt('„' + d.name + '" wird in ' + plan.teile.length + ' Teile geschnitten');
+    try {
+      const { PDFDocument } = PDFLib;
+      const quelle = await PDFDocument.load(bytes, { ignoreEncryption: true });
+      const ziel = await ergebnisOrdner(d, 'teile', 'Teile');
+      const out = [];
+      for (const t of plan.teile) {
+        fb.setze((t.nr - 1) / plan.teile.length, 'Teil ' + t.nr + ' von ' + plan.teile.length + ' · Seiten ' + t.von + '–' + t.bis);
+        const neu = await PDFDocument.create();
+        const kopien = await neu.copyPages(quelle, Array.from({ length: t.seiten }, (_, i) => t.von - 1 + i));
+        kopien.forEach(k => neu.addPage(k));
+        const b = await neu.save();
+        const nd = await neuesDok(d.name + ' — Teil ' + t.nr + ' von ' + plan.teile.length + ' (S. ' + t.von + '–' + t.bis + ')', b, 'teil', ziel.id);
+        nd.teilVon = { quelle: d.id, nr: t.nr, n: plan.teile.length, von: t.von, bis: t.bis, geschaetztMB: +t.mb.toFixed(2), gemessenMB: +(b.length / 1048576).toFixed(2) };
+        await DB.put('docs', nd); out.push(nd);
+      }
+      fb.zu(); await ladeBibliothek();
+      window.__wfpdfTeile = out.map(x => x.teilVon);
+      toast('✂️ ' + out.length + ' Teile liegen in „' + ziel.name + '". Teil 1 ist zum Übersetzen gewählt.');
+      return out;
+    } catch (e) { fb.zu(); console.error(e); toast('⚠️ Aufteilen fehlgeschlagen: ' + (e.message || e) + ' — das Original ist unverändert.'); return null; }
+  }
   async function uebersetzenDialog(ids, alleGewaehlt, opt) {
     opt = opt || {};
     const docs = [], ersetzt = [], ohneOriginal = [];
@@ -1437,11 +1498,12 @@
       ${ersetzt.length ? `<p class="hinweis" data-ersetzt style="background:#e8f0fe;padding:8px;border-radius:8px">${ersetzt.map(e => `„${nm(e.von)}" ist selbst eine Übersetzung — übersetzt wird ihr <b>Original</b> „${nm(e.nach)}" (${h(UE.SPRACHEN[e.sprache] || e.sprache)}). So entsteht sauberer Text statt zweier Sprachen übereinander.`).join('<br>')}</p>` : ''}
       ${ohneOriginal.length ? `<p class="hinweis" data-ohneoriginal>Weggelassen: ${ohneOriginal.map(d => '„' + nm(d.name) + '"').join(', ')} — selbst eine Übersetzung, das Original liegt nicht mehr hier.</p>` : ''}
       ${mehrere ? `<p><b>Welche Dokumente?</b> <button class="knopf klein" data-alle>Alle</button></p>` : ''}
-      <div class="erk-liste">${docs.map((d, i) => `<label class="erk-dok"><input type="checkbox" data-dok="${h(d.id)}"${!mehrere || (alleGewaehlt && !d.uebersetzung) ? ' checked' : ''}> ${nm(d.name)} <span class="hinweis">· ${d.pages.length} S.${d.uebersetzung ? ' · schon eine Übersetzung' : ''}${!d.uebersetzung ? ' · ' + (d.fields.filter(f => f.geprueft).length ? d.fields.filter(f => f.geprueft).length + ' Felder kommen übersetzt mit' : 'keine Felder') : ''}</span>${!d.uebersetzung && !d.fields.filter(f => f.geprueft).length ? ` <button class="knopf klein" data-feld="${h(d.id)}" title="Rahmen zum Ausfüllen (Text, Datum, Kästchen, Unterschrift) im Original setzen — sie kommen dann übersetzt mit">✏️ erst Felder setzen</button>` : ''}</label>`).join('')}</div>
+      <div class="erk-liste">${docs.map((d, i) => `<label class="erk-dok"><input type="checkbox" data-dok="${h(d.id)}"${(opt.gewaehlt ? opt.gewaehlt.includes(d.id) : !mehrere || (alleGewaehlt && !d.uebersetzung)) ? ' checked' : ''}> ${nm(d.name)} <span class="hinweis">· ${d.pages.length} S.${d.uebersetzung ? ' · schon eine Übersetzung' : ''}${!d.uebersetzung ? ' · ' + (d.fields.filter(f => f.geprueft).length ? d.fields.filter(f => f.geprueft).length + ' Felder kommen übersetzt mit' : 'keine Felder') : ''}</span>${!d.uebersetzung && !d.fields.filter(f => f.geprueft).length ? ` <button class="knopf klein" data-feld="${h(d.id)}" title="Rahmen zum Ausfüllen (Text, Datum, Kästchen, Unterschrift) im Original setzen — sie kommen dann übersetzt mit">✏️ erst Felder setzen</button>` : ''}</label>`).join('')}</div>
       <p class="hinweis">Formular zum Ausfüllen (z. B. vom Amt)? Die Rahmen zum Ausfüllen am besten <b>im Original</b> setzen („✏️ erst Felder setzen", oder „🔍 Felder erkennen") — dann kommen sie übersetzt an dieselbe Stelle mit. Nach dem Ausfüllen holt „⬇ PDF ausgeben → ↩ Einträge ins Original" die Einträge zurück.</p>
       <div class="ue-sprachen"><div><label>von</label>${sprachWahl('von', vonVorgabe)}</div><div class="ue-pfeil">→</div><div><label>nach</label>${sprachWahl('nach', EINST.ueNach)}</div></div>
       <label style="font-weight:400"><input type="checkbox" data-rueck${EINST.ueRueck !== false ? ' checked' : ''}> Gegenprobe: danach zurück in die Ausgangssprache übersetzen und daneben ablegen</label>
       <p class="hinweis" data-zahl></p>
+      <div data-teilplan></div>
       <button class="wahl" data-weg="browser"><b>📱 Übersetzer im Browser</b><span data-bstat>prüfe …</span></button>
       <button class="wahl" data-weg="chrome"><b>🌐 Mit Chrome übersetzen (Google)</b><span>Kostenlos, ohne Schlüssel und ohne Kontingent. Die App zeigt den Text jeder Seite unten an, du tippst einmal in Chrome ⋮ → „Übersetzen" — danach läuft es Seite für Seite von selbst. Der Text geht dabei an Google.${matchMedia('(display-mode: standalone)').matches ? ' Die App läuft gerade im eigenen Fenster — dort fehlt „Übersetzen" oft. Dann „' + chromeKnopf() + '" (darunter)' + (teilenWeg() ? ': im Teilen-Fenster Chrome wählen, dort öffnet sich derselbe Übersetzer. Zurück in der App oben ⟳ tippen.' : ': derselbe Übersetzer öffnet sich in Chrome.') : ''}</span></button>
       ${matchMedia('(display-mode: standalone)').matches ? '<div class="zeile" data-tabreihe style="flex-wrap:wrap;gap:6px;margin:-4px 0 8px"></div>' : ''}
@@ -1455,6 +1517,7 @@
         const gleich = von() === nach();
         dl.querySelector('[data-zahl]').textContent = gleich ? 'Ausgangs- und Zielsprache sind gleich.' : g.length ? `${g.length} Dokument${g.length === 1 ? '' : 'e'} · ${seiten} Seiten` : 'Noch kein Dokument gewählt.';
         dl.querySelectorAll('[data-weg]').forEach(b => b.disabled = !g.length || gleich);
+        await teilPlanZeigen(dl, g, zu);
         const bs = dl.querySelector('[data-bstat]'); const v = await UE.browserVerfuegbar(von(), nach());
         bs.textContent = { fehlt: 'Dieser Browser hat keinen eingebauten Übersetzer (Translator). Dann bleibt die KI mit eigenem Schlüssel.', unavailable: `${UE.SPRACHEN[von()]} → ${UE.SPRACHEN[nach()]} kann der eingebaute Übersetzer nicht.`,
           downloadable: 'Kostenlos, auf dem Gerät. Das Sprachpaket wird beim ersten Mal geladen (einmalig, Internet nötig).', downloading: 'Das Sprachpaket wird gerade geladen …',
@@ -1651,19 +1714,23 @@
         const jid = jobId(d.id, von, nach);
         const alt = await jobLesen(jid);
         const ohneVor = (hin.stat && hin.stat.ohne) || 0;
+        const neuVor = (hin.stat && hin.stat.neustarts) || 0, zerVor = (hin.stat && hin.stat.zerlegt) || 0;
         const r = await UE.lauf({ bytes, uebersetzer: hin, stand: alt, abbruch: () => abbruch, ocr: { basis: 'vendor/', von },
           speichere: st => DB.put('files', { id: jid, job: st }),
           melde: (i, n, info) => { stand = (k + i / n) / ids.length; standText = info.text ? vor + info.text : `${vor}Seite ${i} von ${n}${info.neu ? ' · ' + (info.ms / info.neu / 1000).toFixed(1) + ' s je Seite' : ''}`; fb.setze(stand, standText); } });
         zeile.ocr = r.ocrSeiten;
         if (r.ocrFehler) zeile.hinweise.push('Texterkennung für gescannte Seiten nicht verfügbar (' + r.ocrFehler + ') — diese Seiten bleiben unübersetzt.');
         zeile.ms = r.ms; zeile.neu = r.neu; zeile.fertig = r.fertig;
+        if (r.neu) { EINST.ueMsSeite = Math.round(r.ms / r.neu); einstSpeichern(); }
+        const neuN = ((hin.stat && hin.stat.neustarts) || 0) - neuVor, zerN = ((hin.stat && hin.stat.zerlegt) || 0) - zerVor;
+        if (neuN || zerN) zeile.hinweise.push(`Der Übersetzer im Browser ist unterwegs ${neuN} Mal neu gestartet worden${zerN ? ' und hat ' + zerN + ' lange Absätze Satz für Satz übersetzt' : ''}${r.fehler ? '' : ' — danach lief es weiter'}.`);
         if (weg === 'chrome' && k === 0 && EINST.ueRueck) zeile.hinweise.push('Eine Gegenprobe gibt es auf dem Chrome-Weg nicht — Chrome übersetzt die Seite immer nur in eine Sprache.');
         if (weg === 'chrome' && hin.stat.ohne > ohneVor) zeile.hinweise.push((hin.stat.ohne - ohneVor) + ' Absatz/Absätze hat Chrome nicht übersetzt — sie stehen im Original da.');
         if (r.fehler && !abbruch) zeile.hinweise.push('Der Übersetzer hat abgebrochen: ' + r.fehler + (/Tempo-Limit/.test(r.fehler) ? ' — dein Konto beim Anbieter erlaubt nur wenige Anfragen je Minute; die App hat über zwei Minuten gewartet. Später fortsetzen, das Limit beim Anbieter erhöhen (Mistral: Admin → Limits) oder „🌐 Mit Chrome übersetzen" nehmen (ohne Limit).' : /429|Kontingent/.test(r.fehler) ? ' — das Kontingent des Anbieters ist für den Moment erschöpft; später erneut starten.' : ''));
         // Teilergebnis: fertige Seiten übersetzt, der Rest im Original — damit das
         // bisher Übersetzte zu SEHEN ist (vorher stand es nur im Speicher).
         const teil = r.abgebrochen || !!r.fehler;
-        if (teil && !r.fertig) { zeile.hinweise.push('Noch keine Seite übersetzt — es gibt kein Teilergebnis.'); bericht.push(zeile); break; }
+        if (teil && !r.fertig) { zeile.hinweise.push('Noch keine Seite übersetzt — es gibt kein Teilergebnis.'); zeile.ohneErgebnis = true; bericht.push(zeile); break; }
         const altTeile = (await DB.all('docs')).filter(x => x.teil && x.uebersetzung && x.uebersetzung.quelle === d.id && x.uebersetzung.nach === nach && !x.uebersetzung.gegenprobe);
         for (const x of altTeile) { await DB.del('docs', x.id); await DB.del('files', x.id); }
         fb.setze((k + 1) / ids.length, vor + 'PDF wird gebaut …');
@@ -1711,7 +1778,7 @@
     const zeichen = st.reduce((n, s) => n + s.zeichen, 0), tokE = st.reduce((n, s) => n + (s.tokenEin || 0), 0), tokA = st.reduce((n, s) => n + (s.tokenAus || 0), 0);
     const neuS = bericht.reduce((n, z) => n + (z.neu || 0), 0);
     window.__wfpdfBericht = { bericht, zeichen, tokE, tokA, ms: Date.now() - t0, speicherMB: performance.memory ? performance.memory.usedJSHeapSize / 1048576 : null };
-    dialog(`<h2>🌐 Übersetzung ${abbruch ? 'angehalten' : bericht.some(z => z.teil) ? 'unvollständig — Teilergebnis liegt bereit' : 'fertig'}</h2>
+    dialog(`<h2>🌐 Übersetzung ${abbruch ? 'angehalten' : bericht.some(z => z.teil) ? 'unvollständig — Teilergebnis liegt bereit' : bericht.some(z => z.ohneErgebnis) ? 'abgebrochen — noch nichts übersetzt' : 'fertig'}</h2>
       <ul>${bericht.map(z => `<li><b>${nm(z.name)}</b> · ${z.fertig != null ? z.fertig + ' von ' + z.seiten + ' Seiten' : ''}${z.neu ? ' · ' + (z.ms / z.neu / 1000).toFixed(1) + ' s je neu übersetzter Seite' : ''}${z.groesse ? ' · Ergebnis ' + (z.groesse >= 1048576 ? (z.groesse / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(z.groesse / 1024)) + ' KB') : ''}${z.ordner ? ' · liegt in „' + nm(z.ordner) + '"' : ''}${z.felder ? ' · ' + z.felder + ' Felder übersetzt mitgenommen' : ''}${z.neuId ? ` <button class="knopf klein" data-oeffne="${h(z.neuId)}">${z.teil ? '👁 Teilübersetzung öffnen' : '✏️ Öffnen: Felder setzen / ausfüllen'}</button>` : ''}${z.hinweise.length ? '<ul>' + z.hinweise.map(x => '<li class="hinweis">' + h(x) + '</li>').join('') + '</ul>' : ''}</li>`).join('')}</ul>
       ${S.ausApp && !abbruch && !matchMedia('(display-mode: standalone)').matches ? '<p class="hinweis" data-zurueckapp><b>Zurück in die App:</b> die Übersetzung liegt hier in der Bibliothek. In der App oben <b>⟳ (Aktualisieren)</b> tippen — dann liest sie denselben Speicher neu und zeigt sie. Diesen Chrome-Tab kannst du danach schließen. Fehlt sie dort, „⬇ PDF" hier im Tab ausgeben.</p>' : ''}
       <p class="hinweis">Gemessen: ${neuS} Seiten in ${((Date.now() - t0) / 1000).toFixed(0)} s · ${zeichen.toLocaleString('de-DE')} Zeichen übersetzt${tokE || tokA ? ` · ${tokE.toLocaleString('de-DE')} Token hin, ${tokA.toLocaleString('de-DE')} Token zurück (${h(hin.stat.modell || '')}) — den Preis je Token nennt der Anbieter` : ''}${performance.memory ? ' · Speicher ' + (performance.memory.usedJSHeapSize / 1048576).toFixed(0) + ' MB' : ''}.</p>
