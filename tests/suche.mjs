@@ -193,7 +193,7 @@ else {
     ok('Editor: antippen blendet genau diese Markierung aus', !!marke && nach.dom === marke.n - 1 && nach.s === marke.n - 1, { marke, nach });
     ok('Editor: nach dem Antippen steht noch eine Markierung (Vorbedingung für die Prüfungen danach)', nach.s >= 1, nach);
     await page.click('#mBearbeiten'); await page.waitForTimeout(100); await page.click('#mAusfuellen'); await page.waitForTimeout(100);
-    ok('Editor: eine ausgeblendete Markierung kommt beim Umschalten nicht wieder', await page.evaluate(() => document.querySelectorAll('.fund').length) === nach.dom);
+    ok('Editor: beim Umschalten kommt die ausgeblendete Markierung nicht wieder, die übrigen bleiben', await page.evaluate(() => document.querySelectorAll('.fund').length) === nach.dom);
     await page.click('#flohKnopf'); await page.waitForSelector('#sc-bib.on');
     await page.fill('#bibSuche', ''); await page.waitForTimeout(80);
     await page.evaluate(() => window.__wfpdf.oeffneDok(window.__wfpdf.S.docs.find(d => /Auftrag/.test(d.name)).id));

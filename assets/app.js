@@ -136,7 +136,7 @@
     }
     const imO = (d, id) => id === 'alle' ? true : id === 'ohne' ? !d.folderId || !S.ordner.some(x => x.id === d.folderId) : d.folderId === id;
     const treffO = id => S.docs.reduce((n, d) => n + (FUND.has(d.id) && imO(d, id) ? FUND.get(d.id).treffer : 0), 0);
-    const tz = id => such.length ? `<span class="treffer-zahl" data-treffer="${treffO(id)}" title="${T('Treffer in diesem Ordner')}">🔎${treffO(id)}</span>` : '';
+    const tz = id => such.length ? `<span class="treffer-zahl" data-treffer="${treffO(id)}" title="Treffer in diesem Ordner">🔎${treffO(id)}</span>` : '';
     const anz = id => S.docs.filter(d => id === 'alle' ? true : id === 'ohne' ? !d.folderId || !S.ordner.some(o => o.id === d.folderId) : d.folderId === id).length;
     let html = `<button class="ordner-chip${S.aktOrdner === 'alle' ? ' on' : ''}" data-o="alle">Alle<span class="anz">${anz('alle')}</span>${tz('alle')}</button>`;
     for (const o of S.ordner) html += `<button class="ordner-chip${S.aktOrdner === o.id ? ' on' : ''}" data-o="${o.id}">${o.bereich === 'uebersetzung' ? '🌐 ' : '🗂️ '}${nm(o.name)}<span class="anz">${anz(o.id)}</span>${tz(o.id)}</button>`;
@@ -179,7 +179,7 @@
     g.innerHTML = nurOrdner + sicht.map(d => {
       const v = offeneVorschlaege(d), ord = S.ordner.find(x => x.id === d.folderId);
       const tr = FUND.has(d.id) ? FUND.get(d.id).treffer : 0;
-      return `<div class="dok" data-id="${d.id}">${tr ? `<span class="treffer-zahl dok-treffer" data-treffer="${tr}" title="${T('Treffer in diesem Dokument')}">🔎${tr}</span>` : ''}
+      return `<div class="dok" data-id="${d.id}">${tr ? `<span class="treffer-zahl dok-treffer" data-treffer="${tr}" title="Treffer in diesem Dokument">🔎${tr}</span>` : ''}
         <button class="dok-bild" data-auf style="background-image:url('${d.thumb || ''}')" title="Öffnen">
           <span class="marken">${v ? `<span class="marke-klein ki">🤖 ${v} zu prüfen</span>` : ''}${d.quelle === 'foto' ? '<span class="marke-klein">📷 Foto</span>' : ''}${d.uebersetzung ? `<span class="marke-klein">🌐 ${h((d.uebersetzung.von || '').toUpperCase())}→${h((d.uebersetzung.nach || '').toUpperCase())}${d.uebersetzung.gegenprobe ? ' Gegenprobe' : ''}</span>` : ''}${d.ausgefuellt ? `<span class="marke-klein">↩ ausgefüllt aus ${h((d.ausgefuellt.aus || '').toUpperCase())}</span>` : ''}</span></button>
         <div class="dok-info"><div class="dok-name" data-kein-ue title="${h(d.name)}">${nm(d.name)}</div>
@@ -547,7 +547,7 @@
   function zeichneSuchZahl() {
     const z = $('edSuchZahl'); if (!z) return;
     const q = SU.anfrage($('edSuche').value);
-    z.textContent = !q.length ? '' : S.funde.length ? (Math.max(0, S.fundIdx) + 1) + ' / ' + S.funde.length : T('kein Treffer');
+    z.textContent = !q.length ? '' : S.funde.length ? (Math.max(0, S.fundIdx) + 1) + ' / ' + S.funde.length : 'kein Treffer';
   }
   function springeZuFund(i) {
     if (!S.funde.length) return;

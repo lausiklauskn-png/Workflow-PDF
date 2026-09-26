@@ -16,14 +16,14 @@ const FAELLE = [
   { name: 'Daten werden nicht erkannt', datei: 'assets/suche.js', anker: '    return out;\n  }\n  // Ein Suchwort, das ein Datum ist', ersatz: '    return [];\n  }\n  // Ein Suchwort, das ein Datum ist', trifft: /Datum/ },
   { name: 'ODER statt UND', datei: 'assets/suche.js', anker: '      if (!hier) return null;', ersatz: '      if (!hier) continue;', trifft: /UND/ },
   { name: 'kein Wort über zwei Textstücke', datei: 'assets/suche.js', anker: 'for (let n = 2; n <= 3 && !out.length; n++)', ersatz: 'for (let n = 2; n <= 1 && !out.length; n++)', trifft: /zwei Textstücke|KD-" \| „4711/ },
-  { name: 'Markierungen werden nicht gezeichnet', datei: 'assets/app.js', anker: '    zeichneFunde(i, lage);\n', ersatz: '', trifft: /Fundstelle ist auf Seite 1 markiert/ },
+  { name: 'Markierungen werden nicht gezeichnet', datei: 'assets/app.js', anker: '    zeichneFunde(i, lage);\n', ersatz: '', trifft: /Fundstelle ist auf Seite 1 markiert|übrigen bleiben/ },
   { name: 'antippen blendet nicht aus', datei: 'assets/app.js', anker: 'S.funde = S.funde.filter(x => x.id !== m.id); el.remove();', ersatz: 'el.remove();', trifft: /kommt beim Umschalten nicht wieder|genau diese Markierung/ },
   { name: 'Markierung klebt am Öffnen ohne Suche', datei: 'assets/app.js', anker: '    S.funde = []; S.fundIdx = -1;\n    // Aus der Bibliothek', ersatz: '    // Aus der Bibliothek',
     // zwei Riegel decken einander (Öffnen UND Schließen leeren) — beide weg, sonst misst der Fall nichts
     extra: { datei: 'assets/app.js', anker: 'S.doc = null; S.sel = null; S.funde = []; S.fundIdx = -1;', ersatz: 'S.doc = null; S.sel = null; S.fundIdx = -1;' }, trifft: /ohne Suche geöffnet/ },
   { name: 'neue Bytes behalten den alten Text', datei: 'assets/db.js', anker: "await DB.put('files', { id, bytes }); await tx('texte', 'readwrite', st => st.delete(id));", ersatz: "await DB.put('files', { id, bytes });", trifft: /neue Bytes werfen/ },
   { name: 'beim Einlesen wird kein Text erfasst, nachgeholt wird nie', datei: 'assets/app.js', anker: '    texteNachholen();\n  }', ersatz: '  }', extra: { datei: 'assets/app.js', anker: " await textAblegen(d.id, text);\n", ersatz: '\n' }, trifft: /Probe lief durch|Seitentext/ },
-  { name: 'Suche liest den Seitentext nicht', datei: 'assets/app.js', anker: 'SU.sucheDok(d, TEXTE.get(d.id) || null, such)', ersatz: 'SU.sucheDok(d, null, such)', trifft: /SEITENTEXT/ },
+  { name: 'Suche liest den Seitentext nicht', datei: 'assets/app.js', anker: 'TEXTE.get(d.id) || null, such)', ersatz: 'null, such)', trifft: /SEITENTEXT/ },
   // --- Trefferzahlen, Ordner, Suche im Dokument (2026-09-26)
   { name: 'eine Seite zählt nur einen Treffer', datei: 'assets/suche.js', anker: 'anzahl: st.length || 1,', ersatz: 'anzahl: 1,', trifft: /zwei Stellen|zweimal/ },
   { name: 'Ordnername zählt nicht', datei: 'assets/suche.js', anker: "      if (doc.ordner && trifft(tok, bereite(doc.ordner)))", ersatz: "      if (false && doc.ordner)", trifft: /Ordnername/ },
