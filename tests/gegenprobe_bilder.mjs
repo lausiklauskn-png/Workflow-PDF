@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const WURZEL = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const U = 'assets/uebersetzung.js', A = 'assets/app.js';
 const FAELLE = [
-  { name: 'Vorgabe liest Bilder wieder', datei: U, anker: 'const bilderLesen = !!(opt.ocr && opt.ocr.bilder);', ersatz: 'const bilderLesen = !!opt.ocr;', trifft: /Vorgabe: Bilder werden nicht gelesen|bildText 0/ },
+  { name: 'Vorgabe liest Bilder wieder', datei: U, anker: 'const bilderLesen = !!(opt.ocr && opt.ocr.bilder);', ersatz: 'const bilderLesen = !!opt.ocr;', trifft: /ohne den Haken bleibt auch echter Bild-Text/ },   // am Kerben-Foto unsichtbar: der strenge Filter nimmt den Schein-Text ohnehin weg
   { name: 'strenger Filter fehlt im Bild', datei: U, anker: '      if (imBild && !bildZeileTaugt(t, li.confidence)) continue;\n', ersatz: '', trifft: /kein Schein-Text/ },
   { name: 'Bild-Lesen ohne strengen Filter aufgerufen', datei: U, anker: 'ocrBloecke(ocrWorker, c, S, fx, fy, true)', ersatz: 'ocrBloecke(ocrWorker, c, S, fx, fy)', trifft: /kein Schein-Text/ },
   { name: 'Sicherheit wird nicht geprüft', datei: U, anker: '!(sicherheit >= BILD_SICHER) || ', ersatz: '', trifft: /unsicher erkannt/ },

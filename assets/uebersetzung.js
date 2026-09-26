@@ -30,6 +30,36 @@
      Zeilen nach unten folgen. Schräger Text (z. B. 45°) bleibt stehen und wird gezählt.
      Aufzählungen (•, –, 1., a)) bleiben eigene Absätze, damit Listen Listen bleiben. */
   const AUFZ = /^\s*([•●○▪■◦·‣∙\-–—*]|\d{1,3}[.)]|[a-zA-Zа-яА-Я][.)])\s/;
+  /* Buchstaben und Ziffern im Kreis (Ⓐ Ⓑ ① ❶ …) sind SYMBOLE, keine Wörter (Klaus 2026-09-26,
+     Werkstatt-Handbuch: „Ⓒ and body ground: Approx. 5V" kam als „C und Karosseriemasse" an, der
+     Kreis war weg, und die drei Listenzeilen waren zu einem Absatz verschmolzen). Eine Zeile, die
+     mit so einem Zeichen beginnt, ist ein eigener Absatz; das Zeichen kommt nach der Übersetzung
+     zurück (kreisZurueck) und wird im PDF selbst gezeichnet — Noto Sans hat keine Kreis-Zeichen. */
+  const KREIS = /[\u2460-\u24FF\u2776-\u2793\u3251-\u325F\u32B1-\u32BF]/u, KREIS_G = new RegExp(KREIS.source, 'gu');
+  const KREIS_ANFANG = new RegExp('^\\s*' + KREIS.source, 'u');
+  // Inhalt des Kreises: Ⓐ → „A", ① → „1", ❶ → „1" (NFKC kennt die Negativ-Ziffern nicht)
+  function kreisInhalt(ch) {
+    const c = ch.codePointAt(0);
+    if (c >= 0x2776 && c <= 0x277F) return String(c - 0x2775);
+    if (c >= 0x2780 && c <= 0x2789) return String(c - 0x277F);
+    if (c >= 0x278A && c <= 0x2793) return String(c - 0x2789);
+    return ch.normalize('NFKC').replace(/[()．.]/g, '');
+  }
+  // Nach der Übersetzung: fehlt ein Kreis-Zeichen des Originals, wird das erste freistehende
+  // Zeichen mit seinem Inhalt („A", „1") wieder zum Symbol — der Reihe nach, jedes einmal.
+  function kreisZurueck(orig, text) {
+    const zeichen = String(orig || '').match(KREIS_G); if (!zeichen) return text;
+    let t = String(text || ''), ab = 0;
+    for (const ch of zeichen) {
+      const bei = t.indexOf(ch, ab); if (bei >= 0) { ab = bei + ch.length; continue; }
+      const inh = kreisInhalt(ch).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp('(^|[^\\p{L}\\p{N}])' + inh + '(?=$|[^\\p{L}\\p{N}])', 'u');
+      const m = re.exec(t.slice(ab)); if (!m) continue;
+      const pos = ab + m.index + m[1].length;
+      t = t.slice(0, pos) + ch + t.slice(pos + kreisInhalt(ch).length); ab = pos + ch.length;
+    }
+    return t;
+  }
   const zuRahmen = (o, X, Y) => { const r = o * Math.PI / 180, c = Math.round(Math.cos(r)), s = Math.round(Math.sin(r)); return [X * c + Y * s, -X * s + Y * c]; };
   const ausRahmen = (o, x, y) => { const r = o * Math.PI / 180, c = Math.round(Math.cos(r)), s = Math.round(Math.sin(r)); return [x * c - y * s, x * s + y * c]; };
   async function bloecke(page) {
@@ -40,7 +70,7 @@
       if (!it.str || !it.str.trim()) continue;
       // Stücke ohne Buchstaben und Ziffern (✓ • ■ ☐) bleiben, wie sie sind: sie gehören
       // nicht in einen Absatz, sonst werden sie mit abgedeckt oder blähen die Schriftgröße auf.
-      if (!/[\p{L}\p{N}]/u.test(it.str)) continue;
+      if (!/[\p{L}\p{N}]/u.test(it.str) && !KREIS.test(it.str)) continue;   // Ⓐ ist ein Symbol (So), gehört aber zur Zeile
       const tr = pdfjsLib.Util.transform(vp.transform, it.transform);
       const fh = Math.hypot(tr[2], tr[3]);
       if (!(fh > 0.5)) continue;
@@ -105,7 +135,7 @@
     const abs = [];
     for (const z of zeilen) {
       const oben = z.y - z.fh;
-      const b = AUFZ.test(z.s) ? null : abs.find(b => {
+      const b = AUFZ.test(z.s) || KREIS_ANFANG.test(z.s) ? null : abs.find(b => {
         const letzte = b.zeilen[b.zeilen.length - 1];
         if (marke(z, letzte)) return false;
         const abstand = oben - (letzte.y + letzte.fh * 0.25);
@@ -117,6 +147,10 @@
         // Überschrift über dem ersten Feld): zusammengezogen und neu umbrochen rutschen sie
         // von ihren Feldern weg (Befund Klaus 2026-09-26, Fragebogen: „Postal code, / City: Email:").
         if (/:\s*$/.test(letzte.s)) return false;
+        // Nach einem Satzende eine deutlich eingerückte Zeile: eine neue Zeile für sich
+        // („… between terminals Ⓐ and Ⓑ." / eingerückt „Voltage Between:") — zusammengezogen
+        // verlor die Übersetzung dort ein Wort.
+        if (/[.!?]\s*$/.test(letzte.s) && z.x - letzte.x > z.fh * 1.2) return false;
         // Nicht bei Texterkennung: dort misst fh das Buchstaben-Kästchen, nicht die
         // Schriftgröße — der Zeilenabstand sähe immer zu groß aus (Scan-Absatz zerfiel).
         if (!z.ocr && z.y - letzte.y > Math.max(z.fh, letzte.fh) * 1.6) return false;
@@ -721,7 +755,7 @@
         // gespeichert, und der Lauf meldet den Grund, statt ihn zu werfen —
         // sonst ginge die Teilübersetzung für den Aufrufer verloren.
         let u;
-        try { u = texte.length ? (await opt.uebersetzer(texte)).map(zeichenNormal) : []; }
+        try { u = texte.length ? (await opt.uebersetzer(texte)).map((t, k) => kreisZurueck(texte[k], zeichenNormal(t))) : []; }
         catch (e) { fehler = (e && e.message) || String(e); break; }
         stand.seiten[i] = { b, u, gedreht: r.gedreht, t: r.t, ocr: ocr || bildText > 0, bildText };
         neu++;
@@ -743,7 +777,7 @@
     for (let i = 0; i < n; i++) {
       const s = r.seiten[i]; if (!s || s.u) continue;
       if (opt && opt.abbruch && opt.abbruch()) break;
-      s.u = stand.seiten[i].u.length ? (await uebersetzer(stand.seiten[i].u)).map(zeichenNormal) : [];
+      s.u = stand.seiten[i].u.length ? (await uebersetzer(stand.seiten[i].u)).map((t, k) => kreisZurueck(stand.seiten[i].u[k], zeichenNormal(t))) : [];
       if (opt && opt.speichere) await opt.speichere(r);
       if (opt && opt.melde) opt.melde(r.seiten.filter(x => x && x.u).length, n);
     }
@@ -751,19 +785,22 @@
   }
 
   /* ---------- 4. Neues PDF: Original als Hintergrund, Übersetzung in die Lage ---------- */
+  // Breite einer Zeile; ein Kreis-Zeichen (nicht in der Schrift) zählt wie ein „O" plus Luft
+  const KREIS_ERSATZ = 'O\u2009';
+  const breiteVon = (font, t, size) => font.widthOfTextAtSize(String(t).replace(KREIS_G, KREIS_ERSATZ), size);
   function umbrechen(font, text, size, breite) {
     const zeilen = []; let z = '';
     for (const w of String(text).split(/\s+/)) {
       if (!w) continue;
       const t = z ? z + ' ' + w : w;
-      if (font.widthOfTextAtSize(t, size) <= breite || !z) z = t; else { zeilen.push(z); z = w; }
+      if (breiteVon(font, t, size) <= breite || !z) z = t; else { zeilen.push(z); z = w; }
     }
     if (z) zeilen.push(z);
     return zeilen;
   }
   function saeubern(font, s) {
     let out = '', ersetzt = 0;
-    for (const ch of String(s || '')) { try { font.widthOfTextAtSize(ch, 10); out += ch; } catch (_) { out += '?'; ersetzt++; } }
+    for (const ch of String(s || '')) { if (KREIS.test(ch)) { out += ch; continue; } try { font.widthOfTextAtSize(ch, 10); out += ch; } catch (_) { out += '?'; ersetzt++; } }
     return { text: out, ersetzt };
   }
   let _schrift = null;
@@ -799,7 +836,7 @@
         const roh = s.u && s.u[k]; if (roh == null) return null;
         const [, , w, h, size] = b, text = saeubern(font, roh).text;
         const W2 = w + (+b[10] || 0), H2 = h + (+b[11] || 0);
-        const ok = (g, br, ho, zu = 0) => { const z = umbrechen(font, text, g, br); return z.length * g * 1.18 <= ho + g * zu && !z.some(t => font.widthOfTextAtSize(t, g) > br + 0.5); };
+        const ok = (g, br, ho, zu = 0) => { const z = umbrechen(font, text, g, br); return z.length * g * 1.18 <= ho + g * zu && !z.some(t => breiteVon(font, t, g) > br + 0.5); };
         let g = Math.min(size, 40); if (ok(g, w, h, 0.3) || ok(g, W2, h, 0.3) || ok(g, W2, H2)) return g;
         while (g > 3.5 && !ok(g, W2, H2)) g -= 0.25; return g;
       });
@@ -834,14 +871,30 @@
         // Erst in der Größe des Originals: im alten Rahmen, dann mit dem freien Platz
         // rechts, dann auch unten — erst danach wird die Schrift kleiner.
         const W2 = w + (+b[10] || 0), H2 = h + (+b[11] || 0);
-        const passt = (g, br, ho, zu = 0) => { const z = umbrechen(font, text, g, br); return z.length * g * 1.18 <= ho + g * zu && !z.some(t => font.widthOfTextAtSize(t, g) > br + 0.5) ? z : null; };
+        const passt = (g, br, ho, zu = 0) => { const z = umbrechen(font, text, g, br); return z.length * g * 1.18 <= ho + g * zu && !z.some(t => breiteVon(font, t, g) > br + 0.5) ? z : null; };
         let gr = ziel, zeilen = passt(gr, w, h, 0.3) || passt(gr, W2, h, 0.3) || passt(gr, W2, H2);
         while (!zeilen && gr > 3.5) { gr -= 0.25; zeilen = passt(gr, W2, H2); }
         if (!zeilen) zeilen = umbrechen(font, text, gr, W2);
         if (gr < size * 0.6) zuKlein++;
         zeilen.forEach((z, j) => {
-          const q = p(0, (j + 1) * gr * 1.18 - gr * 0.22);
-          page.drawText(z, { x: q[0], y: q[1], size: gr, font, color: farbe(fgF), rotate: dreh });
+          const grund = (j + 1) * gr * 1.18 - gr * 0.22;
+          if (!KREIS.test(z)) { const q = p(0, grund); page.drawText(z, { x: q[0], y: q[1], size: gr, font, color: farbe(fgF), rotate: dreh }); return; }
+          // Kreis-Symbole selbst zeichnen: Inhalt kleiner, Kreis darum; der Text läuft daneben weiter
+          let dx = 0;
+          for (const teil of z.split(new RegExp('(' + KREIS.source + ')', 'u'))) {
+            if (!teil) continue;
+            if (KREIS.test(teil)) {
+              const bw = breiteVon(font, teil, gr), r = gr * 0.42, inh = saeubern(font, kreisInhalt(teil)).text, gk = gr * (inh.length > 1 ? 0.5 : 0.62);
+              const mitte = p(dx + bw / 2 - gr * 0.05, grund - gr * 0.34);
+              page.drawCircle({ x: mitte[0], y: mitte[1], size: r, borderColor: farbe(fgF), borderWidth: Math.max(0.4, gr * 0.06) });
+              const q = p(dx + bw / 2 - gr * 0.05 - font.widthOfTextAtSize(inh, gk) / 2, grund - gr * 0.34 + gk * 0.36);
+              page.drawText(inh, { x: q[0], y: q[1], size: gk, font, color: farbe(fgF), rotate: dreh });
+              dx += bw;
+            } else {
+              const q = p(dx, grund); page.drawText(teil, { x: q[0], y: q[1], size: gr, font, color: farbe(fgF), rotate: dreh });
+              dx += font.widthOfTextAtSize(teil, gr);
+            }
+          }
         });
       });
     }
@@ -870,5 +923,5 @@
   }
 
   window.WFP = window.WFP || {};
-  window.WFP.Uebersetzung = { zeichenNormal, saetze, teilPlan, TEIL_ZIEL_MB, TEIL_MAX_SEITEN, SPRACHEN, NAME_DE, KI_TEXTMODELL, bloecke, browserDa, browserVerfuegbar, browserUebersetzer, chromeUebersetzer, falscheSchrift, bildZeileTaugt, chromeAn, kiUebersetzer, lauf, rueck, schriftLaden, pdfBauen, anzeige, farben, ocrStarten };
+  window.WFP.Uebersetzung = { zeichenNormal, saetze, teilPlan, TEIL_ZIEL_MB, TEIL_MAX_SEITEN, SPRACHEN, NAME_DE, KI_TEXTMODELL, bloecke, browserDa, browserVerfuegbar, browserUebersetzer, chromeUebersetzer, falscheSchrift, bildZeileTaugt, kreisZurueck, kreisInhalt, gruppieren, chromeAn, kiUebersetzer, lauf, rueck, schriftLaden, pdfBauen, anzeige, farben, ocrStarten };
 })();

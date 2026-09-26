@@ -97,7 +97,7 @@ try {
 
   const txt = ['Deckel abnehmen und die Nocken ausrichten.', 'Danach den Deckel wieder aufsetzen.'];
   console.log('  · Texterkennung im Foto: ' + r.zeilen.length + ' Zeilen, alter Filter ließ ' + r.altDurch.length + ' durch, neuer ' + r.neuDurch.length + ' → ' + JSON.stringify(r.altDurch.map(z => z.t + ' (' + z.c + ')')).slice(0, 300));
-  ok('Vorgabe: Bilder werden nicht gelesen — nur die zwei echten Absätze', r.aus.length === 2 && txt.every(t => r.aus.includes(t)), r.aus);
+  ok('Foto, Vorgabe: nur die zwei echten Absätze (ob gelesen wurde, misst erst das Schild unten)', r.aus.length === 2 && txt.every(t => r.aus.includes(t)), r.aus);
   ok('… die Seite trägt bildText 0 und keine Texterkennung', r.ausBild === 0 && r.ausOcr === 0, [r.ausBild, r.ausOcr]);
   ok('Selbst-Riegel: das erfundene Foto erzeugt mit dem ALTEN Filter wirklich Schein-Text', r.altDurch.length >= 1, r.zeilen);
   ok('der neue Filter lässt davon nichts durch', r.neuDurch.length === 0, r.neuDurch);
