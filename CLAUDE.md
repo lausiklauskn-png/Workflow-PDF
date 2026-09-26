@@ -139,6 +139,20 @@ Textfarbe an dieselbe Stelle. Zwischenstand je Seite in IndexedDB
   3-facher Größe per Texterkennung gelesen und übersetzt — vorher nur ganz textlose Seiten.
   Das ist Klaus' Idee „das Bild in der anderen Sprache": der Text im Bild wird übersetzt
   darübergelegt. Logos/Symbole (< 4 % der Seite, < 80×60 pt) bleiben unberührt.
+- **Große Dokumente in Teilen** (Klaus 2026-09-26, 384-Seiten-Handbuch brach nach 6 Seiten ab):
+  ab 41 Seiten oder 8 MB zeigt der Übersetzen-Dialog einen Kasten mit der VORHER gerechneten
+  Aufteilung (`teilPlan` in `uebersetzung.js`: Datei ÷ Seiten = KB je Seite, Ziel ≤ 8 MB je Teil
+  minus 0,3 MB Schrift, gedeckelt auf 40 Seiten; jede Zeile der Rechnung steht da, „Seiten je
+  Teil" frei wählbar). **Optional** — ganz übersetzen bleibt möglich. „✂️ Aufteilen" legt echte
+  Teil-PDFs in „<Ordner> · Teile" (`teilVon` am Dokument, gleiche Grenzen → nichts doppelt);
+  ihre Übersetzungen landen im selben „<Ordner> · RU". Zeit je Seite wird nach jedem Lauf
+  gemerkt (`EINST.ueMsSeite`). Die Grenzen 8 MB / 40 Seiten sind gewählt, nicht gemessen.
+- **„Other generic failures occurred"** ist der allgemeine Fehler von Chromes eingebautem
+  Übersetzer, keine Speichermeldung. `browserUebersetzer` holt dann EINMAL einen neuen
+  Übersetzer und versucht es noch einmal; scheitert es wieder oder ist der Absatz zu lang
+  (`QuotaExceededError`), wird Satz für Satz übersetzt (`saetze`). 429/Kontingent und Abbruch
+  werden nie wiederholt. Der Bericht nennt die Neustarts. Proben: `tests/teile.mjs`,
+  `node tests/gegenprobe_teile.mjs` (14 Fälle).
 - `npm run messen` misst 400 Seiten + 10 Scans (nicht Teil von `npm test`).
 - **Behördenformular** (`tests/behoerde.mjs`): Felder kommen übersetzt mit
   (`quellFeld` → Feld im Original), Rückweg „↩ Einträge ins Original" legt eine
