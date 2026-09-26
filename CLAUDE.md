@@ -170,6 +170,32 @@ Die Wahl liegt in `localStorage` `wfpdf_sprache_v1`.
   es durch Neuladen).
 - Die Dokument-Übersetzung (🌐) ist davon getrennt und kennt weiter DE ↔ RU ↔ EN.
 
+## 🔎 Suche, Stufe 1 — Wortsuche mit Fundstelle (Klaus 2026-09-26)
+
+Die Bibliothek sucht in **Name, Feldinhalten UND dem Text der Seiten** und sagt je Dokument,
+woran sie es erkannt hat („Auf Seite 2 · …Bäckerei Müller…"). Aus der Suche geöffnet, ist die
+Fundstelle auf der Seite gelb umrandet; **ein Tipp nimmt genau diese Markierung weg**. Ohne
+Suche geöffnet: keine Markierung. Ohne Modell, ohne Netz.
+
+- Die Rechnung steht in `assets/suche.js` (keine Oberfläche, kein Speicher, in Node prüfbar,
+  später in die WorkFlohs kopierbar). Angeglichen wird auf BEIDEN Seiten: Umlaute gefaltet
+  (ä/ae → a …), Satzzeichen und Leerzeichen weg („KD-4711" = „kd4711"), Daten als JJJJMMTT
+  („3.9.2026" = „2026-09-03"; ohne Jahr passt jedes Jahr). Jedes Wort muss irgendwo stehen (UND).
+- Der Seitentext liegt im Fach **`texte`** (DB-Version 2), getrennt von `docs` — die Bibliothek
+  lädt die Docs bei jedem Öffnen, den Text braucht nur die Suche. Je Textstück Lage in Prozent
+  der angezeigten Seite (wie die Felder). **`DB.putFile` und `DB.del('files')` werfen ihn weg**;
+  `texteNachholen()` erfasst ihn neu, auch für Dokumente von vor der Suche. Solange er fehlt,
+  sagt die Suche das („Seitentext wird noch erfasst").
+- Gescannte Seiten ohne Textebene tragen nichts bei (Texterkennung: Stufe 4). Unter einer
+  Übersetzung liegt der Originaltext abgedeckt — er ist mit findbar.
+- **Plan danach** (Klaus' Wahl): Stufe 2 Bedeutungssuche mit Modul 03/04 aus Sage (dasselbe
+  Modell wie PWA Toolpoint), freiwillig einschaltbar, lernt aus den geöffneten Treffern ·
+  Stufe 3 dieselbe Suche in den WorkFlohs — **Mein-WorkFloh und Tomys WorkFloh getrennt**, und
+  **nur entsperrt** · Stufe 4 Scans und E-Mails.
+- Proben: `tests/suche.mjs` (in `npm test`) · `node tests/gegenprobe_suche.mjs` (12 Fälle,
+  Wegwerf-Kopie; zwei Riegel, die einander decken — Öffnen und Schließen leeren die
+  Markierungen — nimmt EIN Fall zusammen weg).
+
 ## 🔗 Links im Feld (Klaus 2026-09-26)
 
 Beim Ausfüllen wird eine E-Mail, eine Internetadresse (www…, …de) oder eine Telefonnummer

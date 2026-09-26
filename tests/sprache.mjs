@@ -61,6 +61,16 @@ async function rundreise(p) {
   await p.waitForFunction(W => window[W].S.docs.length >= 2, W, { timeout: 30000 });
   await ruhe(p);
   const ids = await p.evaluate(W => window[W].S.docs.map(d => d.id), W);
+  // Suche mit Fundstellen (2026-09-26): Fundzeilen, Hinweis „wird noch erfasst", Öffnen mit Markierung
+  await schritt(p, 'Suche', async () => {
+    await p.evaluate(W => { const w = window[W]; w.S.suche = 'Musterstadt'; w.suche.zeichneBibliothek(); }, W);
+    await p.evaluate(W => window[W].suche.texteNachholen(), W);
+    await p.evaluate(W => { const w = window[W]; w.suche.TEXTE.delete('__nichtda'); w.S.docs.push({ id: '__nichtda', name: 'x', pages: [], fields: [] }); w.suche.zeichneBibliothek(); w.S.docs.pop(); }, W);
+    await p.waitForTimeout(100);
+    const id = await p.evaluate(W => [...window[W].S.fund.keys()][0], W);
+    if (id) { await p.evaluate(([W, id]) => window[W].oeffneDok(id, window[W].S.fund.get(id)), [W, id]); await p.waitForSelector('#sc-ed.on .seite canvas'); await p.waitForTimeout(150); await p.click('#flohKnopf'); await p.waitForSelector('#sc-bib.on'); }
+    await p.evaluate(W => { const w = window[W]; w.S.suche = ''; w.suche.zeichneBibliothek(); }, W);
+  });
   await schritt(p, 'Verschieben', () => p.evaluate(([W, id]) => { window[W].dlg.verschieben(id); }, [W, ids[0]]));
   await schritt(p, 'Löschen-Frage', () => p.evaluate(([W, id]) => { window[W].dlg.loeschen(id); }, [W, ids[0]]));
   await schritt(p, 'Erkennen', () => p.evaluate(([W, ids]) => { window[W].dlg.erkennenDialog(ids); }, [W, ids]));

@@ -229,3 +229,11 @@ label.haken { display: flex; gap: 8px; align-items: center; font-weight: 400; ma
 [dir="rtl"] .ed-flaeche, [dir="rtl"] .seiten, [dir="rtl"] #wfp-chrome, [dir="rtl"] input, [dir="rtl"] textarea { direction: ltr; }
 [dir="rtl"] .dlg input[type="text"], [dir="rtl"] .dlg textarea { direction: auto; }
 [dir="rtl"] .wahl { text-align: right; }
+/* Suche (2026-09-26): Fundstellen in der Bibliothek und auf der Seite */
+.dok-fund{margin-top:5px;padding:5px 7px;border-left:3px solid #f5b400;background:rgba(245,180,0,.10);border-radius:0 5px 5px 0;font-size:.76rem;line-height:1.35;cursor:pointer}
+.fund-zeile{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fund-wo{font-weight:700;color:#8a5a00}
+.fund-text{color:var(--ink2)}
+.such-stand{grid-column:1/-1;margin-top:6px}
+.fund{position:absolute;z-index:6;border:2.5px solid #f5b400;background:rgba(255,214,0,.30);border-radius:3px;cursor:pointer;box-shadow:0 0 0 2px rgba(255,255,255,.7)}
+@media print{.fund{display:none}}
