@@ -33,6 +33,11 @@ npm install && npm test     # Syntax + Probe im echten Browser
 - **Resize nur bei Breitenänderung neu zeichnen.** Die Bildschirmtastatur macht das
   Fenster niedriger; ein Neuzeichnen warf das Feld weg, in das getippt wurde
   (Befund Klaus 2026-09-25). Die Probe prüft es.
+- **Kasten um Felder ist kein Feld** (Klaus 2026-09-26, Beispiel „Nur von der Behörde auszufüllen"):
+  ein Rahmen mit zwei oder mehr erkannten Feldern darin fällt weg (`linienErkennung`). Sonst las
+  `inhaltUebernehmen` seine Beschriftungen als Inhalt und legte sie doppelt über die echten Felder.
+  Gedruckter Text, der auf „:" endet (auch „Aktenzeichen: ____"), und ein einzelner Buchstabe
+  (Wappen, Logo) werden nie als Eintrag übernommen. `tests/beispiele.mjs` misst es am Beispiel.
 - **Erkennung:** Linien, Rahmen, Kästchen UND hellgraue Flächen (`flaechen()`).
   Die KI bekommt die Offline-Kandidaten nummeriert ins Bild gezeichnet und
   benennt sie — ihre eigenen Koordinaten sind ungenau („alle auf einem Haufen").

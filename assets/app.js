@@ -853,12 +853,14 @@
       if (typeof f.inhalt === 'string' && f.inhalt) continue;       // KI hat schon gelesen
       const lab = String(f.label || '').toLowerCase().replace(/[:\s]+$/, '');
       const drin = items.filter(t => t.str.trim() && t.x + t.w / 2 > f.x && t.x + t.w / 2 < f.x + f.w && t.y + t.h / 2 > f.y && t.y + t.h / 2 < f.y + f.h
-        && t.str.trim().toLowerCase().replace(/[:\s]+$/, '') !== lab);
+        && t.str.trim().toLowerCase().replace(/[:\s]+$/, '') !== lab
+        && !/:\s*$/.test(t.str.replace(/[_.…]{3,}/g, '')));   // „Ausweis-Nr.:" und „Aktenzeichen: ____" sind Beschriftungen, kein Eintrag
       if (!drin.length) continue;
       drin.sort((a, b) => Math.abs(a.y - b.y) > a.h * 0.5 ? a.y - b.y : a.x - b.x);
       let txt = '', letzt = null;
       for (const t of drin) { txt += letzt ? (Math.abs(t.y - letzt.y) > letzt.h * 0.5 ? '\n' : ' ') : ''; txt += t.str.trim(); letzt = t; }
       f.inhalt = txt.replace(/ +/g, ' ').trim();
+      if (/^\p{L}$/u.test(f.inhalt)) delete f.inhalt;   // ein einzelner Buchstabe (Wappen, Logo) ist kein Eintrag
     }
   }
 
