@@ -138,6 +138,26 @@ Textfarbe an dieselbe Stelle. Zwischenstand je Seite in IndexedDB
   entzerren. Unsicher → NICHT schneiden, ganzes Foto auf A4. `bilderZuPdf` nimmt
   `b.seite` als Seitengröße.
 
+## 🗣 Sprache der App-Oberfläche (Klaus 2026-09-26)
+
+Deutsch · English · Русский · العربية (rechts nach links), offline. Knopf „DE" oben und
+⚙️ Einstellungen → „Sprache der App". Dort auch: Hinweise beim Zeigen (Tooltips) aus/an.
+Die Wahl liegt in `localStorage` `wfpdf_sprache_v1`.
+
+- `assets/sprache.js` übersetzt **auf der Seite**, nicht im Code: die App schreibt weiter
+  Deutsch, ein MutationObserver schlägt jeden Text und title/placeholder/aria-label nach.
+  Sätze mit `<b>`, `<span>`, `<br>` … sind **ein** Schlüssel (`Text <b>x</b>`), Werte als `{}`,
+  in der Übersetzung `{1}`, `{2}` … Fehlt ein Eintrag, bleibt Deutsch stehen.
+- `assets/sprache-texte.js`: die Wörterbücher. Neue Oberflächentexte brauchen dort einen
+  Eintrag in **allen drei** Sprachen — `tests/sprache.mjs` läuft durch alle Dialoge und
+  meldet jeden sichtbaren Text ohne Übersetzung.
+- **Namen des Nutzers nie übersetzen:** Dokument-, Ordner- und Feldnamen stehen in
+  `nm()` (`<span data-kein-ue>`); Felder, Eingaben und die Chrome-Fläche sind ausgenommen.
+- **Auf Deutsch wird nichts neu als „Original" gemerkt** — sonst hält ein Element, dessen
+  Kinder einzeln übersetzt waren, das Englische für Deutsch (Befund beim Bau, die Probe prüft
+  es durch Neuladen).
+- Die Dokument-Übersetzung (🌐) ist davon getrennt und kennt weiter DE ↔ RU ↔ EN.
+
 ## 📘 Handbuch und Beispiel-Formular (Klaus 2026-09-25)
 
 `beispiele/Workfloh-PDF-Benutzerhandbuch.pdf` (14 Seiten) und

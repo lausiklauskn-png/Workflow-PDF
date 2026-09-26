@@ -210,3 +210,16 @@ button{cursor:pointer}
 .ue-mess summary{cursor:pointer;font-weight:600}
 .ue-mess [data-mess]{margin:6px 0}
 button.gross-knopf{font:inherit;text-align:left;color:inherit;width:100%;cursor:pointer}
+
+/* Sprache der App (assets/sprache.js) */
+.ikon.sprache-k { font-size: .8rem; font-weight: 700; letter-spacing: .02em; }
+.sprach-liste { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin: 10px 0; }
+.sprach-liste .wahl.on { outline: 3px solid #E0231B; }
+label.haken { display: flex; gap: 8px; align-items: center; font-weight: 400; margin-top: 8px; }
+[hidden] { display: none !important; }
+/* Arabisch: die Oberfläche läuft von rechts, die Seiten der Dokumente NICHT —
+   Felder stehen in Prozent von links, der Text der Dokumente hat seine eigene Richtung. */
+[dir="rtl"] body { direction: rtl; }
+[dir="rtl"] .ed-flaeche, [dir="rtl"] .seiten, [dir="rtl"] #wfp-chrome, [dir="rtl"] input, [dir="rtl"] textarea { direction: ltr; }
+[dir="rtl"] .dlg input[type="text"], [dir="rtl"] .dlg textarea { direction: auto; }
+[dir="rtl"] .wahl { text-align: right; }

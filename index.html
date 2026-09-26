@@ -13,7 +13,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1">
 <link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png?v=1">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1">
-<link rel="stylesheet" href="assets/style.css?v=8">
+<link rel="stylesheet" href="assets/style.css?v=9">
 </head>
 <body>
 <header class="kopf">
@@ -21,11 +21,12 @@
     <span class="floh" id="floh" aria-hidden="true"></span>
   </button>
   <div class="marke">
-    <div class="marke-name">Workfloh <b>PDF</b></div>
+    <div class="marke-name" data-kein-ue>Workfloh <b>PDF</b></div>
     <div class="marke-sub" id="kopfSub">Formulare einlesen · Felder setzen · übersetzen · PDF ausgeben</div>
   </div>
   <div class="kopf-rechts">
     <button class="knopf klein rot" id="btnInstall" hidden title="Als App auf dieses Gerät legen">📲<span class="lang"> Installieren</span></button>
+    <button class="ikon sprache-k" id="btnSprache" title="Sprache der App"><span data-kein-ue>DE</span></button>
     <button class="ikon" id="btnNeu" title="Neueste Fassung laden (Hard-Reload) — deine Dokumente bleiben">⟳</button>
     <button class="ikon" id="btnHilfe" title="So geht's">?</button>
     <button class="ikon" id="btnEinst" title="Einstellungen">⚙️</button>
@@ -93,6 +94,8 @@
 <script src="assets/export.js?v=7"></script>
 <script src="assets/html-export.js?v=2"></script>
 <script src="assets/uebersetzung.js?v=9"></script>
-<script src="assets/app.js?v=25"></script>
+<script src="assets/sprache-texte.js?v=1"></script>
+<script src="assets/sprache.js?v=1"></script>
+<script src="assets/app.js?v=26"></script>
 </body>
 </html>
