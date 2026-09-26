@@ -51,6 +51,10 @@ ok('Abschnitte: jeder endet an einem Satzende', st.every(x => /\.$/.test(x.text)
 ok('Abschnitte: kurz genug für EINEN Gedanken (keiner über zwei Mal STUECK_ZIEL)', st.every(x => x.text.length <= 2 * BD.STUECK_ZIEL), st.map(x => x.text.length));
 ok('Abschnitte: überlappen — das letzte Stück eines Abschnitts beginnt den nächsten', st.slice(0, -1).every((x, i) => { const letzt = x.text.split(/(?<=\.) /).pop(); return st[i + 1].text.startsWith(letzt); }), st.slice(0, 3).map(x => x.text));
 ok('Abschnitte: nichts geht verloren (jeder Satz steht in einem Abschnitt)', saetze[0].every(a => st.some(x => x.text.includes(a[0]))));
+// Wie eine echte Seite: Zeilen brechen MITTEN im Satz um — ohne diese Lage wäre „endet am Satzende" nie verletzbar
+const zeilen = [Array.from({ length: 40 }, (_, i) => [i % 2 ? 'Gedanken mit einigen Wörtern ' + i + '.' : 'Zeile ' + i + ' erklärt einen eigenen', 10, i * 2, 40, 1.5])];
+st = BD.stuecke({ name: '', fields: [] }, zeilen);
+ok('Abschnitte: Zeilen, die mitten im Satz umbrechen, werden bis zum Satzende gesammelt', st.length >= 4 && st.every(x => /\.$/.test(x.text)), st.map(x => x.text.slice(-14)));
 const zulang = [[['w'.repeat(30) + ' '.repeat(1) + 'v'.repeat(700), 1, 1, 5, 1]]];
 st = BD.stuecke({ name: '', fields: [] }, zulang);
 ok('Abschnitte: ein überlanges Textstück wird geteilt, keiner über STUECK_MAX', st.length >= 3 && st.every(x => x.text.length <= BD.STUECK_MAX), st.map(x => x.text.length));

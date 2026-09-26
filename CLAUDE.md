@@ -251,27 +251,45 @@ und „↻ Nochmal"). Die Wahl liegt in `EINST.bedeutung`; danach startet sie be
 - `vendor/sbkim/03_embedding.js` und `04_match.js` sind **byte-1:1 aus Sage** (`src/modules/`,
   Stand 4fe124d), in `tests/bedeutung.mjs` per SHA-256 gepinnt — dort pflegen, hier neu kopieren.
   Dasselbe Modell wie PWA Toolpoint (multilingual-e5-small). Geladen werden sie erst auf Knopfdruck.
-- Die Rechnung steht in `assets/bedeutung.js` (Node-prüfbar, später in die WorkFlohs kopierbar):
-  Abschnitte ≤ 500 Zeichen je Seite (+ ein Abschnitt aus Name und Feldern, ohne Seite), höchstens
-  **80 je Dokument**; jedes Dokument zählt mit seinem BESTEN Abschnitt; gezeigt ab Nähe **0,80**,
-  höchstens **12**. Die Zahl an der Karte ist eine Nähe (Rangfolge), keine Prozent — das steht dabei.
-  ⚠ 0,80 · 80 · 12 sind **gewählt, nicht an echten Dokumenten gemessen**.
+- Die Rechnung steht in `assets/bedeutung.js` (Node-prüfbar, später in die WorkFlohs kopierbar).
+  Seit Klaus' Befund (2026-09-26: zwei Wörter gut, ein Satz aus zehn Wörtern schwach) gilt:
+  **Satzweise Abschnitte** (`STUECK_ZIEL` 120, `STUECK_MAX` 260 Zeichen; ein Abschnitt endet an
+  einem Satzende, das letzte kurze Stück beginnt den nächsten mit = Überlappung) + ein Abschnitt aus
+  Name und Feldern ohne Seite. **Kein Deckel mehr** — vorher 80 Abschnitte je Dokument, bei einem
+  400-Seiten-Handbuch blieb der größte Teil uneingeordnet. Der Fingerabdruck trägt `ZERLEGUNG`
+  (`z2`): alte 500-Zeichen-Vektoren werden von selbst neu eingeordnet.
+  **Relatives Fenster**: gezeigt wird, was höchstens `ABSTAND` 0,04 hinter dem besten Dokument
+  liegt, nie unter `NAEHE_MIN` 0,80, höchstens 12 — der rohe e5-Cosinus hat einen Boden um 0,83
+  (Sage-Lehre), eine feste Schwelle unterscheidet darüber nichts. Liegt nichts über 0,80, stehen die
+  3 nächsten als „schwach" da (`data-schwach`, graue Zahl). **Lange Fragen**: Suchwörter ab vier
+  Buchstaben (ab zwei Stück) geben bis zu `WORT_BONUS` 0,05 auf die Rangfolge; die angezeigte Nähe
+  bleibt die echte, die Fundstelle sagt „3 von 5 Suchwörtern".
+  ⚠ 120 · 260 · 0,04 · 0,80 · 0,05 · 12 · 3 sind **gewählt, nicht an echten Dokumenten gemessen**.
+- **Einordnen im Hintergrund**: Dokument für Dokument, Leiste „Wird eingeordnet: Name · Seite x von y",
+  darunter „Dokument i von n · ≈ s je Seite · noch ≈ min" — erst nach 32 GEMESSENEN Abschnitten
+  (`BED.msStueck`, gemerkt in `EINST.bedMsStueck`), vorher „Zeit je Seite wird gemessen …".
+  **Suchen geht schon währenddessen** (`bedeutungSucht`), mit dem Hinweis, dass noch etwas dazukommt.
 - Die Bedeutungs-Treffer stehen UNTER den Wort-Treffern („🧠 Nach Bedeutung ähnlich — ohne die
   gesuchten Wörter"); ein Wort-Treffer steht nie zweimal da. Aus so einer Karte geöffnet, wird der
   ähnlichste Abschnitt markiert (`.fund[data-art="bedeutung"]`).
-- Vektoren liegen im Fach **`vektoren`** (DB-Version 3), mit Fingerabdruck der Texte: unverändert
-  = aus dem Speicher, geändert = nur dieses Dokument neu. `DB.putFile`/`del('files')` werfen sie
-  mit dem Seitentext weg.
+- Vektoren liegen im Fach **`vektoren`** (DB-Version 3): ein Kopf `id` → {sig, n, fertig} und
+  Blöcke `id#00000` zu je 64 Abschnitten (`VEK_BLOCK`). Gespeichert wird nach jedem vollen Block —
+  nach einer Unterbrechung (Neuladen, App zu) geht es an derselben Stelle weiter; nur lückenlose
+  Blöcke zählen. Unveränderter Fingerabdruck = aus dem Speicher, geändert = nur dieses Dokument neu.
+  `DB.putFile`/`del('files')` werfen Kopf UND Blöcke weg (`DB.vektorenWeg`).
 - Der Service-Worker legt transformers.js (jsDelivr, feste Fassung 2.17.2) in einen eigenen Vorrat
   `workfloh-pdf-modell-v1`; er und `transformers-cache` (das Modell) überleben ein neues CACHE_VERSION.
 - ⚠ **Das echte Modell ist hier NICHT gelaufen.** Der Behälter erreicht jsDelivr und Hugging Face
   nicht (CONNECT 403). Die Probe ersetzt Modul 03 durch einen Stellvertreter mit derselben
   Oberfläche und denselben Fortschritts-Meldungen; Modul 04 ist echt. Ungemessen: die wirkliche
-  Größe (Sage nennt ~30 MB), ob die Nähe-Schwelle bei e5 passt, wie lange das Einordnen am Tablet
-  dauert, ob es offline weiterläuft.
+  Größe (Sage nennt ~30 MB), ob Fenster und Wort-Vorsprung bei e5 wirklich besser trennen, wie
+  lange das Einordnen eines 400-Seiten-Handbuchs am Tablet dauert (die Leiste misst es), wie viel
+  Speicher die Vektoren brauchen (geschätzt, nicht gemessen: einige MB je 400 Seiten), ob es offline
+  weiterläuft.
 - Noch nicht gebaut: „lernt aus den geöffneten Treffern" (Klaus' Plan), Stufe 3 (WorkFlohs).
 - Proben: `tests/bedeutung.mjs` (in `npm test`) · `node tests/gegenprobe_bedeutung.mjs`
-  (19 Fälle, Wegwerf-Kopie; `NUR_ANKER=1` nur die Anker).
+  (27 Fälle, Wegwerf-Kopie; `NUR_ANKER=1` nur die Anker). Die Handbuch-Probe (30 Seiten, Stellvertreter
+  mit Takt) misst Fortschritt, Suche während des Einordnens, Fortsetzen nach dem Neuladen und den Treffer auf Seite 30.
 
 ## 🗂 Sortieren und Ordner ausgeben (Klaus 2026-09-26)
 
