@@ -520,6 +520,7 @@
         inp.onfocus = () => { S.sel = f.id; markiere(); };
         requestAnimationFrame(() => { const hp = hoehePx(); inp.style.fontSize = Math.max(9, Math.min(f.mehrzeilig ? 16 : 22, hp * (f.mehrzeilig ? 0.34 : 0.62))) + 'px'; });
         el.appendChild(inp);
+        if (f.type !== 'datum') linkFeld(f, inp, el);
       }
       return el;
     }
@@ -533,6 +534,40 @@
     requestAnimationFrame(() => { const w = el.querySelector('.wert'); if (w) w.style.fontSize = Math.max(8, Math.min(20, hoehePx() * (f.mehrzeilig ? 0.34 : 0.6))) + 'px'; });
     el.addEventListener('pointerdown', e => ziehen(e, f, el, e.target.classList.contains('griff') ? 'groesse' : 'bewegen'));
     return el;
+  }
+  /* E-Mail · Telefon · Internet (Klaus 2026-09-26): steht im Feld eine E-Mail, eine Internetadresse
+     (www…, …de) oder eine Telefonnummer, wird der TEXT selbst zum Link — blau, unterstrichen,
+     ein Tipp öffnet Mailprogramm, Telefon oder Browser, ✏️ daneben zum Ändern. Beim Drucken schwarz.
+     Datum, Name, PLZ und Straße bleiben Text. Gleiche Regeln wie in den WorkFlohs (ovLinkZiel). */
+  function linkZiel(typ, v) {
+    v = String(v || '').trim(); if (!v) return '';
+    const mail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/, web = u => { if (/\s/.test(u)) return ''; const w = /^https?:\/\//i.test(u) ? u : 'https://' + u; return /^https?:\/\/[^\/\s]+\.[^\/\s]+/i.test(w) ? w : ''; };
+    if (typ === 'email') return mail.test(v) ? 'mailto:' + v : '';
+    if (typ === 'url') return web(v);
+    if (mail.test(v)) return 'mailto:' + v;
+    if (!/[\s@]/.test(v) && /^(https?:\/\/|www\.)/i.test(v)) return web(v);
+    if (!/[\s@]/.test(v) && /^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}(\/\S*)?$/i.test(v)) return web(v);
+    if (/^\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4}$/.test(v)) return '';   // ein Datum, keine Nummer
+    if (/^\+?[\d \/()-]+$/.test(v) && v.replace(/\D/g, '').length >= 6) return 'tel:' + v.replace(/[^\d+]/g, '');
+    return '';
+  }
+  function linkFeld(f, inp, el) {
+    const a = document.createElement('a'); a.className = 'flink';
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'flinkedit'; b.textContent = '✏️'; b.title = T('Ändern');
+    const zeige = () => {
+      const z = linkZiel(f.type, inp.value);
+      if (z && document.activeElement !== inp) {
+        const art = z.startsWith('mailto:') ? 'email' : z.startsWith('tel:') ? 'tel' : 'url';
+        a.dataset.link = art; a.title = T(art === 'email' ? 'E-Mail schreiben' : art === 'tel' ? 'Anrufen' : 'Im Browser öffnen');
+        if (art === 'url') { a.target = '_blank'; a.rel = 'noopener'; } else { a.removeAttribute('target'); a.removeAttribute('rel'); }
+        a.href = z; a.textContent = inp.value.trim(); a.style.fontSize = inp.style.fontSize || ''; el.classList.add('verlinkt');
+      } else { a.removeAttribute('href'); el.classList.remove('verlinkt'); }
+    };
+    a.addEventListener('click', e => { e.stopPropagation(); if (S.modus !== 'ausfuellen' || !a.getAttribute('href')) e.preventDefault(); });
+    b.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); el.classList.remove('verlinkt'); inp.focus(); try { const n = inp.value.length; inp.setSelectionRange(n, n); } catch (_) {} });
+    inp.addEventListener('focus', () => el.classList.remove('verlinkt'));
+    inp.addEventListener('blur', zeige);
+    el.appendChild(a); el.appendChild(b); zeige(); requestAnimationFrame(zeige);
   }
   function ziehen(e, f, el, art) {
     if (S.modus !== 'bearbeiten') return;

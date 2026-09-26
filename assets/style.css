@@ -121,6 +121,11 @@ button{cursor:pointer}
 .ausfuellen .feld.ki{border-style:dashed}
 .feld input,.feld textarea{position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent;padding:0 3px;color:#0b1a52;outline:none;resize:none}
 .feld input:focus,.feld textarea:focus{background:rgba(255,255,160,.45)}
+.feld .flink{position:absolute;left:0;top:0;right:30px;bottom:0;z-index:3;display:none;align-items:center;padding:0 3px;color:#0645ad;text-decoration:underline;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.feld .flinkedit{position:absolute;right:2px;top:50%;transform:translateY(-50%);z-index:3;display:none;min-width:26px;height:min(26px,100%);padding:0 3px;border-radius:6px;background:#fff;border:1px solid #c9ced8;font-size:13px;line-height:1;cursor:pointer;align-items:center;justify-content:center}
+.feld.verlinkt .flink,.feld.verlinkt .flinkedit{display:flex}
+.feld.verlinkt input,.feld.verlinkt textarea{color:transparent}
+@media print{.feld .flink{color:#0b1a52!important;text-decoration:none!important}.feld .flinkedit{display:none!important}}
 .feld.check-feld{cursor:pointer}
 
 /* Fußleiste Editor */
