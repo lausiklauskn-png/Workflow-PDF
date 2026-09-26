@@ -78,6 +78,17 @@ try {
   ok('Hilfe → „📘 Handbuch öffnen" öffnet das Handbuch', await p.evaluate(() => { const d = window.__wfpdf.S.doc; return !!d && /Benutzerhandbuch/.test(d.name) && !!document.querySelector('#sc-ed.on'); }));
   l = await lage(p);
   ok('…ohne es ein zweites Mal einzulesen', l.docs.length === 2, l);
+  // Klaus 2026-09-26: der Kasten „Nur von der Behörde auszufüllen" wurde als großes Feld erkannt,
+  // seine Beschriftungen als Inhalt gelesen und doppelt über die echten Felder gelegt
+  const beh = await p.evaluate(async () => { const W = window.__wfpdf, S = W.S; const d = S.docs.find(x => /Amtsformular/.test(x.name) && !x.uebersetzung);
+    await W.oeffneDok(d.id); const doc = S.doc; doc.fields = []; await W.erkenneDok(doc, S.bytes, false, () => {});
+    const f2 = doc.fields.filter(f => f.page === 1 && f.type !== 'check');
+    const drin = (g, f) => g.x >= f.x - 0.5 && g.x + g.w <= f.x + f.w + 0.5 && g.y >= f.y - 0.5 && g.y + g.h <= f.y + f.h + 0.5;
+    return { kasten: f2.filter(f => f2.filter(g => g !== f && drin(g, f)).length >= 2).map(f => f.label), felder: f2.map(f => f.label),
+      mitInhalt: doc.fields.filter(f => typeof f.value === 'string' && f.value).map(f => [f.label, f.value]) }; });
+  ok('Behördenkasten: kein großes Feld um die Felder herum', beh.kasten.length === 0, beh);
+  ok('…die fünf Behörden-Felder sind da', ['Ausweis-Nr', 'Gültig von', 'Gültig bis', 'Gebühr bezahlt am', 'Bearbeitet'].every(n => beh.felder.some(l => l.startsWith(n))), beh.felder);
+  ok('…und keine gedruckte Beschriftung wird als Eintrag übernommen', beh.mitInhalt.length === 0, beh.mitInhalt);
   ok('keine Fehler in der Konsole', konsole.length === 0, konsole);
   await ctx.close();
 

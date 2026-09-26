@@ -96,7 +96,13 @@
     // Eine Linie am Rand einer Fläche ist deren Kante, kein eigenes Feld
     const innerhalb = (f, g) => f.x >= g.x - 1 && f.x + f.w <= g.x + g.w + 1 && f.y + f.h >= g.y - 1.2 && f.y <= g.y + g.h + 1.2;
     const rest = felder.filter(f => !fl.some(g => innerhalb(f, g) && (f.type !== 'check' || g.type === 'check')));
-    return rest.concat(fl).filter(f => f.w > 0.5 && f.h > 0.3 && f.y >= 0);
+    const alle = rest.concat(fl).filter(f => f.w > 0.5 && f.h > 0.3 && f.y >= 0);
+    // Ein Rahmen, in dem schon zwei oder mehr Felder liegen, ist ein Kasten UM Felder
+    // (z. B. „Nur von der Behörde auszufüllen") — kein eigenes Eingabefeld. Sonst las die
+    // App seine Beschriftungen als Inhalt und legte sie doppelt über die echten Felder
+    // (Befund Klaus 2026-09-26).
+    const drin = (g, f) => g.x >= f.x - 0.5 && g.x + g.w <= f.x + f.w + 0.5 && g.y >= f.y - 0.5 && g.y + g.h <= f.y + f.h + 0.5;
+    return alle.filter(f => f.type === 'check' || alle.filter(g => g !== f && g.type !== 'check' && drin(g, f)).length < 2);
   }
 
   /* Hellgraue, fast gleichmäßig gefüllte Rechtecke. Gesucht wird über
