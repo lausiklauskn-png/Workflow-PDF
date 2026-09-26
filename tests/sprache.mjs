@@ -21,7 +21,7 @@ let gruen = 0, rot = 0;
 const ok = (name, bed, info) => { if (bed) { gruen++; console.log('  ✓ ' + name); } else { rot++; console.log('  ✗ ROT: ' + name + (info !== undefined ? ' → ' + JSON.stringify(info).slice(0, 1500) : '')); } };
 
 function server() {
-  const typ = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json', '.pdf': 'application/pdf' };
+  const typ = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.css': 'text/css', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json', '.pdf': 'application/pdf' };
   const s = http.createServer((q, r) => {
     let p = decodeURIComponent(new URL(q.url, 'http://x').pathname); if (p.endsWith('/')) p += 'index.html';
     const f = path.join(WURZEL, p); if (!f.startsWith(WURZEL) || !fs.existsSync(f)) { r.writeHead(404); r.end(); return; }
@@ -55,7 +55,30 @@ async function rundreise(p) {
   await schritt(p, 'Chrome-Hinweis', () => p.evaluate(W => window[W].dlg.chromeHinweis('http://x/', true), W));
   await schritt(p, 'Chrome-Hinweis ohne Kopie', () => p.evaluate(W => window[W].dlg.chromeHinweis('http://x/', false), W));
   await schritt(p, 'Zurück-Band', async () => { await p.evaluate(W => window[W].dlg.zurueckBand(), W); await ruhe(p); await p.evaluate(() => document.querySelectorAll('[data-zurueckband]').forEach(e => e.remove())); });
-  await schritt(p, 'Aufnahme', () => p.evaluate(W => window[W].dlg.aufnahmeDialog(), W));
+  // Scannen (2026-09-26): leeres Werkzeug, eine Seite im Zuschnitt (sicher · prüfen · von Hand), Ergebnis mit Text, Zeilen-Dialog, Teilen
+  const scanZu = () => p.evaluate(() => WFP.Scanner.schliessen());
+  await schritt(p, 'Scannen leer', () => p.evaluate(W => window[W].dlg.scanStarten('neu'), W));
+  await scanZu();
+  await schritt(p, 'Scannen: Zuschnitt', async () => {
+    await p.evaluate(async W => {
+      window[W].dlg.scanStarten('anhang');
+      const c = document.createElement('canvas'); c.width = 600; c.height = 800; const x = c.getContext('2d'); x.fillStyle = '#333'; x.fillRect(0, 0, 600, 800); x.fillStyle = '#fff'; x.fillRect(80, 90, 440, 620);
+      const b = await new Promise(r => c.toBlob(r, 'image/png'));
+      await WFP.Scanner.hinzu([new File([b], 'seite.png', { type: 'image/png' })]);
+    }, W);
+    await ruhe(p);
+    for (const lage of [{ sicher: false }, { manuell: true }]) { await p.evaluate(l => { const st = WFP.Scanner.zustand(), s = st.seiten[0]; if (l.manuell) s.manuell = true; else s.erkennung.sicher = false; WFP.Scanner.zeichne(); }, lage); await ruhe(p); }
+    await p.evaluate(() => { const s = WFP.Scanner.zustand().seiten[0], e = s.ecken; s.ecken = null; WFP.Scanner.zeichne(); s._e = e; }); await ruhe(p);
+    await p.evaluate(() => { const s = WFP.Scanner.zustand().seiten[0]; s.ecken = s._e; WFP.Scanner.zeichne(); });
+  });
+  await schritt(p, 'Scannen: Ergebnis und Text', async () => {
+    await p.evaluate(() => { const st = WFP.Scanner.zustand(), s = st.seiten[0]; st.ansicht = 'ergebnis'; WFP.Scanner.zeichne(); }); await ruhe(p);
+    await p.click('.scan [data-alle]'); await ruhe(p);
+    await p.evaluate(() => { const st = WFP.Scanner.zustand(), s = st.seiten[0]; s.ocr = { zeilen: [{ text: 'Musterstadt', conf: 91, box: [0.2, 0.2, 0.4, 0.05] }], sprache: 'deu', schluessel: '' }; s.aenderungen = { 0: 'Beispielstadt' }; st.textModus = true; WFP.Scanner.zeichne(); }); await ruhe(p);
+    await p.click('.scan [data-zeile="0"]'); await ruhe(p);
+  });
+  await schritt(p, 'Scannen: Teilen', async () => { await p.click('.scan [data-teilen]'); await p.waitForSelector('.dlg [data-dl]'); });
+  await scanZu();
   // Mit Dokumenten
   await p.evaluate(W => window[W].beispieleLaden(), W);
   await p.waitForFunction(W => window[W].S.docs.length >= 2, W, { timeout: 30000 });

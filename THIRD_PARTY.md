@@ -29,3 +29,22 @@ Gerät, und wird erst beim ersten Bedarf geladen (rund 21 MB).
 **Übersetzer im Browser (`Translator`)** ist Teil des Browsers, nichts wird mitgeliefert.
 Für die Nutzung gelten die Bedingungen des Browser-Herstellers. **KI-Übersetzung** (Mistral ·
 Anthropic · OpenAI) läuft mit dem eigenen Schlüssel des Nutzers.
+
+## Scannen (seit 2026-09-26)
+
+| Datei | Bibliothek | Lizenz | Herkunft |
+|---|---|---|---|
+| `vendor/scanic/scanic.js` | Scanic 1.6.0 (marquaye) — Blatterkennung und Kantenerkennung (WebAssembly im Paket) | MIT, Lizenztext in `vendor/scanic/LICENSE-scanic.txt` | npm-Paket `scanic@1.6.0`, `dist/`, unverändert |
+| `vendor/scanic/scanic-mlDetector.js`, `scanic-ort.wasm.min.js`, `ort-wasm-simd-threaded.mjs`, `ort-wasm-simd-threaded.wasm` | scanic-ml 0.2.0 — Eckenerkennung mit Modell; enthält eine verkleinerte ONNX Runtime Web 1.27.0 (Microsoft) | MIT (scanic-ml) · MIT (ONNX Runtime) | npm-Paket `scanic-ml@0.2.0`, `dist/`, unverändert |
+| `vendor/scanic/doccornernet_lean.ort` | Modell „DocCornerNet LEAN" (1,9 MB), Architektur aus DocCornerNet-CoordClass (mapo80) | MIT (als Teil von `scanic-ml`) | npm-Paket `scanic-ml@0.2.0`, unverändert |
+| `tests/scan-fotos/foto01–17.jpg`, `ecken.json` | Testbilder und geprüfte Ecken aus dem Scanic-Depot | MIT | `marquaye/scanic`, `testImages/` und `ground-truth.json`, auf lange Kante ≤ 1000 px verkleinert |
+
+Alles läuft auf dem Gerät und wird erst beim ersten Scannen geladen (rund 3,5 MB).
+**Nicht geprüft:** unter welchen Bedingungen die Trainingsdaten des Modells stehen — die
+Model-Card nennt nur die Herkunft der Architektur. Die Gewichte selbst liegen im npm-Paket
+unter MIT.
+
+**Filter, Entzerren, Textänderung** (`assets/scan-bild.js`, `assets/scanner.js`) sind eigene
+Arbeit. Bewusst NICHT übernommen: BentoPDF und Nitidoc (AGPL-3.0, verträgt sich nicht mit der
+Lizenz dieser App), document-scanner-web (ohne Lizenz), die Filter von Vigil Lens (MIT nur im
+README, keine Lizenzdatei).

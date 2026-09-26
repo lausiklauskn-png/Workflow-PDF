@@ -66,7 +66,7 @@ async function leeresFoto(browser) {   // kein Tisch, nur Text — da ist kein B
 }
 
 function server() {
-  const typ = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.ttf': 'font/ttf', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
+  const typ = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.css': 'text/css', '.png': 'image/png', '.ttf': 'font/ttf', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
   const s = http.createServer((q, r) => {
     let p = decodeURIComponent(new URL(q.url, 'http://x').pathname); if (p.endsWith('/')) p += 'index.html';
     const f = path.join(WURZEL, p); if (!f.startsWith(WURZEL) || !fs.existsSync(f)) { r.writeHead(404); r.end(); return; }
@@ -266,14 +266,16 @@ try {
   ok('Übersetzen-Bereich bietet „📷 Brief fotografieren"', true);
   const [kam] = await Promise.all([page.waitForEvent('filechooser'), page.click('.dlg [data-uk]')]);
   await kam.setFiles(path.join(TMP, 'Brief.png'));
-  await page.waitForSelector('.dlg .aufnahme-bilder');
-  const blatt = await page.evaluate(() => window.__wfpdfBlatt);
-  ok('Blatt im Foto erkannt', blatt && blatt.erkannt, blatt);
-  ok('Aufnahme zeigt „✂ Blatt · A4" und lässt aufs ganze Foto umschalten', /Blatt · A4/.test(await page.textContent('.dlg [data-um]')));
-  await page.click('.dlg [data-um]'); await page.waitForSelector('.dlg [data-um]');
-  ok('… umschalten geht (ganzes Foto), und zurück', /ganzes Foto/.test(await page.textContent('.dlg [data-um]')));
-  await page.click('.dlg [data-um]'); await page.waitForSelector('.dlg [data-um]');
-  await page.click('.dlg [data-ok]');
+  // (seit 2026-09-26 öffnet sich dafür das Scan-Werkzeug — ausführlich geprüft in tests/scan.mjs)
+  await page.waitForFunction(() => window.__wfpdfScan && window.__wfpdfScan.seiten[0] && window.__wfpdfScan.seiten[0].erkennung, null, { timeout: 60000 });
+  const erk = await page.evaluate(() => window.__wfpdfScan.seiten[0].erkennung);
+  ok('Blatt im Foto erkannt, die Verfahren sind sich einig', erk && erk.sicher, erk);
+  ok('Scan-Werkzeug heißt „Brief fotografieren", Seitengröße A4 vorgewählt', /Brief fotografieren/.test(await page.textContent('.scan-titel')) && await page.inputValue('.scan [data-format]') === 'a4');
+  await page.click('.scan [data-ganz]');
+  ok('… aufs ganze Foto umschalten geht', await page.evaluate(() => window.__wfpdfScan.seiten[0].manuell));
+  await page.click('.scan [data-auto]');
+  ok('… und zurück zur Erkennung', await page.evaluate(() => !window.__wfpdfScan.seiten[0].manuell));
+  await page.click('.scan [data-fertig]');
   await page.waitForSelector('.dlg [data-e]'); ok('fragt nach dem Ordnernamen', await page.inputValue('.dlg [data-e]') === 'Briefe');
   await page.click('.dlg [data-j]');
   await page.waitForSelector('.dlg [data-dok]');

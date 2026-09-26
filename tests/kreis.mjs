@@ -18,7 +18,7 @@ const ok = (name, bed, info) => { if (bed) { gruen++; console.log('  ✓ ' + nam
 const DEJAVU = '/usr/share/fonts/truetype/freefont/FreeSans.ttf';   // hat Ⓐ–Ⓩ, ①, ❷ (DejaVu hat Ⓐ NICHT — gemessen)
 if (!fs.existsSync(DEJAVU)) { console.log('  ⊘ nicht lauffähig: keine Schrift mit Kreis-Zeichen (' + DEJAVU + ')'); process.exit(0); }
 function server() {
-  const typ = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.ttf': 'font/ttf', '.json': 'application/json', '.wasm': 'application/wasm', '.webmanifest': 'application/manifest+json' };
+  const typ = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.css': 'text/css', '.png': 'image/png', '.ttf': 'font/ttf', '.json': 'application/json', '.wasm': 'application/wasm', '.webmanifest': 'application/manifest+json' };
   const s = http.createServer((q, r) => {
     let p = decodeURIComponent(new URL(q.url, 'http://x').pathname); if (p.endsWith('/')) p += 'index.html';
     const f = path.join(WURZEL, p); if (!f.startsWith(WURZEL) || !fs.existsSync(f)) { r.writeHead(404); r.end(); return; }
