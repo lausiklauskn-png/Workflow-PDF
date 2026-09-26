@@ -1588,6 +1588,7 @@
       <p class="hinweis">Formular zum Ausfüllen (z. B. vom Amt)? Die Rahmen zum Ausfüllen am besten <b>im Original</b> setzen („✏️ erst Felder setzen", oder „🔍 Felder erkennen") — dann kommen sie übersetzt an dieselbe Stelle mit. Nach dem Ausfüllen holt „⬇ PDF ausgeben → ↩ Einträge ins Original" die Einträge zurück.</p>
       <div class="ue-sprachen"><div><label>von</label>${sprachWahl('von', vonVorgabe)}</div><div class="ue-pfeil">→</div><div><label>nach</label>${sprachWahl('nach', EINST.ueNach)}</div></div>
       <label style="font-weight:400"><input type="checkbox" data-rueck${EINST.ueRueck !== false ? ' checked' : ''}> Gegenprobe: danach zurück in die Ausgangssprache übersetzen und daneben ablegen</label>
+      <label style="font-weight:400" title="Aus: Bilder, Fotos und Zeichnungen bleiben wie im Original. An: Text in größeren Bildern wird gelesen und übersetzt darübergelegt — die Texterkennung hält dabei manchmal Kanten oder Muster eines Fotos für Buchstaben."><input type="checkbox" data-bilder${EINST.ueBilder ? ' checked' : ''}> Text in Bildern mitübersetzen (sonst bleiben Bilder unverändert)</label>
       <p class="hinweis" data-zahl></p>
       <div data-teilplan></div>
       <button class="wahl" data-weg="browser"><b>📱 Übersetzer im Browser</b><span data-bstat>prüfe …</span></button>
@@ -1621,7 +1622,7 @@
       dl.querySelector('[data-x]').onclick = zu;
       dl.querySelectorAll('[data-weg]').forEach(b => b.onclick = async () => {
         const g = gewaehlt(); if (!g.length) return toast('Kein Dokument gewählt.');
-        EINST.ueVon = von(); EINST.ueNach = nach(); EINST.ueRueck = dl.querySelector('[data-rueck]').checked; einstSpeichern();
+        EINST.ueVon = von(); EINST.ueNach = nach(); EINST.ueRueck = dl.querySelector('[data-rueck]').checked; EINST.ueBilder = dl.querySelector('[data-bilder]').checked; einstSpeichern();
         const weg = b.dataset.weg;
         let u;
         try { u = await uebersetzerErzeugen(weg, EINST.ueVon, EINST.ueNach, EINST.ueRueck, b, zu, g.map(d => d.id)); }
@@ -1801,7 +1802,7 @@
         const alt = await jobLesen(jid);
         const ohneVor = (hin.stat && hin.stat.ohne) || 0;
         const neuVor = (hin.stat && hin.stat.neustarts) || 0, zerVor = (hin.stat && hin.stat.zerlegt) || 0;
-        const r = await UE.lauf({ bytes, uebersetzer: hin, stand: alt, abbruch: () => abbruch, ocr: { basis: 'vendor/', von },
+        const r = await UE.lauf({ bytes, uebersetzer: hin, stand: alt, abbruch: () => abbruch, ocr: { basis: 'vendor/', von, bilder: !!EINST.ueBilder },
           speichere: st => DB.put('files', { id: jid, job: st }),
           melde: (i, n, info) => { stand = (k + i / n) / ids.length; standText = info.text ? vor + info.text : `${vor}Seite ${i} von ${n}${info.neu ? ' · ' + (info.ms / info.neu / 1000).toFixed(1) + ' s je Seite' : ''}`; fb.setze(stand, standText); } });
         zeile.ocr = r.ocrSeiten;

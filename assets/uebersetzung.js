@@ -292,12 +292,29 @@
     }
     return raus;
   }
-  async function ocrBloecke(worker, canvas, scale, dx = 0, dy = 0) {
+  /* Text IN einem Bild (Klaus 2026-09-26, Fotos mit „e.g. : \\", „IE |", „Paes fe" mitten im Bild):
+     die Texterkennung liest Kanten, Schatten und Muster eines Fotos als Buchstaben, und jede
+     solche Zeile wurde mit weißem Kasten übersetzt ins Bild geschrieben. Deshalb liest die
+     Übersetzung Bilder nur noch, wenn ausdrücklich gewünscht (opt.ocr.bilder), und dann mit
+     einem strengeren Filter als bei ganzen Scan-Seiten: sicher erkannt, keine Rahmen-Zeichen,
+     überwiegend Buchstaben, ein Wort aus fünf oder zwei aus vier Buchstaben. */
+  const BILD_SICHER = 70, BILD_ZEICHEN = /[\\|@©®=~_<>{}\[\]¦§^`*#]/;
+  function bildZeileTaugt(t, sicherheit) {
+    t = String(t || '').replace(/\s+/g, ' ').trim();
+    if (!t || !(sicherheit >= BILD_SICHER) || BILD_ZEICHEN.test(t)) return false;
+    const ohne = t.replace(/\s/g, ''), buchst = (ohne.match(/\p{L}/gu) || []).length;
+    if (buchst < 4 || buchst / ohne.length < 0.7) return false;
+    // ein Wort aus fünf Buchstaben oder zwei aus vier („Paes fe" fällt heraus, „Push here" nicht)
+    const woerter = t.match(/\p{L}+/gu) || [];
+    return woerter.some(w => w.length >= 5) || woerter.filter(w => w.length >= 4).length >= 2;
+  }
+  async function ocrBloecke(worker, canvas, scale, dx = 0, dy = 0, imBild = false) {
     const r = await worker.recognize(canvas, {}, { blocks: true, text: false });
     const teile = [];
     for (const bl of (r.data.blocks || [])) for (const pa of (bl.paragraphs || [])) for (const li of (pa.lines || [])) {
       const t = String(li.text || '').replace(/\s+/g, ' ').trim();
       if (!t || li.confidence < 45 || !/[\p{L}]{2}/u.test(t)) continue;
+      if (imBild && !bildZeileTaugt(t, li.confidence)) continue;
       const bb = li.bbox, hoehe = (bb.y1 - bb.y0) / scale;
       const basis = li.baseline && li.baseline.y0 > bb.y0 ? li.baseline.y0 / scale : bb.y1 / scale - hoehe * 0.2;
       teile.push({ s: t, x: bb.x0 / scale + dx, y: basis + dy, w: (bb.x1 - bb.x0) / scale, fh: Math.max(4, hoehe * 0.82), ocr: true });
@@ -641,10 +658,18 @@
     const t0 = Date.now(); let neu = 0, abgebrochen = false, fehler = '', ocrWorker = null, ocrSeiten = 0, ocrFehler = '';
     try {
       for (let i = 0; i < n; i++) {
-        if (stand.seiten[i]) continue;
+        const bilderLesen = !!(opt.ocr && opt.ocr.bilder);
+        const alte = stand.seiten[i];
+        // Eine gespeicherte Seite mit Text aus Bildern wird neu gelesen, wenn Bilder jetzt
+        // unberührt bleiben sollen — sonst stünde der alte Bild-Text weiter im Ergebnis.
+        // Seiten von vor dem 2026-09-26 tragen kein bildText: dort entscheidet, ob die Seite
+        // eine Textebene hat (dann kam die Texterkennung aus einem Bild, nicht vom Scan).
+        if (alte && !(alte.bildText > 0 && !bilderLesen) && !(alte.ocr && alte.bildText === undefined && !bilderLesen)) continue;
         if (opt.abbruch && opt.abbruch()) { abgebrochen = true; break; }
         const page = await pdf.getPage(i + 1);
         const r = await bloecke(page);
+        if (alte && !(alte.bildText > 0) && !r.bloecke.length) { try { page.cleanup(); } catch (_) {} continue; }
+        if (alte) stand.seiten[i] = null;
         // Ohne Textebene (gescannt): Seite groß rendern und den Text erkennen lassen
         let ocr = false;
         const scale = !r.bloecke.length && opt.ocr ? 3 : 1.5;
@@ -663,7 +688,7 @@
         // Bilder auf einer Seite mit Text: den Bildausschnitt groß rendern und lesen.
         // Was schon als echter Text über dem Bild liegt, wird nicht doppelt übernommen.
         let bildText = 0;
-        if (!ocr && opt.ocr && r.bloecke.length) {
+        if (!ocr && opt.ocr && bilderLesen && r.bloecke.length) {
           const flaechen = (await bildFlaechen(page)).filter(f => !r.bloecke.some(b => b.x >= f[0] - 2 && b.y - b.h * 0.2 >= f[1] - 2 && b.x + b.w <= f[0] + f[2] + 2 && b.y + b.h <= f[1] + f[3] + 2 && b.w * b.h > f[2] * f[3] * 0.25));
           if (flaechen.length) {
             if (!ocrWorker && !ocrFehler) {
@@ -675,7 +700,7 @@
               for (const [fx, fy, fw, fh] of flaechen) {
                 const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(fw * S)); c.height = Math.max(1, Math.round(fh * S));
                 c.getContext('2d').drawImage(gross, Math.round(fx * S), Math.round(fy * S), c.width, c.height, 0, 0, c.width, c.height);
-                const neuB = (await ocrBloecke(ocrWorker, c, S, fx, fy)).filter(nb => !r.bloecke.some(b => b.x < nb.x + nb.w && b.x + b.w > nb.x && b.y - b.h < nb.y && b.y > nb.y - nb.h));
+                const neuB = (await ocrBloecke(ocrWorker, c, S, fx, fy, true)).filter(nb => !r.bloecke.some(b => b.x < nb.x + nb.w && b.x + b.w > nb.x && b.y - b.h < nb.y && b.y > nb.y - nb.h));
                 bildText += neuB.length; r.bloecke.push(...neuB);
                 c.width = c.height = 0;
               }
@@ -698,7 +723,7 @@
         let u;
         try { u = texte.length ? (await opt.uebersetzer(texte)).map(zeichenNormal) : []; }
         catch (e) { fehler = (e && e.message) || String(e); break; }
-        stand.seiten[i] = { b, u, gedreht: r.gedreht, t: r.t, ocr: ocr || bildText > 0 };
+        stand.seiten[i] = { b, u, gedreht: r.gedreht, t: r.t, ocr: ocr || bildText > 0, bildText };
         neu++;
         if (opt.speichere) await opt.speichere(stand);
         if (opt.melde) opt.melde(stand.seiten.filter(Boolean).length, n, { ms: Date.now() - t0, neu });
@@ -845,5 +870,5 @@
   }
 
   window.WFP = window.WFP || {};
-  window.WFP.Uebersetzung = { zeichenNormal, saetze, teilPlan, TEIL_ZIEL_MB, TEIL_MAX_SEITEN, SPRACHEN, NAME_DE, KI_TEXTMODELL, bloecke, browserDa, browserVerfuegbar, browserUebersetzer, chromeUebersetzer, falscheSchrift, chromeAn, kiUebersetzer, lauf, rueck, schriftLaden, pdfBauen, anzeige, farben, ocrStarten };
+  window.WFP.Uebersetzung = { zeichenNormal, saetze, teilPlan, TEIL_ZIEL_MB, TEIL_MAX_SEITEN, SPRACHEN, NAME_DE, KI_TEXTMODELL, bloecke, browserDa, browserVerfuegbar, browserUebersetzer, chromeUebersetzer, falscheSchrift, bildZeileTaugt, chromeAn, kiUebersetzer, lauf, rueck, schriftLaden, pdfBauen, anzeige, farben, ocrStarten };
 })();
