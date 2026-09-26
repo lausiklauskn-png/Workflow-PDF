@@ -1088,9 +1088,15 @@
      weiß auf (Klaus 2026-09-25, dreimal gemessen). Was trägt, hat Klaus gefunden:
      „Teilen" → Chrome wählen. Das ist jetzt der Weg des Knopfes. */
   const istAndroid = () => /Android/i.test(navigator.userAgent);
+  // Im installierten App-Fenster TEILEN, sobald Teilen geht — auch wenn der Browser sich nicht
+  // als Android ausgibt: im Samsung-DeX-Modus meldet Chrome ein Linux-Gerät, und dort blitzte
+  // „In Chrome öffnen" (window.open) nur kurz auf (Klaus 2026-09-26). Aus dem App-Fenster führt
+  // KEIN Sprung hinaus, weil jede Adresse unter /Workflow-PDF/ zur App gehört.
+  const imFenster = () => matchMedia('(display-mode: standalone)').matches;
+  const teilenWeg = () => istAndroid() || (imFenster() && !!navigator.share);
   // Auf Android ist der Knopf „Teilen" — der Name sagt deshalb, WOHIN (Klaus 2026-09-25:
   // „nicht, dass die dann überlegen, was soll ich denn für ein Übersetzungsprogramm nehmen").
-  const chromeKnopf = () => istAndroid() ? '🌐 Mit Browser öffnen zum Übersetzen' : '🌐 In Chrome öffnen';
+ const chromeKnopf = () => teilenWeg() ? '🌐 Mit Browser öffnen zum Übersetzen' : '🌐 In Chrome öffnen';
   // Der Weg, der am Tablet trägt (Klaus: „das Kopieren funktioniert"): kopieren + einfügen.
   function chromeHinweis(url, kopiert) {
     dialog(`<h2>In Chrome öffnen</h2><p data-chromehinweis>${kopiert ? '✅ Die Adresse liegt in der Zwischenablage. ' : ''}So geht es: 1. Chrome öffnen · 2. oben in die Adresszeile tippen · 3. lange drücken und „Einfügen" · 4. öffnen. Die Dokumente sind dort da, der Übersetzer öffnet sich von selbst.</p>
@@ -1107,7 +1113,7 @@
     if (leer(l)) return toast('Kein Dokument gewählt.');
     const a = chromeTabAdresse(l);
     window.__wfpdfChromeTab = a;   // für die Probe
-    if (!istAndroid()) {
+    if (!teilenWeg()) {
       if (vorher) try { await vorher(); } catch (_) {}
       try { await speichernJetzt(); } catch (_) {}
       window.open(a.url, '_blank', 'noopener'); return;
@@ -1132,8 +1138,8 @@
   }
   function chromeTabKnoepfe(el, lage, vorher) {   // lage() → { ids, von, nach } oder { rueck }
     const k = (txt, titel) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'knopf klein'; b.textContent = txt; b.title = titel; b.style.cssText = 'padding:6px 10px;border:1px solid #999;border-radius:8px;background:#fff;font-size:13px'; el.appendChild(b); return b; };
-    k(chromeKnopf(), istAndroid() ? 'Öffnet das Teilen-Fenster — dort Chrome wählen. Dann ⋮ → „Übersetzen", das Ergebnis wird ein PDF wie hier.' : 'Öffnet dieselben Dokumente im Chrome-Browser. Dort ⋮ → „Übersetzen" — das Ergebnis wird ein PDF wie hier.').onclick = () => inChromeOeffnen(lage(), vorher);
-    if (navigator.share && !istAndroid()) k('📤 Teilen …', 'Teilen mit Chrome oder einem anderen Browser').onclick = async () => {
+    k(chromeKnopf(), teilenWeg() ? 'Öffnet das Teilen-Fenster — dort Chrome wählen. Dann ⋮ → „Übersetzen", das Ergebnis wird ein PDF wie hier.' : 'Öffnet dieselben Dokumente im Chrome-Browser. Dort ⋮ → „Übersetzen" — das Ergebnis wird ein PDF wie hier.').onclick = () => inChromeOeffnen(lage(), vorher);
+    if (navigator.share && !teilenWeg()) k('📤 Teilen …', 'Teilen mit Chrome oder einem anderen Browser').onclick = async () => {
       const l = lage(); if (leer(l)) return toast('Kein Dokument gewählt.');
       try { await navigator.share({ title: 'Workfloh PDF · Übersetzen', url: chromeTabAdresse(l).url }); } catch (_) {}
     };
@@ -1143,6 +1149,15 @@
       try { await navigator.clipboard.writeText(url); toast('📋 Adresse kopiert — in Chrome oben einfügen.'); } catch (_) { await eingabe('Adresse', 'Kopieren und in Chrome einfügen', url); }
     };
   }
+  // Aus der App hierher geteilt: ein Band sagt, wie das Ergebnis in die App kommt
+  // (Klaus 2026-09-26, am Tablet geprüft: zurück in der App ⟳ tippen, dann ist es da).
+  function zurueckBand() {
+    if (document.querySelector('[data-zurueckband]')) return;
+    const b = document.createElement('div'); b.setAttribute('data-zurueckband', '');
+    b.style.cssText = 'position:sticky;top:0;z-index:50;background:#fff3cd;border-bottom:1px solid #e6d9a8;padding:8px 12px;font-size:14px';
+    b.innerHTML = '<b>Aus der App in Chrome geöffnet.</b> Wenn du fertig bist: zurück in die App und dort oben <b>⟳ (Aktualisieren)</b> tippen — dann ist das Ergebnis auch dort.';
+    document.body.prepend(b);
+  }
   // Beim Start: Aufruf aus „In Chrome öffnen" → Übersetzer mit denselben Dokumenten wieder öffnen.
   async function chromeTabRueckweg() {
     const q = new URLSearchParams(location.search);
@@ -1150,7 +1165,7 @@
       const id = q.get('rueck');
       const u = new URL(location.href); ['rueck', 'weg'].forEach(n => u.searchParams.delete(n)); history.replaceState(null, '', u.pathname + u.search + u.hash);
       if (!(S.docs.some(d => d.id === id) || await DB.get('docs', id))) return toast('⚠️ Das Dokument ist in diesem Browser nicht da — hier ist der Speicher getrennt von der App. Die Einträge in der App mit „📱 Übersetzer im Browser" oder „🤖 KI" zurückholen.');
-      S.ausApp = true;
+      S.ausApp = true; zurueckBand();
       return rueckwegDialog(id, { chromeTab: true });
     }
     if (!q.has('ue')) return;
@@ -1159,7 +1174,7 @@
     if (UE.SPRACHEN[von] && UE.SPRACHEN[nach] && von !== nach) { EINST.ueVon = von; EINST.ueNach = nach; einstSpeichern(); }
     const da = []; for (const id of ids) if (S.docs.some(d => d.id === id) || await DB.get('docs', id)) da.push(id);
     if (!da.length) return toast('⚠️ Die Dokumente sind in diesem Browser nicht da — hier ist der Speicher getrennt von der App. Das PDF hier einlesen und „🌐 Übersetzen" tippen.');
-    S.ausApp = true;
+    S.ausApp = true; zurueckBand();
     uebersetzenDialog(da, true, { chromeTab: true });
   }
   /* Eine Übersetzung trägt ZWEI Textschichten: das Original (weiß abgedeckt) und die
@@ -1203,7 +1218,7 @@
       <label style="font-weight:400"><input type="checkbox" data-rueck${EINST.ueRueck !== false ? ' checked' : ''}> Gegenprobe: danach zurück in die Ausgangssprache übersetzen und daneben ablegen</label>
       <p class="hinweis" data-zahl></p>
       <button class="wahl" data-weg="browser"><b>📱 Übersetzer im Browser</b><span data-bstat>prüfe …</span></button>
-      <button class="wahl" data-weg="chrome"><b>🌐 Mit Chrome übersetzen (Google)</b><span>Kostenlos, ohne Schlüssel und ohne Kontingent. Die App zeigt den Text jeder Seite unten an, du tippst einmal in Chrome ⋮ → „Übersetzen" — danach läuft es Seite für Seite von selbst. Der Text geht dabei an Google.${matchMedia('(display-mode: standalone)').matches ? ' Die App läuft gerade im eigenen Fenster — dort fehlt „Übersetzen" oft. Dann „' + chromeKnopf() + '" (darunter): derselbe Übersetzer öffnet sich in Chrome.' : ''}</span></button>
+      <button class="wahl" data-weg="chrome"><b>🌐 Mit Chrome übersetzen (Google)</b><span>Kostenlos, ohne Schlüssel und ohne Kontingent. Die App zeigt den Text jeder Seite unten an, du tippst einmal in Chrome ⋮ → „Übersetzen" — danach läuft es Seite für Seite von selbst. Der Text geht dabei an Google.${matchMedia('(display-mode: standalone)').matches ? ' Die App läuft gerade im eigenen Fenster — dort fehlt „Übersetzen" oft. Dann „' + chromeKnopf() + '" (darunter)' + (teilenWeg() ? ': im Teilen-Fenster Chrome wählen, dort öffnet sich derselbe Übersetzer. Zurück in der App oben ⟳ tippen.' : ': derselbe Übersetzer öffnet sich in Chrome.') : ''}</span></button>
       ${matchMedia('(display-mode: standalone)').matches ? '<div class="zeile" data-tabreihe style="flex-wrap:wrap;gap:6px;margin:-4px 0 8px"></div>' : ''}
       <button class="wahl" data-weg="ki"><b>🤖 Mit KI — ${h(a.label)}</b><span>${kiBereit() ? `Der Text jeder Seite (nicht das Bild) geht an ${h(a.label)}. Kostet je Seite, abgerechnet über deinen Schlüssel. Vor dem ersten Senden wird gefragt.` : 'Noch kein Schlüssel eingetragen — tippen, um ihn in den Einstellungen einzutragen.'}</span></button>
       <details class="ue-mess"><summary>🔎 Messen: was kann dieses Gerät?</summary><div data-mess class="hinweis">Tippen auf „Jetzt messen".</div><button class="knopf klein" data-messen>Jetzt messen</button></details>
@@ -1255,7 +1270,7 @@
       // Android, installiertes App-Fenster: dort gibt es ⋮ → „Übersetzen" nicht (Klaus
       // 2026-09-25: „ich kann von da aus nur abbrechen"). Die Fläche wäre eine Sackgasse —
       // also gleich der Weg, der trägt: Teilen-Fenster → Chrome.
-      if (lage && matchMedia('(display-mode: standalone)').matches && istAndroid()) { if (zu) zu(); await inChromeOeffnen(lage); return null; }
+      if (lage && imFenster() && teilenWeg()) { if (zu) zu(); await inChromeOeffnen(lage); return null; }
       if (lage && matchMedia('(display-mode: standalone)').matches) opt.tab = el => chromeTabKnoepfe(el, () => lage, () => { if (hin.halt) hin.halt(); });
       const hin = UE.chromeUebersetzer(von, nach, opt);
       return { hin, zurueck: null };
@@ -1473,7 +1488,7 @@
     window.__wfpdfBericht = { bericht, zeichen, tokE, tokA, ms: Date.now() - t0, speicherMB: performance.memory ? performance.memory.usedJSHeapSize / 1048576 : null };
     dialog(`<h2>🌐 Übersetzung ${abbruch ? 'angehalten' : bericht.some(z => z.teil) ? 'unvollständig — Teilergebnis liegt bereit' : 'fertig'}</h2>
       <ul>${bericht.map(z => `<li><b>${h(z.name)}</b> · ${z.fertig != null ? z.fertig + ' von ' + z.seiten + ' Seiten' : ''}${z.neu ? ' · ' + (z.ms / z.neu / 1000).toFixed(1) + ' s je neu übersetzter Seite' : ''}${z.groesse ? ' · Ergebnis ' + (z.groesse >= 1048576 ? (z.groesse / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(z.groesse / 1024)) + ' KB') : ''}${z.ordner ? ' · liegt in „' + h(z.ordner) + '"' : ''}${z.felder ? ' · ' + z.felder + ' Felder übersetzt mitgenommen' : ''}${z.neuId ? ` <button class="knopf klein" data-oeffne="${h(z.neuId)}">${z.teil ? '👁 Teilübersetzung öffnen' : '✏️ Öffnen: Felder setzen / ausfüllen'}</button>` : ''}${z.hinweise.length ? '<ul>' + z.hinweise.map(x => '<li class="hinweis">' + h(x) + '</li>').join('') + '</ul>' : ''}</li>`).join('')}</ul>
-      ${S.ausApp && !abbruch && !matchMedia('(display-mode: standalone)').matches ? '<p class="hinweis" data-zurueckapp><b>Zurück in die App:</b> die Übersetzung liegt hier in der Bibliothek. Die installierte App liest denselben Speicher und zeigt sie beim nächsten Öffnen — diesen Chrome-Tab kannst du dann schließen. Fehlt sie dort, „⬇ PDF" hier im Tab ausgeben.</p>' : ''}
+      ${S.ausApp && !abbruch && !matchMedia('(display-mode: standalone)').matches ? '<p class="hinweis" data-zurueckapp><b>Zurück in die App:</b> die Übersetzung liegt hier in der Bibliothek. In der App oben <b>⟳ (Aktualisieren)</b> tippen — dann liest sie denselben Speicher neu und zeigt sie. Diesen Chrome-Tab kannst du danach schließen. Fehlt sie dort, „⬇ PDF" hier im Tab ausgeben.</p>' : ''}
       <p class="hinweis">Gemessen: ${neuS} Seiten in ${((Date.now() - t0) / 1000).toFixed(0)} s · ${zeichen.toLocaleString('de-DE')} Zeichen übersetzt${tokE || tokA ? ` · ${tokE.toLocaleString('de-DE')} Token hin, ${tokA.toLocaleString('de-DE')} Token zurück (${h(hin.stat.modell || '')}) — den Preis je Token nennt der Anbieter` : ''}${performance.memory ? ' · Speicher ' + (performance.memory.usedJSHeapSize / 1048576).toFixed(0) + ' MB' : ''}.</p>
       <div class="zeile"><button class="knopf rot" data-x>OK</button></div>`, (dl, zu) => { dl.querySelector('[data-x]').onclick = zu; dl.querySelectorAll('[data-oeffne]').forEach(b => b.onclick = () => { zu(); oeffneDok(b.dataset.oeffne); }); });
     if (!abbruch) hops();
