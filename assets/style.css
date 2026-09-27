@@ -397,7 +397,8 @@ body.zieht .dok-gitter,body.zieht .ordner-leiste{touch-action:none}
 
 /* Sortieren + Zeitraum in EINEM Kasten, klappt zusammen (Klaus 2026-09-27) */
 .sortier-box{flex:1 1 100%;border:1px solid var(--linie);border-radius:10px;padding:0 10px;background:var(--flaeche)}
-.sortier-box>summary{cursor:pointer;padding:8px 0;font-size:.92rem;list-style-position:inside}
+.sortier-box>summary{cursor:pointer;padding:8px 0;font-size:.92rem;font-weight:600;list-style:none}
+.sortier-box>summary::-webkit-details-marker{display:none}
 .sortier-box .zeitraum-kurz{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;background:rgba(224,35,27,.12);font-size:.85rem}
 .sortier-inhalt{display:flex;flex-direction:column;gap:8px;padding:0 0 10px}
 .sortier-inhalt .zeitraum{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:.9rem}

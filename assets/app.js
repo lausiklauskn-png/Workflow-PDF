@@ -195,7 +195,7 @@
     // die man zugeklappt nicht sieht, wäre eine still fehlende Liste.
     const zr = zeitraumText();
     const zeitraumZeigen = EINST.sortierung === 'erstellt' || S.von || S.bis;
-    const sortWahl = S.docs.length ? `<details class="sortier-box" data-sortbox${S.sortOffen ? ' open' : ''}><summary>⇅ Sortieren: <b>${h(SORTIERUNG[EINST.sortierung])}</b>${zr ? ` <span class="zeitraum-kurz" data-zeitraumkurz>📅 ${h(zr)}</span>` : ''}</summary>`
+    const sortWahl = S.docs.length ? `<details class="sortier-box" data-sortbox${S.sortOffen ? ' open' : ''}><summary>⇅ Sortieren${zr ? ` <span class="zeitraum-kurz" data-zeitraumkurz>📅 ${h(zr)}</span>` : ''}</summary>`
       + `<div class="sortier-inhalt"><label class="sortier">Sortieren nach: <select data-sort>${Object.entries(SORTIERUNG).map(([k, v]) => `<option value="${k}"${k === EINST.sortierung ? ' selected' : ''}>${v}</option>`).join('')}</select></label>`
       + (such.length ? '<span class="hinweis klein">Bei einer Suche ordnet die Trefferzahl.</span>' : '')
       + (zeitraumZeigen ? `<div class="zeitraum" data-zeitraum>📅 Erstellt von <input type="date" data-von value="${h(S.von || '')}"> bis <input type="date" data-bis value="${h(S.bis || '')}">${S.von || S.bis ? '<button class="knopf klein" data-datumweg title="Zeitraum wieder weglassen">✕ jedes Datum</button>' : ''}</div>` : '')
@@ -649,7 +649,7 @@
     l.hidden = false;
     const n = WAHL.size, alle = (S.sicht || []).length;
     l.innerHTML = `<b data-wahl-zahl="${n}">✓ ${n} ausgewählt</b>
-      ${alle && n < alle ? '<button class="knopf klein" data-wahl-alle>Alle wählen</button>' : ''}
+      ${alle && n < alle ? '<button class="knopf klein" data-wahl-alle>Alle</button>' : ''}
       <button class="knopf klein primaer" data-wahl-teilen${n ? '' : ' disabled'}>📤 Teilen</button>
       <button class="knopf klein" data-wahl-verschieben${n ? '' : ' disabled'}>🗂️ Verschieben</button>
       <button class="knopf klein" data-wahl-ende>✕ Fertig</button>

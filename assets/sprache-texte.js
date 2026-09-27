@@ -5,7 +5,7 @@
 (function(){ (window.WFP=window.WFP||{}).SPRACH_TEXTE = {
  "en": {
   "Sortieren nach:": "Sort by:",
-  "⇅ Sortieren:": "⇅ Sort:",
+  "⇅ Sortieren": "⇅ Sort",
   "Bei einer Suche ordnet die Trefferzahl.": "During a search, the number of hits decides the order.",
   "📅 Erstellt von": "📅 Created from",
   "bis": "to",
@@ -830,7 +830,7 @@
  },
  "ru": {
   "Sortieren nach:": "Сортировать по:",
-  "⇅ Sortieren:": "⇅ Сортировка:",
+  "⇅ Sortieren": "⇅ Сортировка",
   "Bei einer Suche ordnet die Trefferzahl.": "При поиске порядок задаёт число совпадений.",
   "📅 Erstellt von": "📅 Создано с",
   "bis": "по",
@@ -1655,7 +1655,7 @@
  },
  "ar": {
   "Sortieren nach:": "الترتيب حسب:",
-  "⇅ Sortieren:": "⇅ الترتيب:",
+  "⇅ Sortieren": "⇅ الترتيب",
   "Bei einer Suche ordnet die Trefferzahl.": "أثناء البحث يحدد عدد النتائج الترتيب.",
   "📅 Erstellt von": "📅 أُنشئ من",
   "bis": "إلى",
