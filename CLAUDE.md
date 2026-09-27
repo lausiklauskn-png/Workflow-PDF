@@ -99,10 +99,33 @@ fotografieren" (an ein Dokument anhängen). Der alte Aufnahme-Dialog ist weg.
   im Zeilen-Dialog Ausrichtung und Größe (40–300 %), in der Kopie ziehen = verschieben
   (`s.stil[i] = {ausr, gr, dx, dy}`, Versatz in Anteilen der Seite). Mit eigener Größe wird nicht
   mehr automatisch verkleinert.
+- **✨ Text mit ChatGPT erkennen** (Klaus 2026-09-27: „ein Dokument … mit einem Prompt zusammen
+  weitergereicht an ChatGPT. Er separiert den Text … andere Sprache oder bessere Texte … und fügt
+  diese wieder in den Hintergrund ein"). Vorbild: der Prompt-Knopf im Rezeptbuch. Dialog: Art
+  (Abschreiben · Rechtschreibung verbessern · Übersetzen nach DE/EN/RU) → „📤 Bild + Auftrag teilen"
+  (Web-Share mit Seitenbild und Auftrag, Auftrag zusätzlich in der Zwischenablage) · „📋 Auftrag
+  kopieren" · „🖼 Seitenbild speichern" · ChatGPT/Claude öffnen → Antwort einfügen → übernehmen.
+  **Die App schickt nichts selbst** — das steht im Dialog, samt Anbieter und Land.
+  **Text von der KI, Lage vom Gerät** (`kiAbgleich` in scan-bild.js): jede KI-Zeile wird der
+  ähnlichsten erkannten Zeile zugeordnet (Zeichen-Ähnlichkeit ≥ `KI_TREFFER` 0,5 — gewählt, nicht
+  gemessen) und übernimmt deren Grundlinie; ohne Gegenstück gilt die Lage der KI, als unsicher
+  (gelb, conf 60); ohne jede Lage fällt die Zeile weg und wird gezählt. Die KI-Koordinaten allein
+  sind ungenau (dieselbe Erfahrung wie bei der Felderkennung). „neu" ≠ „text" wird zur Änderung
+  der Zeile → im Original überdeckt und neu geschrieben, in der Kopie gesetzt. `„…"` mit geradem
+  Schluss wird geheilt (Kimhub-Befund). Die Erkennung auf dem Gerät läuft dafür einmal
+  (`s.ocrGeraet` hält sie für den nächsten Abgleich).
+  Der Knopf hat die **Bauart der „KI-Überraschung" aus dem Rezeptbuch** (`.fz-trend-btn`:
+  wandernder Verlauf, Leuchten, hüpft beim Zeigen, gibt beim Drücken nach) in Rot-Weiß-Blau,
+  `.knopf.ki-knopf` — Klaus wollte ausdrücklich keinen Roboterkopf.
+- **🎭 Textmaske (PNG, durchsichtig):** die Kopie ohne weißen Grund (`kopieRechnen(s, dpi, true)`),
+  zum Auflegen auf einen neuen Hintergrund in einem Bildprogramm.
+- ⚠ **Nicht gemessen:** ob ChatGPT/Claude das Format zuverlässig einhalten, wie genau ihre Lage
+  ist, ob Android beim Teilen Bild UND Text an die ChatGPT-App gibt. Und: geht die App beim Wechsel
+  zu ChatGPT aus dem Speicher, ist die Scan-Sitzung weg (sie liegt nur im Arbeitsspeicher).
 - Fotos werden auf ≤ 2400 px lange Kante verkleinert, nie abgewiesen. Einstellungen
   (Filter, Format, Qualität, durchsuchbar, Sprache) in `localStorage` `wfpdf_scan_v1`.
 - Proben: `tests/scan.mjs` (in `npm test`, A Rechnung · B 17 Fotos · C ganzer Weg mit echtem
-  Tesseract) · `node tests/gegenprobe_scan.mjs` (30 Fälle, Wegwerf-Kopie; `NUR_ANKER=1`).
+  Tesseract) · `node tests/gegenprobe_scan.mjs` (40 Fälle, Wegwerf-Kopie; `NUR_ANKER=1`, `NUR_FALL="KI:"` für den ChatGPT-Weg).
   Gemessen am 2026-09-26: `scan.mjs` 58 grün · Gegenprobe erst **20 gefangen · 1 blind ·
   1 aus falschem Grund**. Blind war „Umordnen": die zweite Seite erbte den gemerkten Filter,
   also sahen beide Seiten gleich aus — gemessen wird jetzt der Dateiname je Seite. Falsch war
@@ -113,6 +136,8 @@ fotografieren" (an ein Dokument anhängen). Der alte Aufnahme-Dialog ist weg.
   erst **28 gefangen · 2 aus falschem Grund** — die Probe WARTETE auf das, was die Sabotage wegnahm
   (Kopie-Tafel 180 s, „Neu.png an Stelle 1" 60 s), und starb am Zeitablauf. Jetzt wird erst auf
   die Erkennung gewartet und das Fehlende gemeldet; beide Fälle nachgefahren: gefangen.
+  **Nach „Text mit ChatGPT“ (2026-09-27):** `scan.mjs` 94 grün (A2: Auftrag, Antwort lesen, Abgleich;
+  D: Knopf, Dialog, Übernehmen mit echter Erkennung, Textmaske) · 10 neue Fälle (`KI:`) 10 gefangen.
 - ⚠ **Nicht gemessen:** echte Handy-Kamera, Modell auf dem Tablet (Zeit, Speicher),
   Qualität der Texterkennung auf echten Briefen. Die Bildschirmfotos im Handbuch zeigen noch
   den alten Aufnahme-Dialog (`node tools/handbuch-bauen.mjs` baut sie neu).
