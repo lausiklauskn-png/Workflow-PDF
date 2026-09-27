@@ -58,6 +58,21 @@ try {
   ok('Handy: vier Start-Kacheln, jede höchstens 40 px hoch (Maß: Scanner-Knöpfe)', kacheln.length === 4 && kacheln.every(k => k.h <= 40), kacheln);
   ok('Handy: die Start-Kacheln stehen untereinander', kacheln.length === 4 && kacheln.every((k, i) => i === 0 || (k.l === kacheln[0].l && k.t > kacheln[i - 1].t)), kacheln);
   ok('Handy: die Unterzeile der Start-Kacheln ist ausgeblendet', kacheln.length === 4 && kacheln.every(k => !k.unter), kacheln);
+  // „Fast Handyformat" (DeX-Fenster, Klaus 2026-09-27: „zu schmal"): bis 760 px untereinander über die
+  // ganze Breite, darüber zwei nebeneinander — nie drei schmale Spalten mit einer allein darunter.
+  const vorher = page.viewportSize();
+  const breiten = {};
+  for (const w of [720, 820, 1000]) {
+    await page.setViewportSize({ width: w, height: 800 });
+    breiten[w] = await page.evaluate(() => { const l = document.querySelector('.import-leiste').getBoundingClientRect(); return { leiste: Math.round(l.width), k: [...document.querySelectorAll('.import-leiste .gross-knopf')].map(e => { const r = e.getBoundingClientRect(); return { l: Math.round(r.left), w: Math.round(r.width) }; }) }; });
+  }
+  await page.setViewportSize(vorher);
+  const b7 = breiten[720];
+  ok('720 px: jede Start-Kachel geht über die ganze Breite', b7.k.length === 4 && b7.k.every(k => k.w === b7.leiste), b7);
+  for (const w of [820, 1000]) {
+    const b = breiten[w], spalten = new Set(b.k.map(k => k.l)).size;
+    ok(w + ' px: zwei Spalten, jede Kachel mindestens 45 % der Breite', b.k.length === 4 && spalten === 2 && b.k.every(k => k.w >= b.leiste * 0.45), b);
+  }
 
   // ===== A. Feldarten-Leiste im Bearbeiten-Fenster, schmales Handy =====
   await page.evaluate(async b64 => {

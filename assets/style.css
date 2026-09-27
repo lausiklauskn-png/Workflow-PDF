@@ -45,7 +45,10 @@ button{cursor:pointer}
 
 /* Bibliothek */
 #sc-bib{padding:14px;max-width:1200px;margin:0 auto}
-.import-leiste{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:14px}
+.import-leiste{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}
+/* Vier Kacheln: nebeneinander erst ab 1200 px. Mit auto-fit(220 px) standen sie zwischen 641 und 900 px
+   (DeX-Fenster „fast Handyformat") in 2–3 schmalen Spalten, die letzte allein (Klaus 2026-09-27: „zu schmal"). */
+@media (min-width:1200px){.import-leiste{grid-template-columns:repeat(4,minmax(0,1fr))}}
 .gross-knopf{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--flaeche);border:2px solid var(--rot);
   border-radius:var(--r);cursor:pointer;box-shadow:var(--schatten);transition:transform .1s}
 .gross-knopf:hover{transform:translateY(-1px)}
@@ -427,8 +430,9 @@ body.zieht .dok-gitter,body.zieht .ordner-leiste{touch-action:none}
 }
 /* Handy: die vier Start-Kacheln so flach wie die Scanner-Knöpfe (Klaus 2026-09-27:
    „PDF-Bild könnte schmaler sein … da muss nicht so eine lange Erklärung drunter sein“).
-   Untereinander, je eine flache Zeile ohne Unterzeile. */
-@media (max-width:640px){
+   Untereinander, je eine flache Zeile ohne Unterzeile. Bis 760 px wie die anderen Handy-Regeln — darüber
+   stehen sie zwei nebeneinander (Klaus 2026-09-27: „fast Original Handyformat … zu schmal"). */
+@media (max-width:760px){
   .import-leiste{grid-template-columns:1fr;gap:6px;margin-bottom:10px}
   .gross-knopf{padding:4px 8px;gap:6px;min-height:36px;border-width:1.5px;border-radius:10px;box-shadow:none}
   .gross-knopf .gk-ico{font-size:1.1rem;flex:none}
