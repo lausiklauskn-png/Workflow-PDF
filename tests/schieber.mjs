@@ -117,6 +117,9 @@ try {
   ok('Handy: die Knöpfe im Bearbeiten-Fenster sind flach (höchstens 32 px)', flach.knoepfe.length >= 5 && Math.max(...flach.knoepfe) <= 32, flach);
   ok('Handy: der rote Griff ist um rund 20 % kleiner, nicht mehr (12–14 px statt 16)', flach.griff >= 12 && flach.griff <= 14, flach);
   ok('… und ein Finger knapp daneben trifft ihn trotzdem (Greiffläche blieb groß)', flach.nebenTrifft, flach);
+  // Klaus 2026-09-27: der Satz „Feld antippen, um es zu ändern · … roter Punkt …" erklärt sich von selbst — weg.
+  const satz = await page.evaluate(() => (document.getElementById('edFuss') || {}).innerText || '');
+  ok('ohne gewähltes Feld steht KEIN Erklärsatz im Fuß (antippen / roter Punkt)', !/antippen|roter Punkt/.test(satz), satz.slice(0, 120));
   ok('am Anfang steht der Griff links', !!a && a.links === 0 && a.griffX - a.griffB / 2 - a.bahnL <= 2, a);
 
   // Griff mit dem Finger ganz nach rechts ziehen

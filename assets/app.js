@@ -1346,7 +1346,8 @@
           : `<label class="eig" style="flex:1;min-width:160px">${f.type === 'qr' ? 'Inhalt des QR-Codes' : 'Inhalt (vorbelegt)'}<input id="eigWert" value="${h(f.value || '')}"></label>`}
         ${f.type === 'text' ? `<label class="eig eig-haken"><input type="checkbox" id="eigMz"${f.mehrzeilig ? ' checked' : ''}> mehrzeilig</label>` : ''}
         <button class="knopf" id="eigKopie" title="Feld kopieren">⧉ Kopie</button><button class="knopf gefahr" id="eigDel">🗑 Löschen</button></div>`;
-    } else if (!S.platzieren) html += `<div class="werkzeug"><span class="hinweis">Feld antippen, um es zu ändern · ziehen zum Verschieben · roter Punkt ändert die Größe · Entf löscht.</span></div>`;
+    }
+    // Kein Erklärsatz ohne gewähltes Feld (Klaus 2026-09-27: „erklärt sich von alleine").
     fuss.innerHTML = html;
     fuss.querySelectorAll('[data-t]').forEach(b => b.onclick = () => platzierenStart(b.dataset.t));
     $('fussSeite').onclick = seiteDialog; $('fussText').onclick = erkannterText;

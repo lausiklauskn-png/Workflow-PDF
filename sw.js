@@ -2,7 +2,7 @@
    Cacht die SCHALE (App-Dateien), niemals Dokumente: die liegen in IndexedDB.
    Wer eine Datei aus SCHALE ändert, erhöht CACHE_VERSION — sonst liefert der
    Worker die alte Fassung weiter. */
-const CACHE_VERSION = 'workfloh-pdf-v61';
+const CACHE_VERSION = 'workfloh-pdf-v62';
 /* Suche nach Bedeutung: transformers.js (und seine wasm-Dateien) kommt von jsDelivr, in fester
    Fassung. Das bleibt in EIGENEM Vorrat, damit die Suche offline weiterläuft und ein Cache-Bump
    der Schale nicht jedes Mal Megabytes neu holt. Das Modell selbst legt transformers.js in seinem
