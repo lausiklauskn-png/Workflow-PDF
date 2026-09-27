@@ -41,6 +41,9 @@ Datei, wird er hier behoben und dann in die WorkFlohs kopiert.
   Klaus: „Die Button oben in Workflow PDF, Deutsch, also DE, Aktualisieren, Fragezeichen und
   Zahnrädchen werden bei einer schmalen Handyansicht zu groß und gehen auf Workflow PDF Schrifttext,
   überlagern ihn."
+  Beleg (Klaus' Bildschirmfoto 2026-09-27, schmales App-Fenster in DeX, nur die Kopfleiste ausgeschnitten):
+  vom Schriftzug sind nur „W" und „fl" zu sehen, der Rest liegt unter DE · ⟳ · ? · ⚙️.
+  ![Kopfleiste schmal](todo-belege/2026-09-27_kopfleiste-schmal.png)
 - [ ] 2026-09-27 · Workflow-PDF · **Nach Erstellungsdatum suchen und sortieren.**
   Klaus: „Die Sortieren- oder Zuletzt-geändert- oder Suchen-Funktion sollte noch eine Datumsfunktion
   beinhalten. Das heißt, wenn ich ein Dokument nach Datum suche — nach Datum nicht sortieren, sondern
