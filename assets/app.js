@@ -578,6 +578,10 @@
      dem Finger, darunter wird per elementFromPoint gesucht). */
   const WAHL = new Set(); let WAHL_AN = false;
   const LANGDRUCK_MS = 450, ZIEH_PX = 10;
+  /* Überstreichen nimmt eine Karte erst nach kurzem VERWEILEN dazu (wie VERWEIL_MS in den WorkFlohs,
+     assets/wfpdf/auswahl.js). Die Ordner stehen oben: wer von einer Karte zum Ordner gleitet, fährt
+     über andere Karten — die sollen nicht mitkommen. 250 ms sind gewählt, nicht am Tablet gemessen. */
+  const VERWEIL_MS = 250;
   function wahlUmschalten(id) {
     if (WAHL.has(id)) WAHL.delete(id); else WAHL.add(id);
     if (!WAHL.size) WAHL_AN = false;
@@ -649,7 +653,13 @@
     if (ZG.ziel) ZG.ziel.classList.add('ziel');
     // Über eine Karte gezogen: sie kommt dazu
     const karte = el && el.closest('#dokGitter .dok[data-id]');
-    if (karte && !WAHL.has(karte.dataset.id)) { WAHL.add(karte.dataset.id); wahlMarken(); wahlLeiste(); }
+    if (karte !== ZG.kand) {
+      clearTimeout(ZG.verweil); ZG.kand = karte;
+      if (karte && !WAHL.has(karte.dataset.id)) ZG.verweil = setTimeout(() => {
+        if (!ZG || ZG.kand !== karte) return;
+        WAHL.add(karte.dataset.id); wahlMarken(); wahlLeiste(); ziehGeist();
+      }, VERWEIL_MS);
+    }
   }
   let _rollen = null;
   function ziehRollen() {
@@ -658,7 +668,7 @@
     if (v) _rollen = setInterval(() => { window.scrollBy(0, v); if (ZG) ziehZiel(); }, 30);
   }
   function ziehAus() {
-    if (!ZG) return; clearTimeout(ZG.timer); clearInterval(_rollen); _rollen = null;
+    if (!ZG) return; clearTimeout(ZG.timer); clearTimeout(ZG.verweil); clearInterval(_rollen); _rollen = null;
     if (ZG.geist) ZG.geist.remove();
     document.querySelectorAll('.ordner-chip.ziel').forEach(c => c.classList.remove('ziel'));
     document.body.classList.remove('zieht'); ZG = null;
