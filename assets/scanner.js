@@ -590,6 +590,7 @@
         <button class="knopf" data-zip${fertig ? '' : ' disabled'}>🖼 Als Bilder (ZIP)</button>
         <button class="knopf rot" data-fertig${fertig ? '' : ' disabled'}>✓ ${h(ST.opt.fertigText || 'PDF erstellen')}</button>
       </div>
+      ${ST.opt.ablegen ? '<p class="hinweis" data-ablegen-hinweis>Herunterladen, Teilen und „PDF erstellen“ legen das PDF auch hier in Workfloh PDF ab — kein neues Importieren nötig.</p>' : ''}
       <p class="hinweis" data-ergebnis-info></p>`;
     const q = sel => f.querySelector(sel);
     q('[data-name]').onchange = e => { ST.name = e.target.value.trim() || ST.name; };
@@ -603,9 +604,19 @@
       catch (e) { fb.zu(); ST.opt.toast('⚠️ ' + (e.message || e)); return null; }
     };
     const datei = () => (String(ST.name).replace(/[\\/:*?"<>|]+/g, '_').trim() || 'Scan');
-    q('[data-laden]').onclick = async () => { const b = await bauen(); if (b) { ST.opt.laden(datei() + '.pdf', b, 'application/pdf'); ST.opt.toast('⬇ ' + datei() + '.pdf'); } };
+    /* Klaus 2026-09-27: „dann lädt er es nicht in das PWA Workflow PDF … Ich muss erst wieder eine
+       Datei importieren." Herunterladen und Teilen legen das PDF deshalb AUCH in der Bibliothek ab
+       (nur beim Scannen aus der Bibliothek — opt.ablegen). Dasselbe Dokument wird danach ersetzt,
+       nicht verdoppelt: ST.abgelegt trägt seine Kennung, auch für „✓ PDF erstellen". */
+    const ablegen = async b => {
+      if (!ST.opt.ablegen) return false;
+      try { ST.abgelegt = await ST.opt.ablegen(b, { name: ST.name, id: ST.abgelegt || null }); window.__wfpdfScanAbgelegt = ST.abgelegt; window.__wfpdfScanAblagen = (window.__wfpdfScanAblagen || 0) + 1; return true; }
+      catch (e) { ST.opt.toast('⚠️ ' + (e.message || e)); return false; }
+    };
+    q('[data-laden]').onclick = async () => { const b = await bauen(); if (b) { ST.opt.laden(datei() + '.pdf', b, 'application/pdf'); const ab = await ablegen(b); ST.opt.toast(ab ? '⬇ ' + datei() + '.pdf · auch in Workfloh PDF abgelegt' : '⬇ ' + datei() + '.pdf'); } };
     q('[data-teilen]').onclick = async () => {
       const b = await bauen(); if (!b) return;
+      await ablegen(b);
       const file = new File([b], datei() + '.pdf', { type: 'application/pdf' });
       // Teilen braucht einen frischen Tipp — nach dem Bauen ist der erste verbraucht
       ST.opt.dialog(`<h2>📤 Teilen</h2><p>Das PDF ist fertig (${groesse(b.length)}).</p><div class="zeile"><button class="knopf" data-x>Schließen</button><button class="knopf" data-dl>⬇ Herunterladen</button>${navigator.canShare && navigator.canShare({ files: [file] }) ? '<button class="knopf rot" data-jetzt>📤 Jetzt teilen …</button>' : ''}</div>${navigator.canShare ? '' : '<p class="hinweis">Dieser Browser kann keine Dateien teilen — bitte herunterladen und im Dateiordner teilen.</p>'}`, (d, zu) => {
@@ -625,8 +636,8 @@
     q('[data-fertig]').onclick = async () => {
       if (offen && !await ST.opt.frage('Nicht alle Seiten geprüft', `<p>Bei ${offen} ${offen === 1 ? 'Seite' : 'Seiten'} waren sich die Verfahren beim Zuschnitt nicht einig. Trotzdem so übernehmen?</p>`, 'Trotzdem übernehmen', 'Zurück und prüfen')) return;
       const b = await bauen(); if (!b) return;
-      const opt = ST.opt, name = ST.name; schliessen();
-      try { await opt.fertig(b, { name }); } catch (e) { opt.toast('⚠️ ' + (e.message || e)); }
+      const opt = ST.opt, name = ST.name, id = ST.abgelegt || null; schliessen();
+      try { await opt.fertig(b, { name, id }); } catch (e) { opt.toast('⚠️ ' + (e.message || e)); }
     };
   }
   const groesse = n => n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';

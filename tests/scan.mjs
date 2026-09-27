@@ -413,6 +413,18 @@ try {
   const kb = BZ.seiten.find(s => s.kiBild);
   ok('„📥 Ergebnis zurückholen": das Bild kommt als Seite dahinter, das Original bleibt davor', BZ.seiten.length === 3 && BZ.seiten[0].name === vor[0] && BZ.seiten[1] && BZ.seiten[1].kiBild && BZ.seiten[2].name === 'Zweite Seite' && BZ.akt === 1, BZ.seiten.map(s => [s.name, s.kiBild]));
   ok('Das Bild von ChatGPT IST die Seite: ganzes Bild, kein Filter, kein Zuschnitt-Zweifel', kb && kb.filter === 'original' && kb.manuell && kb.erkennung && kb.erkennung.sicher && kb.ecken[2][0] === kb.foto[0] && kb.ecken[2][1] === kb.foto[1], kb);
+  // Klaus 2026-09-27: „dann lädt er es nicht in das PWA Workflow PDF … Ich muss erst wieder eine Datei importieren."
+  // Herunterladen legt das PDF AUCH in der Bibliothek ab — und ein zweites Mal ersetzt es, statt zu verdoppeln.
+  ok('Im Fuß steht, dass Herunterladen auch hier ablegt', await page.isVisible('.scan [data-ablegen-hinweis]'));
+  const docsVor = await page.evaluate(() => WFP.DB.all('docs').then(a => a.length));
+  const [dl1] = await Promise.all([page.waitForEvent('download'), page.click('.scan [data-laden]')]);
+  await page.waitForFunction(() => window.__wfpdfScanAbgelegt, null, { timeout: 30000 }).catch(() => {});
+  const AB1 = await page.evaluate(async () => { const id = window.__wfpdfScanAbgelegt, d = id && await WFP.DB.get('docs', id); return { id, n: (await WFP.DB.all('docs')).length, seiten: d && d.pages.length, datei: !!(id && await WFP.DB.getFile(id)), offen: !!document.querySelector('.scan') }; });
+  ok('„⬇ PDF herunterladen" lädt herunter UND legt das PDF in Workfloh PDF ab (alle 3 Seiten, Werkzeug bleibt offen)', !!dl1 && AB1.id && AB1.n === docsVor + 1 && AB1.seiten === 3 && AB1.datei && AB1.offen, { docsVor, AB1 });
+  await Promise.all([page.waitForEvent('download'), page.click('.scan [data-laden]')]);
+  await page.waitForFunction(() => window.__wfpdfScanAblagen >= 2, null, { timeout: 30000 }).catch(() => {});
+  const AB2 = await page.evaluate(async () => ({ id: window.__wfpdfScanAbgelegt, mal: window.__wfpdfScanAblagen, n: (await WFP.DB.all('docs')).length }));
+  ok('… ein zweites Herunterladen ersetzt dasselbe Dokument, statt ein zweites anzulegen', AB2.mal >= 2 && AB2.id === AB1.id && AB2.n === AB1.n, AB2);
   await page.evaluate(() => { const st = WFP.Scanner.zustand(); st.seiten.splice(1, 2); st.akt = 0; st.ansicht = 'ergebnis'; WFP.Scanner.zeichne(); });
   await page.evaluate(() => WFP.Scanner.ocrSeite(WFP.Scanner.zustand().seiten[0]).then(() => WFP.Scanner.zeichne()));
   // Textmaske: nur die Schrift, durchsichtiger Grund
@@ -427,7 +439,11 @@ try {
   await page.waitForFunction(() => window.__wfpdfMaske, null, { timeout: 15000 }).catch(() => {});
   const mD = await page.evaluate(() => window.__wfpdfMaske || null);
   ok('„🎭 Textmaske" legt eine PNG-Datei ab', mD && /Textmaske Seite 1\.png$/.test(mD.name) && mD.bytes > 500, mD);
-  await page.click('.scan [data-schliessen]'); await page.click('.dlg [data-j]');
+  // „✓ PDF erstellen" nach dem Herunterladen: dasselbe Dokument, jetzt mit einer Seite, und es geht auf
+  await page.click('.scan [data-fertig]');
+  await page.waitForSelector('#sc-ed.on .seite canvas', { timeout: 60000 }).catch(() => {});
+  const AB3 = await page.evaluate(async () => ({ id: window.__wfpdf.S.doc && window.__wfpdf.S.doc.id, seiten: window.__wfpdf.S.doc && window.__wfpdf.S.doc.pages.length, n: (await WFP.DB.all('docs')).length }));
+  ok('„✓ PDF erstellen" nach dem Herunterladen öffnet DASSELBE Dokument, neu gefüllt — kein Doppel', AB3.id === AB1.id && AB3.n === AB1.n && AB3.seiten === 1, AB3);
 
   ok('kein Aufruf ins Netz (Modell, Texterkennung, Schrift liegen auf dem Gerät)', fremd.length === 0, fremd);
   ok('keine Fehler in der Konsole', konsole.length === 0, konsole);
