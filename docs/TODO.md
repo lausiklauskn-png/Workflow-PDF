@@ -108,6 +108,12 @@ Datei (`assets/wfpdf/…`, `werkzeug.js`), wird er beim Abarbeiten auch in Mein-
   Bildschirmfoto zu Punkt 1 ist sie rechts abgeschnitten, und man sieht nicht, dass noch Knöpfe
   folgen. Derselbe Wunsch wie beim Ordner-Schieberegler weiter oben — beim Abarbeiten EINE Bauweise
   für beide Leisten nehmen.)
+- [ ] 2026-09-27 · Tomys WorkFloh · **„Übersetzen"-Knopf nicht lesbar: weiße Schrift auf hellem Grund.**
+  Klaus: „In Tommys Workflow ist bei PDF übersetzen oder Fragebogen jeweils PDF übersetzen, der
+  Übersetzen-Button weiße Schrift auf weißem, hellem Untergrund, nicht zu lesen."
+  (Der Knopf, der die Übersetzung startet, im Dialog „🌐 PDF übersetzen" — sowohl in der Akte als
+  auch beim Originaldokument/Fragebogen. Beim Abarbeiten in Mein-WorkFloh mitprüfen:
+  `werkzeug.js` ist in beiden WorkFlohs identisch, der Unterschied kann aber im Stil der App liegen.)
 
 ## Erledigt
 
