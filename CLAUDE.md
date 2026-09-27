@@ -46,6 +46,109 @@ npm install && npm test     # Syntax + Probe im echten Browser
 - **KI ist BYOK und freiwillig**, Standard Mistral (EU). Ohne Bestätigung geht
   nichts ins Netz.
 
+## 📷 Scannen · Foto → PDF (Klaus 2026-09-26)
+
+„Ein umfangreiches PDF-Scan-Tool … aus Foto PDF scannen." Knopf **📷 Scannen** in der
+Bibliothek; dasselbe Werkzeug öffnen „📷 Brief fotografieren" (Übersetzen) und „Seiten
+fotografieren" (an ein Dokument anhängen). Der alte Aufnahme-Dialog ist weg.
+
+- **Ablauf je Seite:** Foto → Blatt finden → Ecken prüfen/ziehen (Lupe) → gerade ziehen
+  (A4 · US Letter · wie das Blatt) → drehen → Filter (Original · Farbe · Graustufen ·
+  Dokument · Schwarzweiß), Helligkeit, Kontrast → Texterkennung, Zeilen ändern →
+  PDF (auf Wunsch durchsuchbar) · Teilen · Herunterladen · Bilder als ZIP. Ohne KI, ohne Netz.
+- `assets/scan-bild.js`: die Rechnung, ohne DOM, in Node geprüft. `assets/scanner.js`: die
+  Oberfläche (`WFP.Scanner`), Vollbild über der App (z-index 55, Dialoge 60 liegen darüber).
+- **Blatt finden = drei Meinungen** (`entscheiden`): Scanic-Modell (ML), Scanic-Kanten,
+  `blatt.js`. „Sicher" nur, wenn das Modell mit einem der anderen auf ≤ 4 % der Diagonale
+  übereinstimmt (ohne Modell: Blatt + Kanten). Sonst **„bitte prüfen"** — nie still
+  schneiden. „Fertig" fragt, solange eine Seite ungeprüft ist.
+- **Gemessen an 17 Testfotos** (`tests/scan-fotos/`, Ecken aus Scanics `ground-truth.json`):
+  blatt.js allein 10 richtig, aber **3 sicher und 11–27 % daneben**; Scanic-Modell 14 richtig.
+  Die Entscheidung: **12 sicher und richtig · 5 zum Prüfen · 0 sicher und falsch.**
+  ⚠ Die Ecken dort hat Scanic mit seinem Modell vorbelegt und von Hand nachgezogen — das
+  Modell wird an Daten gemessen, die es mit erzeugt hat. Ein Tablet-Foto ist nicht gemessen.
+- `vendor/scanic/` ist **unverändert aus npm** (scanic 1.6.0, scanic-ml 0.2.0, siehe
+  THIRD_PARTY.md). Das Modell braucht `ml: { assetBaseUrl }` auf `vendor/scanic/` — ohne
+  das holt es sich die Dateien von jsDelivr. Nicht im Installations-Vorrat (3,5 MB), der
+  Worker legt es beim ersten Scannen ab. `.mjs` muss als JavaScript ausgeliefert werden
+  (die Proben-Server tun das seitdem).
+- **Filter sind eigene Arbeit:** Papier-Helligkeit je Block (90. Perzentil), geglättet, dann
+  herausgerechnet — Schatten verschwinden, statt nur heller zu werden.
+- **Text ändern** geht auf dem BILD: Tesseract (DE/EN/RU, auf dem Gerät) liefert Zeilen;
+  eine geänderte Zeile wird in Papierfarbe überdeckt und in Schriftfarbe neu geschrieben
+  (`textFarben`). Die Textebene des durchsuchbaren PDFs trägt den geänderten Text
+  (unsichtbar, Noto ganz eingebettet, falls nötig). Ecken, Drehen oder Format ändern
+  verwirft die Erkennung.
+- **Zeilen an der Grundlinie, nicht am Rahmen** (Klaus 2026-09-27, Bienenstich-Foto: „150 q
+  Butter", abgeschnittene Zeilen, „die Textrahmen sind nicht stimmig"). Bei einem schrägen Foto
+  ist der Rahmen einer Zeile höher als ihre Schrift; wer ihn überdeckt, löscht die Nachbarzeile.
+  Gespeichert wird je Zeile `base` (Grundlinie samt Neigung) und `rh`/`desc` (Tesseract
+  `rowAttributes`); `zeilenLage`/`zeilenBand` in scan-bild.js rechnen daraus das Schriftband.
+  **Erst alle Deckflächen, dann alle Texte** — sonst frisst das Band der nächsten Zeile die
+  Unterlängen. Deckfarbe als Verlauf, links und rechts an der Zeile gemessen; Papier = 45.–85.
+  Perzentil, nicht das hellste. Schrift 1,1 × rowHeight (kalibriert an Arial: 40 px → 38),
+  Zeilen ±30 % um den Median bekommen dieselbe Größe.
+- **Kopie neben Original** (Klaus 2026-09-27: „eine Kopie neu aufbauen … zwei nebeneinander
+  … vergleichen"): „📄 Kopie neben Original" setzt die erkannten Zeilen gerade auf ein weißes
+  Blatt; Ansicht Original · Nebeneinander · Kopie; dieselbe Zeile leuchtet in beiden; unsichere
+  Zeilen (< 70 %) gelb. „Ins PDF kommt: Original (Foto) / Kopie (sauberer Text)" je Seite
+  (`s.ausgabe`) — die Kopie geht als ECHTER Text ins PDF, ohne Bild. Stimmt sie nicht: „🔍 Genauer
+  erkennen (300 dpi)" oder „📷 Seite neu fotografieren" (ersetzt DIESE Seite, `ST.ersetze`).
+  Bilder, Stempel und Handschrift kommen nicht in die Kopie — das steht in der App.
+- **Zeilen einstellen** (Klaus: „linksbündig oder rechtsbündig oder kleiner, größer gezogen"):
+  im Zeilen-Dialog Ausrichtung und Größe (40–300 %), in der Kopie ziehen = verschieben
+  (`s.stil[i] = {ausr, gr, dx, dy}`, Versatz in Anteilen der Seite). Mit eigener Größe wird nicht
+  mehr automatisch verkleinert.
+- **🎨 Mit ChatGPT übersetzen — ein Knopf hin, ein Knopf zurück** (Klaus 2026-09-27: „Es ging nur um
+  einen Prompt, der automatisch eingefügt wird … Mach's nicht zu kompliziert"). In der Gruppe „Text":
+  Sprache wählen · **🎨 Mit ChatGPT übersetzen** teilt Seitenbild + Auftrag in EINEM Tipp (Web-Share,
+  Auftrag zusätzlich in der Zwischenablage; ohne Teilen: Bild speichern + chatgpt.com öffnen) ·
+  **📥 Ergebnis zurückholen** legt das fertige Bild als neue Seite HINTER die aktuelle (Original bleibt).
+  Kein Dialog. Der Auftrag (`bildAuftrag`, `BILD_SPRACHEN` in scan-bild.js) ist ein Satz, wie Klaus ihn
+  selbst in ChatGPT gesprochen hat: „Extrahiere den Text aus diesem Bild, übersetze ihn auf <Sprache> und
+  füge ihn an derselben Stelle wieder in das Originalbild ein. Gib mir das fertige Bild zurück."
+  Das Seitenbild wird vorab gebaut (`kiBildBauen`, `s._kiBild`) — Teilen braucht einen frischen Tipp.
+  Das zurückgeholte Bild IST die Seite: ganzes Bild, Filter „Original", kein Blatt-Suchen (`s.kiBild`).
+  Der frühere Weg über eine Textliste (JSON, Abgleich mit der Erkennung auf dem Gerät, PR #45) ist
+  **wieder entfernt**: ChatGPT antwortete damit mit Text statt mit einem Bild (Klaus' Bildschirmfoto),
+  und es waren zu viele Schritte. Klaus hat den kurzen Auftrag direkt in ChatGPT an seinem Hotel-Aushang
+  (DE → RU) gezeigt; über die App ist er nicht mit einer echten ChatGPT-Antwort gemessen.
+  ⚠ ChatGPT malt das Bild neu — Zahlen und Namen können sich ändern.
+  **Qualität** (Klaus 2026-09-27: „Sehr schlechte Textqualität. Höhere Auflösung wäre besser."): der Auftrag
+  verlangt zusätzlich schärfere Schrift, weniger Unschärfe/Rauschen und hohe Auflösung · das Bild geht mit
+  300 dpi hinaus (`KI_DPI`, vorher 200) · das zurückgeholte Bild kommt in SEINER Auflösung ins PDF
+  (`eigeneDpi`, höchstens 300 dpi, JPEG 0,92), nicht auf die Qualitätsstufe (150 dpi) heruntergerechnet.
+  Wie scharf ChatGPT zurückliefert, entscheidet ChatGPT — nicht gemessen.
+- **Herunterladen legt auch ab** (Klaus 2026-09-27: „dann lädt er es nicht in das PWA Workflow PDF … Ich muss
+  erst wieder eine Datei importieren"). Beim Scannen aus der Bibliothek legen „⬇ PDF herunterladen", „📤 Teilen"
+  und „✓ PDF erstellen" das PDF IMMER auch in der Bibliothek ab (aktueller Ordner; `opt.ablegen` in app.js,
+  beim Übersetzen/Anhängen nicht). Ein zweites Ablegen ersetzt DASSELBE Dokument (`ST.abgelegt`, `dokErsetzen`
+  behält Kennung, Ordner, Anlagedatum) — kein Doppel. „PDF erstellen" öffnet es danach. ZIP legt nichts ab.
+- **🎭 Textmaske (PNG, durchsichtig):** die Kopie ohne weißen Grund (`kopieRechnen(s, dpi, true)`),
+  zum Auflegen auf einen neuen Hintergrund in einem Bildprogramm. Erscheint, sobald Text erkannt ist.
+- Fotos werden auf ≤ 2400 px lange Kante verkleinert, nie abgewiesen. Einstellungen
+  (Filter, Format, Qualität, durchsuchbar, Sprache) in `localStorage` `wfpdf_scan_v1`.
+- Proben: `tests/scan.mjs` (in `npm test`, A Rechnung · B 17 Fotos · C ganzer Weg mit echtem
+  Tesseract) · `node tests/gegenprobe_scan.mjs` (45 Fälle, Wegwerf-Kopie; `NUR_ANKER=1`, `NUR_FALL="BILD:"` für den ChatGPT-Weg, `NUR_FALL="ABLAGE:"` fürs Ablegen).
+  Gemessen am 2026-09-26: `scan.mjs` 58 grün · Gegenprobe erst **20 gefangen · 1 blind ·
+  1 aus falschem Grund**. Blind war „Umordnen": die zweite Seite erbte den gemerkten Filter,
+  also sahen beide Seiten gleich aus — gemessen wird jetzt der Dateiname je Seite. Falsch war
+  eine Sabotage (`a || (b) ? c : d` bindet anders als gedacht). Beide danach nachgefahren:
+  gefangen, jede rote Zeile mit ihrem Namen.
+  **Nach „Kopie neben Original" (2026-09-26):** `scan.mjs` 70 grün (D: Kopie, Grundlinie,
+  Unterlängen, Ausrichtung, Ziehen, PDF aus der Kopie, neu fotografieren) · Gegenprobe 30 Fälle:
+  erst **28 gefangen · 2 aus falschem Grund** — die Probe WARTETE auf das, was die Sabotage wegnahm
+  (Kopie-Tafel 180 s, „Neu.png an Stelle 1" 60 s), und starb am Zeitablauf. Jetzt wird erst auf
+  die Erkennung gewartet und das Fehlende gemeldet; beide Fälle nachgefahren: gefangen.
+  **Nach „Text mit ChatGPT“ (2026-09-27):** `scan.mjs` 94 grün (A2: Auftrag, Antwort lesen, Abgleich;
+  D: Knopf, Dialog, Übernehmen mit echter Erkennung, Textmaske) · 10 neue Fälle (`KI:`) 10 gefangen.
+  **Nach „Ein Knopf zu ChatGPT“ (2026-09-27, Textlisten-Weg entfernt):** `scan.mjs` 81 grün · Gegenprobe
+  `BILD:` erst **6 gefangen · 1 durchgerutscht** — „Ergebnis landet am Ende statt dahinter“ war blind, weil es
+  nur EINE Seite gab (Ende = dahinter). Jetzt steht eine zweite Seite dahinter; danach **7 gefangen · 0 durch**.
+- ⚠ **Nicht gemessen:** echte Handy-Kamera, Modell auf dem Tablet (Zeit, Speicher),
+  Qualität der Texterkennung auf echten Briefen. Die Bildschirmfotos im Handbuch zeigen noch
+  den alten Aufnahme-Dialog (`node tools/handbuch-bauen.mjs` baut sie neu).
+
 ## 🌐 Übersetzen (seit 2026-09-25)
 
 Eigener Bereich (Knopf „🌐 Übersetzen …", Ordner mit `bereich:'uebersetzung'`,
@@ -350,7 +453,7 @@ das auch in den Feldinhalten sucht. Nummern werden beim Übersetzen nicht übers
 
 ## 📘 Handbuch und Beispiel-Formular (Klaus 2026-09-25)
 
-`beispiele/Workfloh-PDF-Benutzerhandbuch.pdf` (18 Seiten, neu gebaut 2026-09-27: Kapitel 6 Suchen mit Spracheingabe und Bedeutungssuche, Kapitel 7 Sortieren/Ordner ausgeben, Übersetzen in Teilen) und
+`beispiele/Workfloh-PDF-Benutzerhandbuch.pdf` (19 Seiten, neu gebaut 2026-09-27: Scannen in Kapitel 3, Kapitel 6 Suchen mit Spracheingabe und Bedeutungssuche, Kapitel 7 Sortieren/Ordner ausgeben, Übersetzen in Teilen) und
 `beispiele/Beispiel-Amtsformular-Bewohnerparkausweis.pdf` (erfunden, Stadt Musterstadt).
 Zum Nachlesen UND als Testmaterial fürs Übersetzen, ohne eigene Daten ins Netz zu geben:
 Bilder, Farbkästen, Tabellen, Zweispalter, Querformat, eine gescannte Seite ohne Textebene.

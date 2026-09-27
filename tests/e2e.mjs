@@ -59,7 +59,7 @@ async function grauFormular() {
 
 /* ---------- kleiner Server ---------- */
 function server() {
-  const typ = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
+  const typ = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.css': 'text/css', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
   const s = http.createServer((q, r) => {
     let p = decodeURIComponent(new URL(q.url, 'http://x').pathname); if (p.endsWith('/')) p += 'index.html';
     const f = path.join(WURZEL, p); if (!f.startsWith(WURZEL) || !fs.existsSync(f)) { r.writeHead(404); r.end(); return; }
@@ -317,11 +317,15 @@ try {
   await page.click('#edZurueck'); await page.waitForSelector('#sc-bib.on');
   const png = path.join(TMP, 'foto.png');
   const shot = await page.screenshot({ clip: { x: 0, y: 0, width: 600, height: 800 } }); fs.writeFileSync(png, shot);
-  await page.setInputFiles('#inKamera', png);
-  await page.waitForSelector('.aufnahme-bilder div');
-  await page.click('.dlg [data-ok]');
-  await page.waitForSelector('#sc-ed.on .seite canvas');
-  ok('Kamera: Foto wird zu einem Dokument mit einer Seite', await page.evaluate(() => window.__wfpdf.S.doc.quelle === 'foto' && window.__wfpdf.S.doc.pages.length === 1));
+  // (seit 2026-09-26 über das Scan-Werkzeug — ausführlich geprüft in tests/scan.mjs)
+  await page.click('#btnScan'); await page.waitForSelector('.scan [data-in-galerie]', { state: 'attached' });
+  await page.setInputFiles('.scan [data-in-galerie]', png);
+  await page.waitForFunction(() => window.__wfpdfScan && window.__wfpdfScan.seiten[0] && window.__wfpdfScan.seiten[0].erkennung, null, { timeout: 60000 });
+  await page.click('.scan [data-fertig]');
+  // Ein Bildschirmfoto hat keinen Blattrand: das Werkzeug fragt, bevor es ungeprüft übernimmt
+  if (!(await page.evaluate(() => window.__wfpdfScan.seiten[0].erkennung.sicher))) { await page.waitForSelector('.dlg [data-j]'); await page.click('.dlg [data-j]'); }
+  await page.waitForSelector('#sc-ed.on .seite canvas', { timeout: 60000 });
+  ok('Scannen: Foto wird zu einem Dokument mit einer Seite', await page.evaluate(() => window.__wfpdf.S.doc.quelle === 'foto' && window.__wfpdf.S.doc.pages.length === 1));
 
   // 9. Ordner-Import (mehrere Dateien)
   await page.click('#edZurueck'); await page.waitForSelector('#sc-bib.on');

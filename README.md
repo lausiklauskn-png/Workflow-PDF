@@ -11,7 +11,7 @@ App: <https://lausiklauskn-png.github.io/Workflow-PDF/>
 
 | | |
 |---|---|
-| **Einlesen** | PDF oder Bild aus dem Dateiordner · Formular fotografieren (mehrere Seiten) · ganzen Ordner einlesen · Dateien auf die Seite ziehen · Seiten an ein Dokument anhängen |
+| **Einlesen** | PDF oder Bild aus dem Dateiordner · **📷 Scannen** (Foto → PDF, siehe unten) · ganzen Ordner einlesen · Dateien auf die Seite ziehen · Seiten an ein Dokument anhängen |
 | **Ordner** | Dokumente in Ordnern ablegen, verschieben, duplizieren (als Vorlage), löschen |
 | **Vorhandene Formulare** | Felder, die schon im PDF stehen, werden samt Wert übernommen |
 | **Erkennen, offline** | Unterstriche, Eingabe-Rahmen und Kästchen im Seitenbild; bei digitalen PDFs kommt die Beschriftung aus dem Text daneben |
@@ -22,6 +22,7 @@ App: <https://lausiklauskn-png.github.io/Workflow-PDF/>
 | **Ausgeben** | festes PDF · ausfüllbares PDF (vorbelegt) · leere ausfüllbare Vorlage · Ansehen/Drucken |
 | **🌐 Übersetzen** (seit 2026-09-25) | eigener Bereich mit selbst benannten Ordnern · ganze Ordner oder einzelne PDFs · Deutsch ↔ Русский ↔ English in jede Richtung · Seite für Seite **in die Lage des Originals** (Bilder, Farben, Seitenumbrüche bleiben) · gescannte Seiten per Texterkennung auf dem Gerät · Gegenprobe (Rückübersetzung) als eigenes PDF · Übersetzer im Browser (Gerät) oder KI mit eigenem Schlüssel · „Seite N von M", Abbrechen, Fortsetzen |
 | **🏛️ Behördenformulare** (seit 2026-09-25) | Felder im Original setzen → beim Übersetzen kommen sie **übersetzt an dieselbe Stelle** mit → in der Fremdsprache ausfüllen → „⬇ PDF ausgeben → ↩ Einträge ins Original" setzt die Einträge zurückübersetzt in eine **Kopie des Originals** · Umlaute werden vor und nach dem Übersetzen zusammengesetzt (NFC) · Kyrillisch in festem und ausfüllbarem PDF |
+| **📷 Scannen · Foto → PDF** (seit 2026-09-26) | Blatt im Foto finden (drei Verfahren, auf dem Gerät — sind sie sich nicht einig, wird die Seite zum Prüfen markiert statt still geschnitten) · Ecken mit Lupe ziehen · gerade ziehen auf A4, US Letter oder wie das Blatt · drehen · Filter Original · Farbe · Graustufen · Dokument · Schwarzweiß, Helligkeit, Kontrast (Schatten werden herausgerechnet) · mehrere Seiten, umordnen, entfernen · Texterkennung auf dem Gerät (DE/EN/RU) und **Zeilen ändern** · durchsuchbares PDF · herunterladen, teilen, als Bilder (ZIP) · ohne KI, ohne Netz |
 | **📷 Papierbrief → A4** (seit 2026-09-25) | im Foto wird das Blatt gesucht und auf **genau A4** gerade gezogen (auch schräg aufgenommen) — ausgedruckt mit „Tatsächliche Größe / 100 %" so groß wie das Papier, mit seinem Rand · nicht sicher erkannt → nichts wird abgeschnitten, das ganze Foto liegt auf A4 · pro Seite umschaltbar · auch im Übersetzen-Bereich („📷 Brief fotografieren", Fotos als Datei) |
 
 ## Grenzen der ersten Fassung

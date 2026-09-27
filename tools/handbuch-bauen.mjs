@@ -111,6 +111,11 @@ await page.evaluate(async () => { const W = window.__wfpdf; const o = { id: 'o-h
 await page.reload(); await page.waitForFunction(() => window.__wfpdf && window.__wfpdf.S.ordner.length >= 1);
 await page.click('.ordner-chip[data-o="o-hb"]'); await page.click('[data-ausgabe]'); await page.waitForSelector('.dlg [data-weg]');
 await foto('ordner', page.locator('.dlg')); await esc();
+// Scannen: ein Foto (aus tests/scan-fotos, Scanics Testbilder) — Blatt gefunden, Ecken zum Prüfen
+await page.click('#btnScan'); await page.waitForSelector('.scan [data-galerie]');
+await page.setInputFiles('.scan [data-in-galerie]', path.join(W, 'tests/scan-fotos/foto01.jpg'));
+await page.waitForFunction(() => window.__wfpdfScan && window.__wfpdfScan.seiten[0] && window.__wfpdfScan.seiten[0].erkennung, null, { timeout: 90000 });
+await page.waitForTimeout(800); await foto('scannen');
 const icon = fs.readFileSync(path.join(W, 'icons/w-floh-320.png')).toString('base64');
 
 /* ---------- 3. Das Handbuch ---------- */

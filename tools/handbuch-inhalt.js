@@ -58,19 +58,24 @@ kasten('Zwei Browser sind zwei Speicher', 'Auf einem Samsung-Tablet sind Chrome 
 /* ----- 3 ----- */
 kap('3  Ein Formular einlesen');
 text('Es gibt drei Wege, ein Formular in die App zu bringen. Alle drei legen das Dokument in die Bibliothek; das Original auf dem Gerät bleibt unverändert.');
-tabelle(['Weg', 'Wofür', 'Was die App daraus macht'], [['PDF oder Bild', 'eine PDF-Datei oder ein Foto (JPG, PNG)', 'PDF: jede Seite wie im Original. Foto: das Blatt wird gesucht und auf A4 gerade gezogen.'], ['Ordner', 'viele Dateien auf einmal', 'jede Datei wird ein eigenes Dokument im gleichnamigen Ordner'], ['Fotografieren', 'ein Papierformular', 'Seite für Seite aufnehmen, jede Seite auf A4 gerade gezogen']], [110, 150, 223]);
+tabelle(['Weg', 'Wofür', 'Was die App daraus macht'], [['PDF oder Bild', 'eine PDF-Datei oder ein Foto (JPG, PNG)', 'PDF: jede Seite wie im Original. Foto: das Blatt wird gesucht und auf A4 gerade gezogen.'], ['Ordner', 'viele Dateien auf einmal', 'jede Datei wird ein eigenes Dokument im gleichnamigen Ordner'], ['Scannen', 'Papier fotografieren', 'Blatt finden, gerade ziehen, Filter, auf Wunsch Text erkennen – siehe unten']], [110, 150, 223]);
 ueber('Beispiel: den Antrag einlesen');
 schritte(['In der Bibliothek auf „PDF oder Bild" tippen.', 'Die Datei „Beispiel-Amtsformular-Bewohnerparkausweis.pdf" wählen (sie liegt der App bei, siehe Kapitel 9).', 'Die App öffnet das Dokument im Bearbeiten-Modus.']);
 kasten('Hinweis zu Fotos', 'Findet die App die Blattkanten nicht sicher, schneidet sie nichts ab: Dann wird das ganze Foto auf A4 gesetzt. Ausgedruckt mit „Tatsächliche Größe" hat das Blatt wieder die Größe des Papiers.', '#fff4c2', '#151515', '#c9a400');
 text('Beim Einlesen merkt sich die App auch den Text jeder Seite. Damit lässt sich das Dokument später durchsuchen (Kapitel 6). Gescannte Seiten ohne Textebene tragen dazu nichts bei.', { f: I, farbe: GR });
 await bild('eingelesen', 'Bild 2: Der Antrag direkt nach dem Einlesen – noch ohne Felder.', 225);
+ueber('Scannen: aus Fotos ein sauberes PDF');
+text('Der Knopf „Scannen · Foto -> PDF" in der Bibliothek öffnet ein eigenes Werkzeug. Dasselbe Werkzeug öffnet sich beim Fotografieren eines Briefs zum Übersetzen und beim Anhängen von Seiten an ein Dokument.');
+schritte(['Seiten mit der Kamera aufnehmen oder aus der Galerie wählen.', 'Die App sucht das Blatt. Sind sich ihre Verfahren nicht einig, steht „bitte prüfen" an der Seite – dann die Ecken mit dem Finger ziehen; eine Lupe hilft dabei.', 'Format (A4, US Letter, wie das Blatt), Drehen und Filter wählen: Original, Farbe, Graustufen, Dokument, Schwarzweiß. Schatten werden dabei herausgerechnet.', 'Auf Wunsch den Text erkennen lassen (auf dem Gerät). Einzelne Zeilen lassen sich ändern; „Kopie neben Original" setzt den erkannten Text sauber auf ein weißes Blatt.', '„PDF erstellen", „Teilen" oder „Herunterladen" – das PDF liegt danach auch in der Bibliothek.']);
+kasten('Mit ChatGPT übersetzen', 'Im Scanner gibt „Mit ChatGPT übersetzen" das Seitenbild und einen kurzen Auftrag an ChatGPT; „Ergebnis zurückholen" legt das fertige Bild als neue Seite hinter das Original. Das Bild verlässt dabei das Gerät. ChatGPT malt die Seite neu – Zahlen und Namen können sich ändern, deshalb mit dem Original vergleichen.', '#fff4c2', '#151515', '#c9a400');
+await bild('scannen', 'Bild 3: Das Scan-Werkzeug mit einem Foto. Die Ecken des gefundenen Blatts lassen sich ziehen.', 330);
 
 /* ----- 4 ----- */
 kap('4  Felder erkennen und setzen');
 text('Ein Feld ist eine Stelle, an der später etwas eingetragen wird. Die App kann Felder selbst finden; Sie prüfen die Vorschläge und setzen fehlende von Hand.');
 ueber('Felder erkennen lassen');
 schritte(['Auf „Felder erkennen" tippen.', '„Ohne KI" wählen: Die App sucht Linien, Rahmen, graue Eingabeflächen und Kästchen – auf dem Gerät, ohne Internet. „Mit KI" liest zusätzlich die Beschriftungen, über einen eigenen Schlüssel.', 'Die Vorschläge erscheinen orange gestrichelt. Die Beschriftung und die Art des Feldes übernimmt die App aus dem Text daneben: steht dort „Datum", wird es ein Datumsfeld.']);
-await bild('erkannt', 'Bild 3: Die erkannten Felder im Antrag. Graue Flächen wurden zu Textfeldern, die Quadrate zu Kästchen.', 330);
+await bild('erkannt', 'Bild 4: Die erkannten Felder im Antrag. Graue Flächen wurden zu Textfeldern, die Quadrate zu Kästchen.', 330);
 ueber('Felder prüfen und korrigieren');
 punkte(['Ein Feld antippen: Bezeichnung, Art, vorbelegter Inhalt und „mehrzeilig" lassen sich dort ändern. „Passt" bestätigt einen Vorschlag, „Kopie" legt ein gleiches Feld daneben.', 'Ziehen verschiebt ein Feld, der rote Punkt an der Ecke ändert seine Größe.', 'Ein Feld löschen: antippen und „Löschen" wählen.', 'Ein Kasten, der mehrere Felder umschließt (zum Beispiel „Nur von der Behörde auszufüllen"), wird nicht selbst zum Feld.']);
 platz(130); ueber('Eigene Felder setzen');
@@ -80,7 +85,7 @@ tabelle(['Art', 'Wofür', 'Beispiel im Antrag'], [['Text', 'Namen, Adressen, fre
 /* ----- 5 ----- */
 kap('5  Ausfüllen und unterschreiben');
 schritte(['Oben auf „Ausfüllen" wechseln.', 'In die Felder tippen und schreiben. Ein Kästchen antippen setzt das Kreuz. Ein Datumsfeld öffnet den Kalender.', 'Das Unterschriftsfeld antippen und mit Finger oder Stift unterschreiben.']);
-await bild('ausgefuellt', 'Bild 4: Der ausgefüllte Beispiel-Antrag. Alle Angaben sind erfunden (Erika Mustermann, Musterstadt).', 330);
+await bild('ausgefuellt', 'Bild 5: Der ausgefüllte Beispiel-Antrag. Alle Angaben sind erfunden (Erika Mustermann, Musterstadt).', 330);
 ueber('Links und Nummern im Feld');
 text('Steht in einem Feld eine E-Mail-Adresse oder eine Internetadresse, wird der Text blau und unterstrichen. Ein Tipp öffnet das Mailprogramm oder die Seite; der Stift daneben ändert den Eintrag. Eine Telefonnummer wird nur im Feld der Art „Telefon" zum Anruf – in einem gewöhnlichen Textfeld bleibt eine Zahl eine Zahl, denn sie kann ebenso eine Kundennummer sein.');
 text('Ein Feld der Art „Kundennummer" oder „Artikelnummer" zeigt beim Antippen alle Dokumente, in denen dieselbe Nummer steht. Beim Drucken und im ausgegebenen PDF erscheint der Eintrag als gewöhnlicher Text.');
@@ -89,38 +94,38 @@ kasten('Achtung: Browserdaten löschen löscht auch die Dokumente', 'Die App spe
 /* ----- 6 ----- */
 kap('6  Suchen');
 text('Das Suchfeld in der Bibliothek sucht im Namen jedes Dokuments, in den Einträgen der Felder, im Text jeder Seite und im Namen des Ordners. Dabei ist die Schreibweise gleich: „Mueller" findet „Müller", „kd4711" findet „KD-4711", „3.9.2026" findet „03.09.2026". Stehen mehrere Wörter im Feld, muss jedes irgendwo im Dokument vorkommen.');
-await bild('suche', 'Bild 5: Eine Suche in der Bibliothek. Unter dem Dokument steht, wo es gefunden wurde; die kleine Zahl nennt die Treffer.', 300);
+await bild('suche', 'Bild 6: Eine Suche in der Bibliothek. Unter dem Dokument steht, wo es gefunden wurde; die kleine Zahl nennt die Treffer.', 300);
 ueber('Was die Suche anzeigt');
 punkte(['Unter jedem Treffer steht die Fundstelle, zum Beispiel „Auf Seite 2 · … Bäckerei Müller …".', 'Jedes Dokument und jeder Ordner-Knopf trägt eine kleine Zahl mit den Treffern.', 'Ist ein Ordner gewählt, sucht die App nur darin und sagt das. „In allen Ordnern suchen" hebt die Einschränkung auf.', 'Aus der Suche geöffnet, ist die Fundstelle auf der Seite gelb umrandet. Ein Tipp auf die Markierung nimmt genau diese weg.']);
 ueber('Im geöffneten Dokument suchen');
 text('Über der Seite steht ein eigenes Suchfeld, wie in einem PDF-Programm: Alle Stellen werden markiert, daneben steht „1 / 3". Die Pfeile oder die Lupe der Tastatur springen zur nächsten Stelle. Beim Schließen des Dokuments wird das Feld geleert.');
 ueber('Suchen per Sprache');
 text('Neben der Lupe steht ein Mikrofon. Nach dem Antippen erscheint unter dem Suchfeld ein Laufbalken: Senkrechte Striche zeigen, dass gerade Sprache ankommt, Pünktchen stehen für die Pausen. Der Text erscheint schon beim Sprechen im Suchfeld. Nach einer kurzen Pause endet die Aufnahme von selbst und die App sucht; „Fertig" oder ein zweiter Tipp aufs Mikrofon beendet sie sofort.');
-await bild('sprechen', 'Bild 6: Beim Einsprechen – der Text steht schon im Feld, darunter der Laufbalken mit Strichen und Pünktchen.', 150);
+await bild('sprechen', 'Bild 7: Beim Einsprechen – der Text steht schon im Feld, darunter der Laufbalken mit Strichen und Pünktchen.', 150);
 kasten('Wohin die Aufnahme geht', 'Die Spracherkennung macht der Browser. In Chrome geht die Aufnahme dafür an Google; das steht auch am Knopf. Der Balken zeigt, wann die Erkennung Sprache hört und Text liefert – er misst nicht die Lautstärke am Mikrofon. Kann ein Browser keine Spracherkennung, bleibt das Mikrofon ausgegraut und sagt warum.', '#1f4e8c', '#ffffff');
 ueber('Suchen nach Bedeutung');
 text('Die gewöhnliche Suche findet, was wörtlich dasteht. Die Suche nach Bedeutung findet auch Dokumente, in denen andere Wörter stehen: „Kündigung" findet den Brief, in dem „Vertrag beenden" steht. Sie ist freiwillig und wird unter dem Suchfeld mit „Suche nach Bedeutung einschalten" angestellt.');
 schritte(['„Suche nach Bedeutung einschalten" antippen. Das Fenster sagt, was aus dem Netz kommt: einmalig ein Sprachmodell (nach Angabe rund 30 MB).', '„Modell laden" antippen. Ein Balken zeigt, wie viel schon da ist.', 'Danach ordnet die App alle Dokumente ein, Seite für Seite. Die Leiste zeigt „Seite x von y" und – sobald gemessen – wie lange es noch dauert. Suchen geht schon währenddessen.', 'Treffer nach Bedeutung stehen unter den Wort-Treffern, mit dem Vermerk „Nach Bedeutung ähnlich". Liegt nichts nah genug, zeigt die App die drei nächsten als „schwach".']);
-await bild('bedeutung', 'Bild 7: Das Fenster vor dem Einschalten – es sagt, was geladen wird und was das Gerät nicht verlässt.', 300, 330);
+await bild('bedeutung', 'Bild 8: Das Fenster vor dem Einschalten – es sagt, was geladen wird und was das Gerät nicht verlässt.', 300, 330);
 text('Die Dokumente verlassen dabei das Gerät nicht. Nach einer Unterbrechung – neu geladen, App geschlossen – geht das Einordnen an derselben Stelle weiter.', { f: I, farbe: GR });
 
 /* ----- 7 ----- */
 kap('7  Speichern, ausgeben, sortieren');
 text('„Speichern" legt eine Arbeitsdatei aufs Gerät, die das PDF und alle Felder enthält. Über „PDF oder Bild" eingelesen, geht die Arbeit genau dort weiter – auch in einem anderen Browser. „PDF ausgeben" erzeugt das fertige Dokument:');
 tabelle(['Ausgabe', 'Ergebnis', 'Wann sinnvoll'], [['Festes PDF', 'Einträge fest auf der Seite', 'zum Versenden und Drucken'], ['Ausfüllbares PDF', 'Felder bleiben ausfüllbar', 'wenn jemand anderes weiter ausfüllt'], ['Leere Vorlage', 'ausfüllbar, ohne Einträge', 'dasselbe Formular öfter verwenden'], ['HTML-Seite', 'Seiten als Bild mit echten Eingabefeldern', 'für Geräte, deren PDF-Anzeige keine Formulare kann'], ['Drucken', 'festes PDF, direkt zum Drucker', 'Papier für die Behörde']], [120, 190, 173]);
-await bild('ausgeben', 'Bild 8: Die Auswahl beim Ausgeben.', 280, 360);
+await bild('ausgeben', 'Bild 9: Die Auswahl beim Ausgeben.', 280, 360);
 ueber('Sortieren');
 text('Über der Liste lässt sich die Reihenfolge wählen: nach Name, zuletzt geändert, Dateigröße oder Seitenzahl. Namen werden so sortiert, wie man zählt: „Teil 2" steht vor „Teil 10". Während einer Suche ordnet die Stärke der Treffer.');
 ueber('Einen ganzen Ordner ausgeben');
 text('Ist ein Ordner gewählt, steht daneben „Ordner ausgeben". Jedes Dokument darin wird als festes oder ausfüllbares PDF, als leere Vorlage oder im Original ausgegeben, in der gewählten Reihenfolge:');
 tabelle(['Weg', 'Ergebnis'], [['Als ZIP-Datei', 'eine Datei mit allen PDFs darin, benannt wie der Ordner'], ['Alle Dateien teilen', 'alle PDFs auf einmal an Mail, Messenger oder Drive (nur wo das Gerät es kann)'], ['Zu einem PDF zusammenfügen', 'alle Seiten hintereinander in einem PDF – etwa die übersetzten Teile eines Handbuchs wieder als ein Buch']], [170, 313]);
-await bild('ordner', 'Bild 9: „Ordner ausgeben" mit der Reihenfolge der Dokumente und den drei Wegen.', 300, 330);
+await bild('ordner', 'Bild 10: „Ordner ausgeben" mit der Reihenfolge der Dokumente und den drei Wegen.', 300, 330);
 
 /* ----- 8 ----- */
 kap('8  Übersetzen');
 text('Die App übersetzt Deutsch, Russisch und Englisch in jede Richtung. Jede Seite wird auf derselben Seite übersetzt: Bilder, Farben und Seitenumbrüche bleiben, nur der Text wird an seiner Stelle ersetzt. Das Ergebnis ist ein neues Dokument in einem eigenen Ordner je Sprache; das Original bleibt unberührt.');
 tabelle(['Weg', 'Kosten', 'Wohin geht der Text', 'Gegenprobe'], [['Übersetzer im Browser', 'kostenlos', 'bleibt auf dem Gerät', 'ja'], ['Mit Chrome übersetzen', 'kostenlos, ohne Kontingent', 'an Google', 'nein'], ['Mit KI (eigener Schlüssel)', 'je Seite, über den eigenen Schlüssel', 'an den gewählten Anbieter, Standard Mistral (EU)', 'ja']], [135, 110, 150, 88]);
-await bild('uebersetzen-dialog', 'Bild 10: Das Übersetzen-Fenster mit Sprachwahl und den drei Wegen.', 360, 330);
+await bild('uebersetzen-dialog', 'Bild 11: Das Übersetzen-Fenster mit Sprachwahl und den drei Wegen.', 360, 330);
 ueber('Mit Chrome übersetzen');
 schritte(['„Mit Chrome übersetzen" wählen. Unten erscheint eine gelbe Fläche mit dem Text der Seite.', 'In Chrome oben rechts auf die drei Punkte tippen, dann „Übersetzen" und die Zielsprache wählen.', 'Danach läuft es Seite für Seite von selbst.']);
 kasten('Wenn „Übersetzen" im Menü fehlt', 'Im installierten App-Fenster bietet Chrome das Übersetzen nicht an. Dann „Mit Browser öffnen zum Übersetzen" tippen und im Teilen-Fenster Chrome wählen – kein anderes Übersetzungsprogramm. Derselbe Übersetzer öffnet sich dort mit denselben Dokumenten. Zurück in der App den Kreispfeil tippen, dann liegt das Ergebnis auch hier.', '#1f4e8c', '#ffffff');
@@ -137,7 +142,7 @@ kasten('Eine Übersetzung ist kein amtliches Dokument', 'Für Behörden und Geri
 /* ----- Querformat ----- */
 seite(QUER); kapitel.push(['Übersicht: alle Knöpfe', nr]);
 p.drawText('Übersicht: alle Knöpfe auf einen Blick', { x: L, y, size: 18, font: B, color: SW }); y -= 30;
-tabelle(['Knopf', 'Ort', 'Was er tut', 'Siehe'], [['Installieren', 'oben', 'legt die App auf den Startbildschirm', 'Kapitel 2'], ['Kreispfeil', 'oben rechts', 'lädt die neueste Fassung, Dokumente bleiben', 'Kapitel 2'], ['DE (Sprache)', 'oben rechts', 'Sprache der App: Deutsch, Englisch, Russisch, Arabisch; Hinweise ein/aus', 'Kapitel 2'], ['PDF oder Bild · Ordner · Fotografieren', 'Bibliothek', 'Dateien, Ordner oder Papier einlesen', 'Kapitel 3'], ['Suchfeld · Lupe · Mikrofon', 'Bibliothek', 'suchen, auch per Sprache mit Laufbalken', 'Kapitel 6'], ['Suche nach Bedeutung', 'unter dem Suchfeld', 'Sprachmodell laden, Dokumente nach Sinn finden', 'Kapitel 6'], ['Sortieren · Ordner ausgeben', 'Bibliothek', 'Reihenfolge wählen; Ordner als ZIP, geteilt oder als ein PDF', 'Kapitel 7'], ['Übersetzen', 'Bibliothek', 'Dokumente oder Ordner übersetzen', 'Kapitel 8'], ['Felder bearbeiten · Ausfüllen', 'Dokument', 'Felder setzen und ändern; Einträge schreiben, unterschreiben', 'Kapitel 4, 5'], ['Felder erkennen', 'Dokument', 'Felder finden lassen, mit oder ohne KI', 'Kapitel 4'], ['Im Dokument suchen', 'Dokument', 'alle Stellen markieren, von Treffer zu Treffer springen', 'Kapitel 6'], ['Speichern · PDF ausgeben', 'Dokument', 'Arbeitsdatei; festes, ausfüllbares PDF, Vorlage, HTML, Drucken', 'Kapitel 7'], ['Einstellungen', 'oben rechts', 'KI-Anbieter und eigenen Schlüssel eintragen, Sprache', 'Kapitel 8']], [190, 110, 290, 139]);
+tabelle(['Knopf', 'Ort', 'Was er tut', 'Siehe'], [['Installieren', 'oben', 'legt die App auf den Startbildschirm', 'Kapitel 2'], ['Kreispfeil', 'oben rechts', 'lädt die neueste Fassung, Dokumente bleiben', 'Kapitel 2'], ['DE (Sprache)', 'oben rechts', 'Sprache der App: Deutsch, Englisch, Russisch, Arabisch; Hinweise ein/aus', 'Kapitel 2'], ['PDF oder Bild · Ordner', 'Bibliothek', 'Dateien oder ganze Ordner einlesen', 'Kapitel 3'], ['Scannen', 'Bibliothek', 'Papier fotografieren, zuschneiden, Filter, Text ändern', 'Kapitel 3'], ['Suchfeld · Lupe · Mikrofon', 'Bibliothek', 'suchen, auch per Sprache mit Laufbalken', 'Kapitel 6'], ['Suche nach Bedeutung', 'unter dem Suchfeld', 'Sprachmodell laden, Dokumente nach Sinn finden', 'Kapitel 6'], ['Sortieren · Ordner ausgeben', 'Bibliothek', 'Reihenfolge wählen; Ordner als ZIP, geteilt oder als ein PDF', 'Kapitel 7'], ['Übersetzen', 'Bibliothek', 'Dokumente oder Ordner übersetzen', 'Kapitel 8'], ['Felder bearbeiten · Ausfüllen', 'Dokument', 'Felder setzen und ändern; Einträge schreiben, unterschreiben', 'Kapitel 4, 5'], ['Felder erkennen', 'Dokument', 'Felder finden lassen, mit oder ohne KI', 'Kapitel 4'], ['Im Dokument suchen', 'Dokument', 'alle Stellen markieren, von Treffer zu Treffer springen', 'Kapitel 6'], ['Speichern · PDF ausgeben', 'Dokument', 'Arbeitsdatei; festes, ausfüllbares PDF, Vorlage, HTML, Drucken', 'Kapitel 7'], ['Einstellungen', 'oben rechts', 'KI-Anbieter und eigenen Schlüssel eintragen, Sprache', 'Kapitel 8']], [190, 110, 290, 139]);
 
 /* ----- 9 ----- */
 kap('9  Häufige Fragen');
