@@ -41,6 +41,13 @@ Datei, wird er hier behoben und dann in die WorkFlohs kopiert.
   Klaus: „Die Button oben in Workflow PDF, Deutsch, also DE, Aktualisieren, Fragezeichen und
   Zahnrädchen werden bei einer schmalen Handyansicht zu groß und gehen auf Workflow PDF Schrifttext,
   überlagern ihn."
+- [ ] 2026-09-27 · Workflow-PDF · **Nach Erstellungsdatum suchen und sortieren.**
+  Klaus: „Die Sortieren- oder Zuletzt-geändert- oder Suchen-Funktion sollte noch eine Datumsfunktion
+  beinhalten. Das heißt, wenn ich ein Dokument nach Datum suche — nach Datum nicht sortieren, sondern
+  nach Datum suchen. Das heißt nur das Dokument, nicht der Inhalt. Wann wurde das Datum erstellt?
+  Oder eben nicht Name, zuletzt geändert, Dateigröße, Seitenzahl, sondern Erstellungsdatum."
+  (Also zwei Wünsche: Suche nach dem Erstellungsdatum des DOKUMENTS, nicht nach Daten im Inhalt —
+  und „Erstellungsdatum" als weitere Sortierung neben Name · Zuletzt geändert · Dateigröße · Seitenzahl.)
 
 ## Erledigt
 
