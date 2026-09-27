@@ -17,6 +17,12 @@
 (function () {
   'use strict';
   const A4 = { w: 595.28, h: 841.89 }, LETTER = { w: 612, h: 792 };
+  const A5 = { w: 419.53, h: 595.28 }, A6 = { w: 297.64, h: 419.53 };
+  const DIN = { a4: A4, a5: A5, a6: A6 };
+  // „Automatisch" (Klaus 2026-09-27): Seitenverhältnis wie DIN (√2, ± AUTO_TOLERANZ) → A4, sonst wie das Blatt.
+  // A4, A5 und A6 haben DASSELBE Verhältnis — welche Größe das Papier hatte, zeigt ein Foto nicht.
+  // Automatisch nimmt deshalb A4; wer A5 oder A6 fotografiert hat, wählt es.
+  const AUTO_TOLERANZ = 0.08;
   const klemm = (v, a, b) => v < a ? a : v > b ? b : v;
 
   /* ---------- Ecken ---------- */
@@ -78,16 +84,18 @@
   }
 
   /* ---------- Größe der Seite ---------- */
-  // format: 'a4' | 'letter' | 'blatt' (Seitenverhältnis wie das Papier, lange Seite wie A4)
+  // format: 'auto' | 'a4' | 'a5' | 'a6' | 'letter' | 'blatt' (Original: Seitenverhältnis wie das Papier, lange Seite wie A4)
   function seitenMass(ecken, format, dpi) {
     const s = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
     const br = (s(ecken[0], ecken[1]) + s(ecken[3], ecken[2])) / 2, ho = (s(ecken[0], ecken[3]) + s(ecken[1], ecken[2])) / 2;
     const quer = br > ho;
+    let f = format;
+    if (f === 'auto') { const r = Math.max(br, ho) / (Math.min(br, ho) || 1); f = Math.abs(r / Math.SQRT2 - 1) <= AUTO_TOLERANZ ? 'a4' : 'blatt'; }
     let pw, ph;
-    if (format === 'letter') { pw = quer ? LETTER.h : LETTER.w; ph = quer ? LETTER.w : LETTER.h; }
-    else if (format === 'blatt') { const lang = A4.h, v = Math.min(br, ho) / Math.max(br, ho || 1); if (quer) { pw = lang; ph = lang * v; } else { ph = lang; pw = lang * v; } }
-    else { pw = quer ? A4.h : A4.w; ph = quer ? A4.w : A4.h; }
-    return { W: Math.max(1, Math.round(pw / 72 * dpi)), H: Math.max(1, Math.round(ph / 72 * dpi)), seite: [pw, ph], quer };
+    if (f === 'letter') { pw = quer ? LETTER.h : LETTER.w; ph = quer ? LETTER.w : LETTER.h; }
+    else if (f === 'blatt') { const lang = A4.h, v = Math.min(br, ho) / Math.max(br, ho || 1); if (quer) { pw = lang; ph = lang * v; } else { ph = lang; pw = lang * v; } }
+    else { const d = DIN[f] || A4; if (!DIN[f]) f = 'a4'; pw = quer ? d.h : d.w; ph = quer ? d.w : d.h; }
+    return { W: Math.max(1, Math.round(pw / 72 * dpi)), H: Math.max(1, Math.round(ph / 72 * dpi)), seite: [pw, ph], quer, format: f };
   }
 
   /* ---------- Entzerren ---------- */
@@ -264,7 +272,7 @@
     const sp = BILD_SPRACHEN[(o || {}).nach] || 'Deutsch';
     return `Extrahiere den Text aus diesem Bild, übersetze ihn auf ${sp} und füge ihn an derselben Stelle wieder in das Originalbild ein. Verbessere dabei die Bildqualität: Schrift gestochen scharf und gut lesbar, Unschärfe und Rauschen entfernt, Layout und Farben wie im Original. Gib mir das fertige Bild in möglichst hoher Auflösung zurück.`;
   }
-  const API = { A4, LETTER, FILTER, EINIG, sortiere, ausScanic, abstand, taugt, entscheiden, seitenMass, homographie, entzerren, drehen, filtern, hintergrund, textFarben, ganz, zeilenLage, kopieGroessen, zeilenBand, SCHRIFT_JE_ZEILENHOEHE, BILD_SPRACHEN, bildAuftrag };
+  const API = { A4, A5, A6, LETTER, AUTO_TOLERANZ, FILTER, EINIG, sortiere, ausScanic, abstand, taugt, entscheiden, seitenMass, homographie, entzerren, drehen, filtern, hintergrund, textFarben, ganz, zeilenLage, kopieGroessen, zeilenBand, SCHRIFT_JE_ZEILENHOEHE, BILD_SPRACHEN, bildAuftrag };
   if (typeof window !== 'undefined') { window.WFP = window.WFP || {}; window.WFP.ScanBild = API; }
   if (typeof globalThis !== 'undefined') globalThis.__WFP_SCANBILD = API;
 })();

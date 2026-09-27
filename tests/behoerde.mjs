@@ -270,7 +270,8 @@ try {
   await page.waitForFunction(() => window.__wfpdfScan && window.__wfpdfScan.seiten[0] && window.__wfpdfScan.seiten[0].erkennung, null, { timeout: 60000 });
   const erk = await page.evaluate(() => window.__wfpdfScan.seiten[0].erkennung);
   ok('Blatt im Foto erkannt, die Verfahren sind sich einig', erk && erk.sicher, erk);
-  ok('Scan-Werkzeug heißt „Brief fotografieren", Seitengröße A4 vorgewählt', /Brief fotografieren/.test(await page.textContent('.scan-titel')) && await page.inputValue('.scan [data-format]') === 'a4');
+  // Seit 2026-09-27 (Klaus): Vorgabe „Automatisch" — ein DIN-Brief wird dabei A4, siehe tests/scan.mjs
+  ok('Scan-Werkzeug heißt „Brief fotografieren", Seitengröße „Automatisch" vorgewählt', /Brief fotografieren/.test(await page.textContent('.scan-titel')) && await page.inputValue('.scan [data-format]') === 'auto');
   await page.click('.scan [data-ganz]');
   ok('… aufs ganze Foto umschalten geht', await page.evaluate(() => window.__wfpdfScan.seiten[0].manuell));
   await page.click('.scan [data-auto]');

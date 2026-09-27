@@ -17,16 +17,23 @@
   const SB = () => WFP.ScanBild;
   const h = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const MERK = 'wfpdf_scan_v1';
-  const merk = (() => { try { return Object.assign({ filter: 'farbe', format: 'a4', qualitaet: 'normal', durchsuchbar: false, sprache: '' }, JSON.parse(localStorage.getItem(MERK) || '{}')); } catch (_) { return { filter: 'farbe', format: 'a4', qualitaet: 'normal', durchsuchbar: false, sprache: '' }; } })();
+  const merk = (() => { try { return Object.assign({ filter: 'farbe', format: 'auto', qualitaet: 'normal', durchsuchbar: false, sprache: '' }, JSON.parse(localStorage.getItem(MERK) || '{}')); } catch (_) { return { filter: 'farbe', format: 'auto', qualitaet: 'normal', durchsuchbar: false, sprache: '' }; } })();
   const merken = () => { try { localStorage.setItem(MERK, JSON.stringify(merk)); } catch (_) {} };
 
   const FILTER_NAME = { original: 'Original', farbe: 'Farbe', grau: 'Graustufen', dokument: 'Dokument', sw: 'Schwarzweiß' };
   const QUALI = { hoch: { dpi: 200, q: 0.9, name: 'Hoch (200 dpi)' }, normal: { dpi: 150, q: 0.85, name: 'Normal (150 dpi)' }, klein: { dpi: 110, q: 0.72, name: 'Klein (110 dpi)' } };
-  const FORMAT = { a4: 'A4', letter: 'US Letter', blatt: 'Wie das Blatt' };
+  const FORMAT = { auto: 'Automatisch', blatt: 'Original (wie das Blatt)', a4: 'A4', a5: 'A5', a6: 'A6', letter: 'US Letter' };
   const SPRACHEN = { deu: 'Deutsch', eng: 'English', rus: 'Русский' };
   const VORSCHAU_DPI = 80, OCR_DPI = 200, KI_DPI = 300;
 
   let ST = null;   // Zustand des offenen Werkzeugs
+
+  /* Wo die mitgelieferten Dateien liegen (2026-09-27). Workflow PDF: vendor/. Die WorkFlohs
+     kopieren diese Datei byte-1:1 und setzen die Pfade über opt.pfade bzw. WFP.Scanner.pfade():
+     Schrift aus assets/wfpdf/, Scanic und Texterkennung von /Workflow-PDF/vendor/ (gleiche
+     Adresse, einmal im Netz). Relative Pfade gelten gegen die Seite. */
+  const PF = { vendor: 'vendor/', scanic: 'vendor/scanic/', ocr: 'vendor/' };
+  const pfad = u => new URL(u, location.href).href;
 
   /* ---------- Bilder ---------- */
   async function fotoLesen(file) {
@@ -50,7 +57,7 @@
   /* ---------- Blatt finden ---------- */
   let _scanic = null, _mlFehler = '';
   function scanicLaden() {
-    if (!_scanic) _scanic = import(new URL('vendor/scanic/scanic.js', location.href).href).catch(e => { _mlFehler = 'Blatterkennung (Scanic) lädt nicht: ' + (e.message || e); return null; });
+    if (!_scanic) _scanic = import(pfad(PF.scanic + 'scanic.js')).catch(e => { _mlFehler = 'Blatterkennung (Scanic) lädt nicht: ' + (e.message || e); return null; });
     return _scanic;
   }
   async function erkennen(s) {
@@ -60,7 +67,7 @@
     if (sc) {
       try { const r = await sc.scanDocument(c); if (r && r.success) ein.klassisch = { ecken: SB().ausScanic(r.corners) }; } catch (_) {}
       try {
-        const r = await sc.scanDocument(c, { detector: 'ml', ml: { assetBaseUrl: new URL('vendor/scanic/', location.href).href } });
+        const r = await sc.scanDocument(c, { detector: 'ml', ml: { assetBaseUrl: pfad(PF.scanic) } });
         if (r && r.corners) ein.ml = { ecken: SB().ausScanic(r.corners), score: r.score };
       } catch (e) { _mlFehler = 'Modell nicht verfügbar: ' + (e.message || e); }
     }
@@ -168,9 +175,9 @@
   async function ocrWorker(sprache) {
     if (_ocr && _ocr.sprache === sprache) return _ocr.worker;
     if (_ocr) { try { await _ocr.worker.terminate(); } catch (_) {} _ocr = null; }
-    if (!window.Tesseract) await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'vendor/tesseract/tesseract.min.js'; sc.onload = res; sc.onerror = () => rej(new Error('Texterkennung (Tesseract) lädt nicht')); document.head.appendChild(sc); });
+    if (!window.Tesseract) await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = pfad(PF.ocr + 'tesseract/tesseract.min.js'); sc.onload = res; sc.onerror = () => rej(new Error('Texterkennung (Tesseract) lädt nicht')); document.head.appendChild(sc); });
     const abs = u => new URL(u, location.href).href;
-    const w = await window.Tesseract.createWorker(sprache, 1, { workerPath: abs('vendor/tesseract/worker.min.js'), corePath: abs('vendor/tesseract/'), langPath: abs('vendor/tesseract/lang'), gzip: false, cacheMethod: 'none' });
+    const w = await window.Tesseract.createWorker(sprache, 1, { workerPath: abs(PF.ocr + 'tesseract/worker.min.js'), corePath: abs(PF.ocr + 'tesseract/'), langPath: abs(PF.ocr + 'tesseract/lang'), gzip: false, cacheMethod: 'none' });
     _ocr = { sprache, worker: w };
     return w;
   }
@@ -201,9 +208,9 @@
     const helv = await pdf.embedFont(StandardFonts.Helvetica);
     try { for (const t of texte) helv.encodeText(t); return helv; } catch (_) {}
     // Nicht-lateinische Zeichen (z. B. Kyrillisch): Noto Sans, GANZ eingebettet (siehe CLAUDE.md, Teilmenge verlor Buchstaben)
-    if (!window.fontkit) await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'vendor/fontkit.umd.min.js'; sc.onload = res; sc.onerror = () => rej(new Error('Schrift lädt nicht')); document.head.appendChild(sc); });
+    if (!window.fontkit) await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = pfad(PF.vendor + 'fontkit.umd.min.js'); sc.onload = res; sc.onerror = () => rej(new Error('Schrift lädt nicht')); document.head.appendChild(sc); });
     pdf.registerFontkit(window.fontkit);
-    const bytes = new Uint8Array(await (await fetch('vendor/fonts/NotoSans-Regular.ttf')).arrayBuffer());
+    const bytes = new Uint8Array(await (await fetch(pfad(PF.vendor + 'fonts/NotoSans-Regular.ttf'))).arrayBuffer());
     return pdf.embedFont(bytes, { subset: false });
   }
   async function jpeg(c, q) { return new Uint8Array(await (await new Promise(r => c.toBlob(r, 'image/jpeg', q))).arrayBuffer()); }
@@ -265,6 +272,7 @@
   function oeffnen(opt) {
     if (ST) schliessen();
     opt = opt || {};
+    if (opt.pfade) Object.assign(PF, opt.pfade);
     const sprache0 = merk.sprache || ({ de: 'deu', en: 'eng', ru: 'rus' }[(WFP.Sprache && WFP.Sprache.lang) || 'de'] || 'deu');
     ST = { opt, seiten: [], akt: -1, ansicht: 'zuschnitt', textModus: false, vergleich: 'original', ersetze: null, format: merk.format, qualitaet: merk.qualitaet, durchsuchbar: merk.durchsuchbar, sprache: sprache0, name: opt.name || ('Scan ' + new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })), el: null };
     const el = document.createElement('div'); el.className = 'scan'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
@@ -605,12 +613,20 @@
     if (l.querySelector('[data-galerie]')) l.querySelector('[data-galerie]').onclick = () => $q('[data-in-galerie]').click();
   }
 
+  // „Automatisch" sagt, was es gewählt hat (Klaus 2026-09-27) — eine stille Wahl sähe aus wie A4 immer.
+  function formatIst() {
+    const s = ST.seiten[ST.akt];
+    if (ST.format !== 'auto' || !s || !s.ecken) return '';
+    const f = SB().seitenMass(s.ecken, 'auto', 72).format;
+    return `<small data-format-ist="${f}">→ ${h(FORMAT[f] || f)}${f === 'a4' ? ' — A5 oder A6? Bitte wählen, das Foto zeigt die Größe nicht' : ''}</small>`;
+  }
+
   function zeichneFuss() {
     const f = $q('[data-fuss]'), fertig = ST.seiten.length && ST.seiten.every(s => s.ecken);
     const offen = ST.seiten.filter(s => s.erkennung && !s.erkennung.sicher && !s.manuell).length;
     f.innerHTML = `<div class="scan-einst">
         <label>Name <input data-name value="${h(ST.name)}" data-kein-ue></label>
-        <label>Seitengröße <select data-format>${Object.entries(FORMAT).map(([k, v]) => `<option value="${k}"${ST.format === k ? ' selected' : ''}>${h(v)}</option>`).join('')}</select></label>
+        <label>Seitengröße <select data-format>${Object.entries(FORMAT).map(([k, v]) => `<option value="${k}"${ST.format === k ? ' selected' : ''}>${h(v)}</option>`).join('')}</select>${formatIst()}</label>
         <label>Qualität <select data-quali>${Object.entries(QUALI).map(([k, v]) => `<option value="${k}"${ST.qualitaet === k ? ' selected' : ''}>${h(v.name)}</option>`).join('')}</select></label>
         <label class="scan-haken"><input type="checkbox" data-durch${ST.durchsuchbar ? ' checked' : ''}> Durchsuchbar (Texterkennung für alle Seiten)</label>
       </div>
@@ -621,7 +637,7 @@
         <button class="knopf" data-zip${fertig ? '' : ' disabled'}>🖼 Als Bilder (ZIP)</button>
         <button class="knopf rot" data-fertig${fertig ? '' : ' disabled'}>✓ ${h(ST.opt.fertigText || 'PDF erstellen')}</button>
       </div>
-      ${ST.opt.ablegen ? '<p class="hinweis" data-ablegen-hinweis>Herunterladen, Teilen und „PDF erstellen“ legen das PDF auch hier in Workfloh PDF ab — kein neues Importieren nötig.</p>' : ''}
+      ${ST.opt.ablegen ? '<p class="hinweis" data-ablegen-hinweis>Herunterladen, Teilen und „PDF erstellen“ legen das PDF auch ' + h(ST.opt.ort || 'hier in Workfloh PDF') + ' ab — kein neues Importieren nötig.</p>' : ''}
       <p class="hinweis" data-ergebnis-info></p>`;
     const q = sel => f.querySelector(sel);
     q('[data-name]').onchange = e => { ST.name = e.target.value.trim() || ST.name; };
@@ -644,7 +660,7 @@
       try { ST.abgelegt = await ST.opt.ablegen(b, { name: ST.name, id: ST.abgelegt || null }); window.__wfpdfScanAbgelegt = ST.abgelegt; window.__wfpdfScanAblagen = (window.__wfpdfScanAblagen || 0) + 1; return true; }
       catch (e) { ST.opt.toast('⚠️ ' + (e.message || e)); return false; }
     };
-    q('[data-laden]').onclick = async () => { const b = await bauen(); if (b) { ST.opt.laden(datei() + '.pdf', b, 'application/pdf'); const ab = await ablegen(b); ST.opt.toast(ab ? '⬇ ' + datei() + '.pdf · auch in Workfloh PDF abgelegt' : '⬇ ' + datei() + '.pdf'); } };
+    q('[data-laden]').onclick = async () => { const b = await bauen(); if (b) { ST.opt.laden(datei() + '.pdf', b, 'application/pdf'); const ab = await ablegen(b); ST.opt.toast(ab ? '⬇ ' + datei() + '.pdf · auch ' + (ST.opt.ortKurz || 'in Workfloh PDF') + ' abgelegt' : '⬇ ' + datei() + '.pdf'); } };
     q('[data-teilen]').onclick = async () => {
       const b = await bauen(); if (!b) return;
       await ablegen(b);
@@ -674,5 +690,5 @@
   const groesse = n => n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
 
   window.WFP = window.WFP || {};
-  window.WFP.Scanner = { oeffnen, schliessen, hinzu, zustand: () => ST, pdfBauen, seiteRechnen, kopieRechnen, ocrSeite, erkennen, zeichne, zuChatGPT };
+  window.WFP.Scanner = { pfade: p => Object.assign(PF, p || {}), oeffnen, schliessen, hinzu, zustand: () => ST, pdfBauen, seiteRechnen, kopieRechnen, ocrSeite, erkennen, zeichne, zuChatGPT };
 })();

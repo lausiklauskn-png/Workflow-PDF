@@ -48,6 +48,17 @@ const SB = globalThis.__WFP_SCANBILD;
   ok('seitenMass Letter quer: 792 × 612 pt', m2.quer && m2.seite[0] === 792 && m2.seite[1] === 612, m2);
   const m3 = SB.seitenMass([[0, 0], [500, 0], [500, 1000], [0, 1000]], 'blatt', 72);
   ok('seitenMass „wie das Blatt": Seitenverhältnis 1:2 bleibt', Math.abs(m3.seite[0] / m3.seite[1] - 0.5) < 1e-6, m3);
+  // Formate (Klaus 2026-09-27): Automatisch · Original · A4 · A5 · A6
+  const m5 = SB.seitenMass([[0, 0], [700, 0], [700, 990], [0, 990]], 'a5', 72), m6 = SB.seitenMass(quer, 'a6', 72);
+  ok('seitenMass A5 hoch: 419,53 × 595,28 pt', !m5.quer && m5.seite[0] === 419.53 && m5.seite[1] === 595.28 && m5.format === 'a5', m5);
+  ok('seitenMass A6 quer: 419,53 × 297,64 pt', m6.quer && m6.seite[0] === 419.53 && m6.seite[1] === 297.64 && m6.format === 'a6', m6);
+  const ma = SB.seitenMass([[0, 0], [700, 0], [700, 990], [0, 990]], 'auto', 72);
+  ok('Automatisch: Verhältnis wie DIN (√2) → A4', ma.format === 'a4' && ma.seite[1] === 841.89, ma);
+  const mb = SB.seitenMass([[0, 0], [500, 0], [500, 1000], [0, 1000]], 'auto', 72);
+  ok('Automatisch: 1:2 ist kein DIN-Blatt → Original, Verhältnis bleibt', mb.format === 'blatt' && Math.abs(mb.seite[0] / mb.seite[1] - 0.5) < 1e-6, mb);
+  const rand = r => SB.seitenMass([[0, 0], [1000, 0], [1000, 1000 * r], [0, 1000 * r]], 'auto', 72).format;
+  ok('Automatisch: Grenze ± 8 % um √2 — 1,52 noch A4, 1,54 schon Original, 1,31 noch A4, 1,29 (US Letter) Original', rand(1.52) === 'a4' && rand(1.54) === 'blatt' && rand(1.31) === 'a4' && rand(1.29) === 'blatt', [1.52, 1.54, 1.31, 1.29].map(rand));
+  ok('unbekanntes Format fällt auf A4 zurück (und sagt es)', SB.seitenMass(quer, 'quatsch', 72).format === 'a4');
 
   // drehen: 3×2 → 2×3, Pixel wandern richtig
   const bild = (w, h, f) => { const d = new Uint8ClampedArray(w * h * 4); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = (y * w + x) * 4, v = f(x, y); d[i] = v[0]; d[i + 1] = v[1]; d[i + 2] = v[2]; d[i + 3] = 255; } return { data: d, width: w, height: h }; };
@@ -196,6 +207,9 @@ try {
   ok('Blatt im Foto gefunden und sicher (Verfahren einig)', Z.seiten[0].erkennung.sicher, Z.seiten[0].erkennung);
   ok('… Ecken liegen auf dem Papier (< 2 % der Diagonale)', fehl < 2, fehl.toFixed(2));
   ok('Befund steht an der Seite: „✓ Blatt erkannt"', await page.getAttribute('.scan [data-befund]', 'data-befund') === 'ok');
+  const FM = await page.evaluate(() => ({ opt: [...document.querySelectorAll('.scan [data-format] option')].map(o => o.value), wahl: document.querySelector('.scan [data-format]').value, ist: (document.querySelector('.scan [data-format-ist]') || {}).dataset }));
+  ok('Seitengröße: Automatisch · Original · A4 · A5 · A6 · US Letter (Klaus 2026-09-27)', FM.opt.join() === 'auto,blatt,a4,a5,a6,letter', FM.opt);
+  ok('… Automatisch ist vorgewählt und sagt, was es gewählt hat (→ A4)', FM.wahl === 'auto' && FM.ist && FM.ist.formatIst === 'a4', FM);
 
   // Ecke ziehen → von Hand gesetzt; ↺ Automatisch holt die Erkennung zurück
   const g0 = await page.locator('.scan .scan-griff').first().boundingBox();
