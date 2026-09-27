@@ -55,6 +55,15 @@ Datei, wird er hier behoben und dann in die WorkFlohs kopiert.
   Klaus: „Bei der Mikrofoneingabe über Sprache spreche ich nur ein Wort und er macht immer zwei Worte.
   Also gleich am Anfang. Ich habe nur einmal ‚kopieren' gesagt, er macht es zweimal rein. Das ist bei
   allen Sachen so gewesen bis jetzt. Manchmal sogar dreimal."
+  Beleg (Klaus' Bildschirmfoto 2026-09-27, nur Suchfeld ausgeschnitten): im Feld steht
+  „kopieren kopieren", die Suche meldet „Kein Dokument passt zu ‚kopieren kopieren'".
+  ![Spracheingabe doppelt](todo-belege/2026-09-27_sprache-doppelt.png)
+- [ ] 2026-09-27 · Workflow-PDF + beide WorkFlohs (`sprechen.js` geteilt) · **Sprach-Laufbalken: zu spät, falscher Ort, kein Stopp.**
+  Klaus: „Der Anzeigenbalken für die Sprache taucht zu spät auf. Und er sollte in dem Feld sein, wo
+  der Text dann hineinkommt. Genauso wie hier in Claude. Und ein Stoppen-Button sollte sein. Und statt
+  ein Suche ein Pfeil. Ne, Suche ist okay."
+  (Also: Balken sofort beim Drücken · IM Eingabefeld statt darunter, wie in der Claude-App · eigener
+  Stopp-Knopf · die Lupe zum Suchen bleibt, kein Pfeil.)
 
 ## Erledigt
 
