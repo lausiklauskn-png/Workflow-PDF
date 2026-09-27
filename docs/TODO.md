@@ -98,6 +98,16 @@ Datei (`assets/wfpdf/…`, `werkzeug.js`), wird er beim Abarbeiten auch in Mein-
   „Felder erkennen / Verankern", Seite 1 · 2, Vorschläge-Kasten, Feld setzen mit Glas-Knöpfen —
   rechts Workflow PDF im Modus „bearbeiten".
   ![Tomys PDF bearbeiten gegen Workflow PDF](todo-belege/2026-09-27_tomy-pdf-bearbeiten-vs-workflow-pdf.jpg)
+- [ ] 2026-09-27 · alle drei (Workflow PDF zuerst als Vorlage, dann Tomys WorkFloh und Mein-WorkFloh) · **Sichtbarer Schieberegler unter der Feldarten-Leiste.**
+  Klaus: „In allen drei Workflows machst du unten genau in derselben Ansicht, wo Texte, Datum,
+  Kästchen, E-Mail und so eingestellt werden können, noch einen Schieberegler. Und zwar so, dass man
+  ihn anfassen kann mit einem Viereck oder wie auch immer, sodass man sieht, dass da ein
+  Schieberegler ist. Bei kleineren Handys ist sonst nicht zu erkennen, dass da noch mehr folgt.
+  Vorlagen, wie gesagt, Workflow PDF. Für beide. Für Tommy und für meinen Workflow."
+  (Gemeint ist die untere Leiste im Bearbeiten-Fenster: Text · Datum · Kästchen · E-Mail · … — auf dem
+  Bildschirmfoto zu Punkt 1 ist sie rechts abgeschnitten, und man sieht nicht, dass noch Knöpfe
+  folgen. Derselbe Wunsch wie beim Ordner-Schieberegler weiter oben — beim Abarbeiten EINE Bauweise
+  für beide Leisten nehmen.)
 
 ## Erledigt
 
