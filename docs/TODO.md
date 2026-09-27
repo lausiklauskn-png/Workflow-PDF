@@ -31,6 +31,12 @@ Datei, wird er hier behoben und dann in die WorkFlohs kopiert.
   ragen, entsteht ein Schieberegler. Also bei den Ordner-Buttons. Der Schieberegler ist aber ganz
   schlecht anzufassen. Das heißt, es müsste da ein Griff sein oder ein kleines Viereck, wo man
   erkennt: ah, das ist ein Schieberegler, mit dem kann man es hin und her schieben."
+- [ ] 2026-09-27 · Workflow-PDF (in den WorkFlohs mitprüfen) · **Pfeil nach oben neben dem Markieren-Punkt.**
+  Klaus: „In einer schmalen Handyansicht scrolle ich nach unten und die Dokumente scrollen der Reihe
+  nach nach unten. Es sollte neben dem Markierenpunkt noch ein Pfeil nach oben sein. Also rechts oben
+  ist ein Punkt, wo ich den markieren kann. Und der Pfeil nach oben sollte komplett einmal bis nach
+  oben scrollen. Sonst muss ich die ganzen Dokumente wieder nach oben scrollen, um an die
+  Bedienelemente heranzukommen."
 
 ## Erledigt
 
