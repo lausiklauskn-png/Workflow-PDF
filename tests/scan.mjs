@@ -116,6 +116,15 @@ function server() {
   });
   return new Promise(res => s.listen(0, '127.0.0.1', () => res(s)));
 }
+// Lage der Lupe gegen das Bild und den gezogenen Punkt (läuft im Browser)
+const lupeMass = () => {
+  const l = document.querySelector('.scan [data-lupe]'), r = document.querySelector('.scan [data-rahmen]'), g = document.querySelector('.scan .scan-griff[data-zieht]');
+  if (!l || !r) return null;
+  const a = l.getBoundingClientRect(), b = r.getBoundingClientRect();
+  let deckt = null;
+  if (g) { const q = g.getBoundingClientRect(), x = q.left + q.width / 2, y = q.top + q.height / 2; deckt = x > a.left - 18 && x < a.right + 18 && y > a.top - 18 && y < a.bottom + 18; }
+  return { sichtbar: !l.hidden && a.width > 0, gezogen: !!g, lupe: [Math.round(a.left - b.left), Math.round(a.top - b.top), Math.round(a.width), Math.round(a.height)], bild: [Math.round(b.width), Math.round(b.height)], deckt };
+};
 const srv = await server();
 const URL0 = `http://127.0.0.1:${srv.address().port}/`;
 const exe = ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome'].find(fs.existsSync);
@@ -193,6 +202,10 @@ try {
   await page.mouse.move(g0.x + g0.width / 2, g0.y + g0.height / 2); await page.mouse.down();
   await page.mouse.move(g0.x + 40, g0.y + 30, { steps: 5 });
   ok('beim Ziehen erscheint die Lupe', await page.isVisible('.scan [data-lupe]'));
+  // Klaus 2026-09-27: „nur der Punkt, sodass man den Rest noch sehen kann" — vorher 431×574 = das GANZE Bild
+  const LU = await page.evaluate(lupeMass);
+  ok('Lupe ist klein (≤ 90 px, ≤ 25 % der Bildbreite) — der Rest des Fotos bleibt zu sehen', LU && LU.lupe[2] <= 90 && LU.lupe[2] <= LU.bild[0] * 0.25, LU);
+  ok('… und liegt NICHT über dem Punkt, den der Finger gerade setzt', LU && LU.gezogen && LU.deckt === false, LU);
   await page.mouse.up();
   Z = await page.evaluate(() => window.__wfpdfScan);
   ok('Ecke gezogen → Seite gilt als „von Hand gesetzt", die Ecke hat sich bewegt', Z.seiten[0].manuell && SB.abstand(Z.seiten[0].ecken, mach.ecken, f0[0], f0[1]) > 1 && await page.getAttribute('.scan [data-befund]', 'data-befund') === 'hand');
@@ -450,6 +463,29 @@ try {
   await page.waitForSelector('#sc-ed.on .seite canvas', { timeout: 60000 }).catch(() => {});
   const AB3 = await page.evaluate(async () => ({ id: window.__wfpdf.S.doc && window.__wfpdf.S.doc.id, seiten: window.__wfpdf.S.doc && window.__wfpdf.S.doc.pages.length, n: (await WFP.DB.all('docs')).length }));
   ok('„✓ PDF erstellen" nach dem Herunterladen öffnet DASSELBE Dokument, neu gefüllt — kein Doppel', AB3.id === AB1.id && AB3.n === AB1.n && AB3.seiten === 1, AB3);
+
+  /* ---------- Handy: Platz für das Foto, alle Ecken greifbar, kleine Lupe ---------- */
+  const hp = await (await browser.newContext({ viewport: { width: 360, height: 740 }, hasTouch: true })).newPage();
+  hp.on('pageerror', e => konsole.push('Handy: ' + e));
+  await hp.goto(URL0);
+  await hp.waitForFunction(() => window.__wfpdf && window.WFP && WFP.Scanner);
+  await hp.click('#btnScan');
+  await hp.setInputFiles('.scan [data-in-galerie]', foto1);
+  await hp.waitForSelector('.scan .scan-griff', { timeout: 60000 });
+  const HM = await hp.evaluate(() => {
+    const r = document.querySelector('.scan [data-rahmen]').getBoundingClientRect();
+    const griffe = [...document.querySelectorAll('.scan .scan-griff')].map(g => { const b = g.getBoundingClientRect(); return document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2) === g; });
+    return { hoehe: Math.round(r.height), schirm: innerHeight, griffe };
+  });
+  ok('Handy 360×740: das Foto bekommt mindestens ein Drittel der Höhe (vorher 156 px)', HM.hoehe >= HM.schirm / 3, HM);
+  ok('Handy: alle vier Ecken sind zu greifen — keine liegt unter der Kopfleiste', HM.griffe.length === 4 && HM.griffe.every(Boolean), HM);
+  const hg = await hp.locator('.scan .scan-griff').nth(2).boundingBox();
+  await hp.mouse.move(hg.x + hg.width / 2, hg.y + hg.height / 2); await hp.mouse.down();
+  await hp.mouse.move(hg.x + hg.width / 2 - 20, hg.y + hg.height / 2 - 15, { steps: 4 });
+  const HL = await hp.evaluate(lupeMass);
+  await hp.mouse.up();
+  ok('Handy: Lupe sichtbar, ≤ 64 px, deckt den Punkt nicht', HL && HL.sichtbar && HL.gezogen && HL.lupe[2] <= 64 && HL.deckt === false, HL);
+  await hp.context().close();
 
   ok('kein Aufruf ins Netz (Modell, Texterkennung, Schrift liegen auf dem Gerät)', fremd.length === 0, fremd);
   ok('keine Fehler in der Konsole', konsole.length === 0, konsole);

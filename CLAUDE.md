@@ -132,10 +132,19 @@ fotografieren" (an ein Dokument anhängen). Der alte Aufnahme-Dialog ist weg.
   behält Kennung, Ordner, Anlagedatum) — kein Doppel. „PDF erstellen" öffnet es danach. ZIP legt nichts ab.
 - **🎭 Textmaske (PNG, durchsichtig):** die Kopie ohne weißen Grund (`kopieRechnen(s, dpi, true)`),
   zum Auflegen auf einen neuen Hintergrund in einem Bildprogramm. Erscheint, sobald Text erkannt ist.
+- **Lupe beim Ecken-Ziehen** (Klaus 2026-09-27: „nur der Punkt, sodass man den Rest noch sehen kann"):
+  ein Fünftel der kürzeren Bildseite, 56–84 px, schräg ÜBER dem Punkt (der Finger liegt darunter),
+  deckt ihn nie. Vorher war sie so groß wie das ganze Bild (gemessen 431×574 bei 431×574): die
+  Regel `.scan-bild canvas{width:100%}` schlug `.scan-lupe{width:120px}` — die Regel heißt deshalb
+  `.scan-bild canvas.scan-lupe`, und das Maß steht zusätzlich inline (`lupeGroesse`, `lupeLage`).
+- **Handy** (≤ 760 px, gemessen 360×740): das Foto bekam 156 px, und die oberen Ecken lagen unter
+  der Kopfleiste (nicht greifbar). Jetzt 52 dvh für das Foto, das Scan-Fenster ROLLT, und das Bild
+  hält 20 px Abstand für die halben Griffe (keine 200-px-Untergrenze mehr). Quer (740×360) bleibt
+  das Foto klein — benannte Grenze.
 - Fotos werden auf ≤ 2400 px lange Kante verkleinert, nie abgewiesen. Einstellungen
   (Filter, Format, Qualität, durchsuchbar, Sprache) in `localStorage` `wfpdf_scan_v1`.
 - Proben: `tests/scan.mjs` (in `npm test`, A Rechnung · B 17 Fotos · C ganzer Weg mit echtem
-  Tesseract) · `node tests/gegenprobe_scan.mjs` (45 Fälle, Wegwerf-Kopie; `NUR_ANKER=1`, `NUR_FALL="BILD:"` für den ChatGPT-Weg, `NUR_FALL="ABLAGE:"` fürs Ablegen).
+  Tesseract) · `node tests/gegenprobe_scan.mjs` (50 Fälle, Wegwerf-Kopie; `NUR_ANKER=1`, `NUR_FALL="BILD:"` für den ChatGPT-Weg, `NUR_FALL="ABLAGE:"` fürs Ablegen, `LUPE:`/`HANDY:` für Lupe und Handy-Platz).
   Gemessen am 2026-09-26: `scan.mjs` 58 grün · Gegenprobe erst **20 gefangen · 1 blind ·
   1 aus falschem Grund**. Blind war „Umordnen": die zweite Seite erbte den gemerkten Filter,
   also sahen beide Seiten gleich aus — gemessen wird jetzt der Dateiname je Seite. Falsch war
