@@ -64,6 +64,13 @@ Datei, wird er hier behoben und dann in die WorkFlohs kopiert.
   ein Suche ein Pfeil. Ne, Suche ist okay."
   (Also: Balken sofort beim Drücken · IM Eingabefeld statt darunter, wie in der Claude-App · eigener
   Stopp-Knopf · die Lupe zum Suchen bleibt, kein Pfeil.)
+- [ ] 2026-09-27 · Workflow-PDF · **Zwei Lupen im leeren Suchfeld.**
+  Klaus: „Eine Doppelung im Suchfeld, wenn kein Text drin steht. Und zwar zweimal die Lupe. Die erste
+  Lupe muss nicht sein. Oder du machst anstatt der zweiten Lupe rechts des großen Buttons einen Pfeil.
+  So wie hier auch."
+  (Zwei Wege, Klaus lässt die Wahl: die Lupe links im Platzhalter weglassen — ODER den Such-Knopf
+  rechts zum Pfeil machen, wie der Senden-Pfeil in der Claude-App. Hängt mit Punkt 6 zusammen: dort
+  hieß es „Suche ist okay"; beim Abarbeiten beide zusammen entscheiden.)
 
 ## Erledigt
 
