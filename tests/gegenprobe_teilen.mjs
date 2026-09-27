@@ -1,7 +1,7 @@
 /* Gegenprobe zu tests/teilen.mjs: baut in einer WEGWERF-KOPIE je einen Fehler ein.
    Jeder Fall muss die Probe umwerfen — mit einer roten Zeile, die zu ihm passt („trifft").
    Ein Anker, der nicht genau einmal vorkommt, ist ein toter Anker — dann wurde nichts sabotiert.
-   NUR_ANKER=1 prüft nur die Anker (Sekunden, ohne Browser).
+   NUR_ANKER=1 prüft nur die Anker (Sekunden, ohne Browser). NUR_FALL="…" fährt nur passende Fälle.
    Nicht in npm test (dauert); Aufruf: node tests/gegenprobe_teilen.mjs */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -54,6 +54,7 @@ kopieren();
 const basis = lauf();
 if (basis.status !== 0) { console.log('Ausgangslage ist schon rot — Gegenprobe misst nichts.\n' + basis.stdout.slice(-1500)); process.exit(2); }
 for (const f of FAELLE) {
+  if (process.env.NUR_FALL && !f.name.includes(process.env.NUR_FALL)) continue;
   kopieren();
   if (!tausche(f.datei, f.anker, f.ersatz)) { tot++; console.log('  ☠ TOTER ANKER: ' + f.name); continue; }
   const r = lauf(); const rote = (r.stdout || '').split('\n').filter(l => l.includes('✗ ROT'));

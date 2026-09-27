@@ -230,7 +230,7 @@
       el.querySelectorAll('[data-auf]').forEach(b => b.onclick = auf);
       const fz = el.querySelector('[data-fundzeilen]'); if (fz) fz.onclick = auf;
       el.querySelector('[data-haken]').onclick = () => { WAHL_AN = true; wahlUmschalten(id); };
-      el.querySelector('[data-teilen]').onclick = () => teilenDocs([id]);
+      const tk = el.querySelector('[data-teilen]'); if (tk) tk.onclick = () => teilenDocs([id]);   // Platzhalter, kein Ausstieg
       ziehenBinden(el, id);
       el.querySelector('[data-verschieben]').onclick = () => verschieben(id);
       el.querySelector('[data-kopie]').onclick = () => duplizieren(id);
