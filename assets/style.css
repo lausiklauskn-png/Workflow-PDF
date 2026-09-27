@@ -283,6 +283,8 @@ label.haken { display: flex; gap: 8px; align-items: center; font-weight: 400; ma
 .bedeutung-leiste .fortschritt{flex:1 1 100%;margin:2px 0 0}
 .bedeutung-leiste .bed-fehler{color:#9a1c12}
 .bedeutung-leiste .bed-klein{flex:1 1 100%;font-size:.8rem}
+/* Schmal (320 px): der Einschalt-Knopf bricht um, statt die Seite breiter zu machen (gemessen: 328 px). */
+.bedeutung-leiste .knopf{white-space:normal;text-align:left;max-width:100%}
 .dok[data-schwach] .naehe-zahl{background:#EEE;color:#555}
 .bed-kopf{grid-column:1/-1;margin:14px 0 2px;font-weight:700}
 .bed-grenze{grid-column:1/-1;margin-top:4px}

@@ -67,14 +67,13 @@
   const norm = t => String(t).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
   // Aus den Stücken der Erkennung EINEN Text bauen, ohne Wiederholungen (siehe Kopf).
   function zusammenfuegen(teile) {
-    let aus = '', letzte = '';
+    let aus = '';
     for (const roh of teile) {
       const t = String(roh || '').replace(/\s+/g, ' ').trim(), n = norm(t); if (!n) continue;
       const o = norm(aus);
-      if (n === letzte) continue;                               // dasselbe Stück noch einmal
-      if (o && (n === o || n.startsWith(o + ' '))) { aus = t; letzte = n; continue; }  // enthält alles Bisherige
-      if (o && (o.endsWith(' ' + n) || o === n)) continue;      // steht schon am Ende
-      aus = aus ? aus + ' ' + t : t; letzte = n;
+      if (o && (n === o || n.startsWith(o + ' '))) { aus = t; continue; }  // enthält alles Bisherige
+      if (o && o.endsWith(' ' + n)) continue;                 // steht schon am Ende
+      aus = aus ? aus + ' ' + t : t;
     }
     return aus;
   }

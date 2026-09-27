@@ -4,7 +4,7 @@
        und Ziehen am Griff schiebt die Leiste wirklich (und umgekehrt).
    2 · Pfeil nach oben neben dem Auswahl-Punkt: erst nach dem Herunterrollen, ein Tipp → ganz oben.
    3 · Kopfleiste: bei 320 · 360 · 390 · 412 · 480 px überlagern die Knöpfe den Schriftzug nicht,
-       und der Schriftzug ist nicht abgeschnitten.
+       der Schriftzug ist nicht abgeschnitten, und die Seite ist nicht breiter als das Fenster.
    4 · Erstellungsdatum: sortieren (neueste zuerst) und nach einem Tag suchen — nur das Anlagedatum.
    7 · Eine Lupe im leeren Suchfeld (der Platzhalter trägt keine mehr, der Knopf bleibt).
    Nicht gemessen: echter Finger am Tablet (Zeiger-Ereignisse stehen dafür), echtes Scroll-Gefühl.
@@ -57,18 +57,22 @@ try {
   // 3 · Kopfleiste bei verschiedenen Breiten
   for (const w of [320, 360, 390, 412, 480]) {
     await page.setViewportSize({ width: w, height: 740 }); await page.waitForTimeout(80);
-    const k = await page.evaluate(() => {
+    const k = await page.evaluate((w) => {
       const name = document.querySelector('.marke-name'), rng = document.createRange(); rng.selectNodeContents(name);
       const t = rng.getBoundingClientRect(), mk = document.querySelector('.marke').getBoundingClientRect();
       const kn = [...document.querySelectorAll('.kopf-rechts > *')].filter(e => e.checkVisibility()).map(e => e.getBoundingClientRect());
       const floh = document.getElementById('flohKnopf').getBoundingClientRect();
       return { textRechts: t.right, textLinks: t.left, markeRechts: mk.right, ersterKnopf: Math.min(...kn.map(r => r.left)), letzterKnopf: Math.max(...kn.map(r => r.right)), flohRechts: floh.right,
-        knoepfe: kn.length, abgeschnitten: name.scrollWidth > name.clientWidth + 1 || t.right > mk.right + 1, quer: document.documentElement.scrollWidth > innerWidth + 1, breite: innerWidth,
-        kleinsterKnopf: Math.min(...kn.map(r => Math.min(r.width, r.height))) };
-    });
+        knoepfe: kn.length, abgeschnitten: name.scrollWidth > name.clientWidth + 1 || t.right > mk.right + 1, quer: document.documentElement.scrollWidth > w + 1, seite: document.documentElement.scrollWidth, breite: w,
+        kleinsterKnopf: Math.min(...kn.map(r => Math.min(r.width, r.height))), bedeutung: !!document.querySelector('.bedeutung-leiste .knopf')?.checkVisibility() };
+    }, w);
     if (process.env.BILD) await page.locator('.kopf').screenshot({ path: process.env.BILD + `/kopf-${w}.png` });
     ok(`3 · ${w} px: die Knöpfe überlagern den Schriftzug nicht`, k.knoepfe >= 4 && k.textRechts <= k.ersterKnopf - 2 && k.textLinks >= k.flohRechts - 1, k);
     ok(`3 · ${w} px: „Workfloh PDF" steht ganz da (nicht abgeschnitten), nichts läuft quer`, !k.abgeschnitten && !k.quer && k.letzterKnopf <= k.breite + 1, k);
+    // Mit isMobile wächst das Layout-Fenster mit dem Inhalt: innerWidth wäre bei 328 px Inhalt auch 328 —
+    // gemessen wird deshalb gegen die GESETZTE Breite. Der Knopf „Suche nach Bedeutung“ muss dabei
+    // sichtbar sein, er war bei 320 px der Grund (328 px, auch auf origin/main).
+    ok(`3 · ${w} px: die Seite ist nicht breiter als das Fenster (Knopf „Suche nach Bedeutung“ sichtbar)`, k.bedeutung && !k.quer, k);
     ok(`3 · ${w} px: die Knöpfe bleiben treffbar (mindestens 30 px)`, k.kleinsterKnopf >= 30, k);
   }
   await page.setViewportSize({ width: 360, height: 740 });
@@ -151,11 +155,32 @@ try {
   g2 = await griff();
   ok('1 · ein Tipp rechts auf die Spur springt ans Ende', g2.links >= g2.ueber - 2, g2);
   ok('1 · die dünne Browser-Leiste ist dafür weg (keine zwei Leisten)', g2.nativ === 'none', g2);
-  // wird das Fenster breiter, rechnet der Griff neu (er wird breiter, weil mehr zu sehen ist)
+  // wird das Fenster breiter, rechnet der Griff neu (er wird breiter, weil mehr zu sehen ist).
+  // Erst zurück an den Anfang: stünde die Leiste am Ende, zöge das Breiterwerden sie zurück — das
+  // feuert ein scroll-Ereignis, und der Griff würde über DAS neu gerechnet, nicht über resize
+  // (die Gegenprobe hat es gezeigt: ohne resize-Zuhörer blieb dieser Wächter grün).
+  await page.evaluate(() => { document.getElementById('ordnerLeiste').scrollLeft = 0; }); await page.waitForTimeout(100);
+  g2 = await griff();
   await page.setViewportSize({ width: 700, height: 740 }); await page.waitForTimeout(150);
   const g3 = await griff();
   ok('1 · breiteres Fenster: der Griff wird breiter (mehr Ordner in Sicht)', g3.sichtbar && g3.gb > g2.gb + 20, { schmal: g2.gb, breit: g3.gb });
   await page.setViewportSize({ width: 360, height: 740 }); await page.waitForTimeout(150);
+
+  // Viele Ordner: dann wäre der Griff nach dem Anteil schmaler als ein Finger. Die 48 px sind eine
+  // Untergrenze — bei neun Ordnern greift sie gar nicht (gemessen ~70 px), deshalb hier 40 Ordner,
+  // nur im Speicher (nichts wird abgelegt).
+  const viele = await page.evaluate(async () => {
+    const w = window.__wfpdf, alt = w.S.ordner.slice();
+    for (let i = 0; i < 31; i++) w.S.ordner.push({ id: 'gp-viel-' + i, name: 'Ordner mit langem Namen ' + (i + 1) });
+    w.suche.zeichneBibliothek(); await new Promise(r => setTimeout(r, 120));
+    const ol = document.getElementById('ordnerLeiste'), sp = document.getElementById('ordnerGriff'), gr = sp.firstElementChild.getBoundingClientRect();
+    const anteil = Math.round(sp.clientWidth * ol.clientWidth / ol.scrollWidth);
+    const m = { anteil, gb: gr.width, ordner: w.S.ordner.length };
+    w.S.ordner.length = 0; w.S.ordner.push(...alt); w.suche.zeichneBibliothek();
+    return m;
+  });
+  ok('1 · (Vorbedingung) bei 40 Ordnern wäre der Griff nach dem Anteil schmaler als 48 px', viele.anteil < 48, viele);
+  ok('1 · … er bleibt trotzdem mindestens 48 px breit (mit dem Finger zu treffen)', viele.gb >= 48, viele);
 
   // 4 · Erstellungsdatum: je drei Dokumente an drei Tagen
   await page.evaluate(() => {

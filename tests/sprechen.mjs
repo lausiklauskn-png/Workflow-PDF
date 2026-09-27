@@ -157,12 +157,18 @@ try {
   await page.click('.wfs-fertig'); await page.evaluate(() => WFP.Sprache.setzen('de'));
 
   // schmal (Handy): der Balken läuft nicht quer über den Rand
-  await page.setViewportSize({ width: 360, height: 780 }); await page.waitForTimeout(100);
-  await page.click('#bibMic'); await page.waitForTimeout(150);
-  ok('am Handy (360 px) passt der Balken in die Breite', await page.evaluate(() => { const b = document.querySelector('[data-wfs]').getBoundingClientRect(); return b.width > 0 && b.right <= innerWidth + 1 && document.documentElement.scrollWidth <= innerWidth + 1; }));
-  l = await lage();
-  ok('… auch am Handy liegt er im Feld, mit treffbarem Stopp-Knopf', l.imFeld && l.stopp, l);
-  await page.click('.wfs-fertig');
+  // Erst bei 320 px wird es eng: 40 Striche × 5 px sind 200 px, bei 360 passen sie noch ohne jeden Riegel
+  // (gemessen). Deshalb 360 UND 320, und gemessen wird, dass der Stopp-Knopf IM Balken bleibt.
+  for (const w of [360, 320]) {
+    await page.setViewportSize({ width: w, height: 780 }); await page.waitForTimeout(100);
+    await page.click('#bibMic'); await page.waitForTimeout(150);
+    const m = await page.evaluate((w) => { const b = document.querySelector('[data-wfs]').getBoundingClientRect(), s = document.querySelector('.wfs-fertig').getBoundingClientRect();
+      return { b: [b.left, b.right], stopp: [s.left, s.right], seite: document.documentElement.scrollWidth, w }; }, w);
+    ok(`am Handy (${w} px) passt der Balken in die Breite, der Stopp-Knopf bleibt darin`, m.b[1] > m.b[0] && m.b[1] <= w + 1 && m.stopp[0] >= m.b[0] - 1 && m.stopp[1] <= m.b[1] + 1 && m.seite <= w + 1, m);
+    l = await lage();
+    ok(`… auch am Handy (${w} px) liegt er im Feld, mit treffbarem Stopp-Knopf`, l.imFeld && l.stopp, l);
+    if (l.sichtbar) await page.click('.wfs-fertig');
+  }
 
   // Doppelte Wörter (Klaus 2026-09-27: „einmal kopieren gesagt … zweimal rein … manchmal dreimal").
   // Gestellt wird, was Chrome auf Android im Dauerbetrieb schickt.
@@ -179,6 +185,10 @@ try {
   ok('dasselbe Endstück zweimal geschickt → „kopieren" steht EINMAL da', d.feld === 'kopieren' && d.suche === 'kopieren', d);
   d = await sprich([[[['kopieren', true], ['kopieren', true], ['kopieren', false]], 0]]);
   ok('… auch dreimal in einer Liste → einmal', d.feld === 'kopieren', d);
+  // Das hält ein anderer Riegel als die zwei darüber: hier enthält das Stück NICHT alles Bisherige
+  // („Tisch" ⊉ „Angebot Tisch"), es steht nur schon am Ende.
+  d = await sprich([[[['Angebot', true], ['Tisch', true], ['Tisch', true]], 0]]);
+  ok('ein Stück, das schon am Ende steht, kommt nur einmal vor („Angebot Tisch")', d.feld === 'Angebot Tisch', d);
   d = await sprich([[[['kopieren', true]], 0], [[['kopieren', true], ['kopieren Auftrag', false]], 1]]);
   ok('ein Stück, das alles Bisherige schon enthält, ersetzt es („kopieren Auftrag")', d.feld === 'kopieren Auftrag', d);
   d = await sprich([[[['Angebot', true], ['Tisch', true]], 0], [[['Lager', false]], 0]]);
