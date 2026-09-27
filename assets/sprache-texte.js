@@ -4,6 +4,7 @@
    (fail-soft). Geprüft von tests/sprache.mjs. */
 (function(){ (window.WFP=window.WFP||{}).SPRACH_TEXTE = {
  "en": {
+  "Leiste verschieben — es folgen weitere Knöpfe": "Move the bar — more buttons follow",
   "Teilen mit … (E-Mail, Messenger …)": "Share with … (email, messenger …)",
   "Teilen": "Share",
   "📤<span> Teilen</span>": "📤<span> Share</span>",
@@ -800,6 +801,7 @@
   "Zurück und prüfen": "Go back and check"
  },
  "ru": {
+  "Leiste verschieben — es folgen weitere Knöpfe": "Прокрутить панель — дальше есть ещё кнопки",
   "Teilen mit … (E-Mail, Messenger …)": "Поделиться … (почта, мессенджер …)",
   "Teilen": "Поделиться",
   "📤<span> Teilen</span>": "📤<span> Поделиться</span>",
@@ -1596,6 +1598,7 @@
   "Zurück und prüfen": "Назад и проверить"
  },
  "ar": {
+  "Leiste verschieben — es folgen weitere Knöpfe": "حرّك الشريط — توجد أزرار أخرى",
   "Teilen mit … (E-Mail, Messenger …)": "مشاركة مع … (البريد، المراسلة …)",
   "Teilen": "مشاركة",
   "📤<span> Teilen</span>": "📤<span> مشاركة</span>",

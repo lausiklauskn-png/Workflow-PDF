@@ -2451,6 +2451,10 @@
       const g = $('dokGitter'); if (g && g.scrollIntoView) g.scrollIntoView({ block: 'start', behavior: 'smooth' });
     };
     spracheingabe();
+    /* Sichtbarer Schieberegler (Klaus 2026-09-27): unter der Feldarten-Leiste und den Ordner-Knöpfen,
+       damit man auf kleinen Handys sieht, dass noch mehr folgt. Baustein: assets/schieber.js
+       (byte-1:1 auch in den WorkFlohs). Er erscheint nur, wenn die Leiste wirklich überläuft. */
+    if (window.WFSchieber) { WFSchieber.an($('ordnerLeiste')); WFSchieber.beobachte($('edFuss'), '.werkzeug'); }
     // Im Dokument: beim Tippen suchen (kurz verzögert, ein langes PDF kostet Zeit), Lupe/▼ = nächster Treffer
     let _eds = null, _edq = '';
     $('edSuche').oninput = () => { clearTimeout(_eds); _eds = setTimeout(() => { _edq = $('edSuche').value; imDokSuchen(_edq); }, 250); };
@@ -2503,7 +2507,7 @@
     let _rz = null;
     window.addEventListener('resize', () => {
       if (!S.doc) return; clearTimeout(_rz);
-      _rz = setTimeout(() => { const b = seitenBreite(); if (b === _rzBreite) return; _rzBreite = b; zeichneSeiten(); }, 250);
+      _rz = setTimeout(() => { if (!S.doc) return; const b = seitenBreite(); if (b === _rzBreite) return; _rzBreite = b; zeichneSeiten(); }, 250);
     });
     document.addEventListener('keydown', e => {
       if (!S.doc || S.modus !== 'bearbeiten' || $('modals').children.length) return;
