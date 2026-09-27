@@ -22,11 +22,11 @@ button{cursor:pointer}
 @keyframes floh-wippen{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-3px) rotate(2deg)}}
 @keyframes floh-hopsen{0%{transform:translateY(0)}35%{transform:translateY(-14px) rotate(-8deg)}70%{transform:translateY(0) rotate(4deg)}100%{transform:none}}
 @media (prefers-reduced-motion:reduce){.floh,.floh.hopst{animation:none}}
-.marke{flex:1;min-width:0}
+.marke{flex:1;min-width:0;overflow:hidden}
 .marke-name{font-size:1.25rem;font-weight:800;letter-spacing:-.01em;white-space:nowrap}
 .marke-name b{color:var(--rot)}
 .marke-sub{font-size:.78rem;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.kopf-rechts{display:flex;gap:6px;align-items:center}
+.kopf-rechts{display:flex;gap:6px;align-items:center;flex:none}
 .ikon{width:40px;height:40px;border-radius:50%;border:2px solid var(--linie);background:var(--flaeche);font-weight:800;font-size:1rem}
 .ikon:hover{border-color:var(--rot)}
 
@@ -55,7 +55,13 @@ button{cursor:pointer}
 .gross-knopf small{font-weight:400;opacity:.8}
 .ablage{position:fixed;inset:0;z-index:80;background:rgba(224,35,27,.12);border:4px dashed var(--rot);display:flex;
   align-items:center;justify-content:center;font-size:1.4rem;font-weight:800;color:var(--rot-d);pointer-events:none}
-.ordner-leiste{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px}
+.ordner-leiste{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px;scrollbar-width:none}
+.ordner-leiste::-webkit-scrollbar{display:none}
+/* Schiebe-Griff der Ordner-Leiste (2026-09-27): eine eigene Spur mit breitem Griff statt der dünnen Browser-Leiste */
+.schiebe-spur{position:relative;height:18px;margin:-2px 0 10px;border-radius:9px;background:var(--linie);cursor:pointer;touch-action:none;-webkit-user-select:none;user-select:none}
+.schiebe-spur[hidden]{display:none}
+.schiebe-griff{position:absolute;left:0;top:0;height:18px;border-radius:9px;background:var(--rot);box-shadow:0 1px 3px rgba(0,0,0,.25);cursor:grab;background-image:repeating-linear-gradient(90deg,transparent 0 5px,rgba(255,255,255,.75) 5px 7px);background-size:21px 10px;background-position:center;background-repeat:no-repeat}
+.schiebe-spur.zieht .schiebe-griff{cursor:grabbing;filter:brightness(1.1)}
 .ordner-chip{border:2px solid var(--linie);background:var(--flaeche);border-radius:999px;padding:7px 14px;white-space:nowrap;font-weight:600}
 .ordner-chip.on{border-color:var(--rot);background:var(--rot-h);color:var(--rot-d)}
 .ordner-chip .anz{font-weight:400;color:var(--ink2);margin-left:4px}
@@ -191,6 +197,12 @@ button{cursor:pointer}
   .werkzeug .titel{display:none}
   .ordner-aktionen .knopf{white-space:normal;text-align:left}
 }
+/* Kopfleiste am schmalen Handy (Klaus 2026-09-27: „DE, Aktualisieren, Fragezeichen und Zahnrädchen werden
+   zu groß und gehen auf den Schriftzug"). Knöpfe und Floh werden kleiner, der Schriftzug auch — er darf nicht
+   unter die Knöpfe laufen (.marke schneidet notfalls ab statt zu überlappen). */
+@media (max-width:480px){.kopf{gap:6px;padding:4px 8px 4px 4px}.floh-knopf,.floh{width:42px;height:42px}.kopf-rechts{gap:4px}.ikon{width:34px;height:34px;font-size:.9rem}.marke-name{font-size:1.08rem;white-space:normal;line-height:1.05}.ikon.sprache-k{font-size:.72rem}}
+@media (max-width:370px){.floh-knopf,.floh{width:36px;height:36px}.kopf-rechts{gap:3px}.ikon{width:31px;height:31px;font-size:.82rem;border-width:1.5px}.marke-name{font-size:.98rem}}
+.bib-suchform.wfs-an .bib-knopf{top:22px}
 @media print{.kopf,.ed-leiste,.ed-fuss,.vorschlag-band{display:none}}
 /* Ausfüllen: Finger darf über Feldern scrollen (touch-action:none gilt nur fürs Ziehen) */
 .ausfuellen .feld{touch-action:auto}
@@ -366,6 +378,10 @@ body.scan-offen{overflow:hidden}
 .dok.gewaehlt{outline:3px solid var(--rot);outline-offset:-1px}
 .dok.gewaehlt .dok-haken{background:var(--rot)}
 .dok .treffer-zahl.dok-treffer{right:40px}
+/* Pfeil nach oben neben dem Auswahl-Punkt (2026-09-27) — erst, wenn die Seite heruntergerollt ist */
+.dok-hoch{position:absolute;right:40px;top:6px;z-index:2;width:28px;height:28px;border-radius:50%;border:2px solid #fff;background:rgba(0,0,0,.45);color:#fff;font-weight:800;font-size:1rem;line-height:1;padding:0;box-shadow:0 1px 4px rgba(0,0,0,.3);display:none}
+html.gerollt .dok-hoch{display:block}
+html.gerollt .dok .treffer-zahl.dok-treffer{right:74px}
 .wahl-leiste{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--flaeche);border:2px solid var(--rot);border-radius:var(--r);padding:8px 10px;margin:0 0 10px;box-shadow:var(--schatten)}
 .wahl-leiste[hidden]{display:none}
 .wahl-leiste .wahl-tipp{flex-basis:100%;margin:0}

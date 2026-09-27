@@ -129,7 +129,15 @@
      … nach Dateinamen geordnet oder nach Dateigröße"). Namen werden NATÜRLICH verglichen:
      „Teil 2" vor „Teil 10", „S. 41–80" vor „S. 321–360". Vorgabe ist der Name. Bei einer Suche
      ordnet weiter die Trefferstärke. Die Wahl liegt in den Einstellungen dieses Browsers. */
-  const SORTIERUNG = { name: 'Name (1, 2 … 10)', neu: 'Zuletzt geändert', groesse: 'Dateigröße', seiten: 'Seitenzahl' };
+  const SORTIERUNG = { name: 'Name (1, 2 … 10)', neu: 'Zuletzt geändert', erstellt: 'Erstellungsdatum', groesse: 'Dateigröße', seiten: 'Seitenzahl' };
+  /* Erstellungsdatum (Klaus 2026-09-27: „nach Datum suchen … nur das Dokument, nicht der Inhalt.
+     Wann wurde das Datum erstellt?"). Gemeint ist der Tag, an dem das Dokument HIER angelegt wurde
+     (createdAt) — nicht ein Datum im Text; das findet die gewöhnliche Suche. Der Tag wird in der
+     Ortszeit gerechnet: ein um 00:30 angelegtes Dokument gehört zum Tag, den das Gerät anzeigt.
+     Dokumente ohne createdAt (sehr alte Stände) haben keinen Tag: sie stehen beim Sortieren hinten
+     und passen zu keinem Datum. */
+  const tagVon = iso => { if (!iso) return ''; const t = new Date(iso); if (isNaN(t)) return ''; const z = n => String(n).padStart(2, '0'); return t.getFullYear() + '-' + z(t.getMonth() + 1) + '-' + z(t.getDate()); };
+  const tagText = tag => tag ? tag.slice(8, 10) + '.' + tag.slice(5, 7) + '.' + tag.slice(0, 4) : '';
   if (!SORTIERUNG[EINST.sortierung]) EINST.sortierung = 'name';
   const namensVergleich = (a, b) => a.name.localeCompare(b.name, 'de', { numeric: true, sensitivity: 'base' });
   function sortiere(liste) {
@@ -142,6 +150,7 @@
     }
     if (art === 'seiten') return liste.sort((a, b) => b.pages.length - a.pages.length || namensVergleich(a, b));
     if (art === 'neu') return liste.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    if (art === 'erstellt') return liste.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '') || namensVergleich(a, b));
     return liste.sort(namensVergleich);
   }
   const mbText = n => n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
@@ -166,19 +175,24 @@
     const ol = $('ordnerLeiste'); ol.innerHTML = html;
     ol.querySelectorAll('[data-o]').forEach(b => b.onclick = () => { S.aktOrdner = b.dataset.o; zeichneBibliothek(); });
     ol.querySelector('[data-neu]').onclick = neuerOrdner;
+    griffZeichnen();
 
     const akt = $('ordnerAktionen'); const o = S.ordner.find(x => x.id === S.aktOrdner);
     // Ist ein Ordner gewählt, zeigt die Suche NUR ihn (Klaus 2026-09-26) — ein Knopf hebt das auf.
     const imOrdner = d => imO(d, S.aktOrdner);
     S.fund = FUND;
-    const sicht = S.sicht = S.docs.filter(d => imOrdner(d) && (!such.length || FUND.has(d.id)));
+    const sicht = S.sicht = S.docs.filter(d => imOrdner(d) && (!such.length || FUND.has(d.id)) && (!S.datum || tagVon(d.createdAt) === S.datum));
     if (such.length) sicht.sort((a, b) => FUND.get(b.id).punkte - FUND.get(a.id).punkte);
     else sortiere(sicht);
     const sortWahl = !such.length && sicht.length > 1 ? `<label class="sortier">Sortieren: <select data-sort>${Object.entries(SORTIERUNG).map(([k, v]) => `<option value="${k}"${k === EINST.sortierung ? ' selected' : ''}>${v}</option>`).join('')}</select></label>` : '';
-    akt.innerHTML = sortWahl + (o && S.docs.some(d => d.folderId === o.id) ? `<button class="knopf" data-ausgabe>📤 Ordner ausgeben</button>` : '') + (sicht.length ? `<button class="knopf" data-ueb>🌐 Übersetzen${sicht.length > 1 ? ' — Dokumente wählen' : ''}</button><button class="knopf" data-erk>🤖 Felder erkennen${sicht.length > 1 ? ' — Dokumente wählen' : ''}</button>` : '')
+    // Suche nach dem Erstellungsdatum: ein Tag, nur der Anlagetag des Dokuments (siehe tagVon)
+    const datumWahl = S.docs.length ? `<label class="sortier datum-wahl">📅 Erstellt am: <input type="date" data-datum value="${h(S.datum || '')}"></label>${S.datum ? '<button class="knopf klein" data-datumweg title="Datum wieder weglassen">✕ jedes Datum</button>' : ''}` : '';
+    akt.innerHTML = sortWahl + datumWahl + (o && S.docs.some(d => d.folderId === o.id) ? `<button class="knopf" data-ausgabe>📤 Ordner ausgeben</button>` : '') + (sicht.length ? `<button class="knopf" data-ueb>🌐 Übersetzen${sicht.length > 1 ? ' — Dokumente wählen' : ''}</button><button class="knopf" data-erk>🤖 Felder erkennen${sicht.length > 1 ? ' — Dokumente wählen' : ''}</button>` : '')
       + (o ? `<button class="knopf" data-ren>✎ Ordner umbenennen</button><button class="knopf gefahr" data-del>🗑 Ordner löschen</button>` : '');
     const q = s => akt.querySelector(s);
     if (q('[data-sort]')) q('[data-sort]').onchange = e => { EINST.sortierung = e.target.value; einstSpeichern(); zeichneBibliothek(); };
+    if (q('[data-datum]')) q('[data-datum]').onchange = e => { S.datum = e.target.value || ''; zeichneBibliothek(); };
+    if (q('[data-datumweg]')) q('[data-datumweg]').onclick = () => { S.datum = ''; zeichneBibliothek(); };
     if (q('[data-ausgabe]')) q('[data-ausgabe]').onclick = () => ordnerAusgabe(o);
     if (q('[data-erk]')) q('[data-erk]').onclick = () => erkennenDialog(sicht.map(d => d.id));
     if (q('[data-ueb]')) q('[data-ueb]').onclick = () => uebersetzenDialog(sicht.filter(d => !d.uebersetzung).map(d => d.id).concat(sicht.filter(d => d.uebersetzung).map(d => d.id)));
@@ -198,6 +212,7 @@
     const nurOrdner = such.length && S.aktOrdner !== 'alle' ? '<div class="hinweis such-ordner" data-suchordner><span>Gesucht nur in diesem Ordner.</span><button class="knopf klein" data-alleordner>In allen Ordnern suchen</button></div>' : '';
     const alleOrdnerKnopf = () => { const b = g.querySelector('[data-alleordner]'); if (b) b.onclick = () => { S.aktOrdner = 'alle'; zeichneBibliothek(); }; };
     if (!sicht.length) {
+      if (S.datum && S.docs.some(d => imOrdner(d) && (!such.length || FUND.has(d.id)))) { g.innerHTML = nurOrdner + `<div class="leer" data-datumleer><b>${h('Kein Dokument wurde am ' + tagText(S.datum) + ' erstellt' + (such.length ? ', das zur Suche passt' : '') + '.')}</b><br><button class="knopf klein" data-datumweg2>✕ jedes Datum</button></div>`; g.querySelector('[data-datumweg2]').onclick = () => { S.datum = ''; zeichneBibliothek(); }; alleOrdnerKnopf(); return; }
       if (such.length) { const bz = bedeutungZusatz(FUND, imOrdner); g.innerHTML = nurOrdner + `<div class="leer" data-suchleer><b>Kein Dokument passt zu „${nm(S.suche.trim())}".</b>${bz.docs.length ? '<br>Nach Wörtern nicht — nach Bedeutung schon, siehe unten.' : ''}</div>` + bz.html + suchStand(); kartenBinden(g, FUND); alleOrdnerKnopf(); return; }
       g.innerHTML = `<div class="leer"><b>Noch keine Dokumente${o ? ' in diesem Ordner' : ''}.</b><br>Oben ein PDF oder Bild wählen, ein Blatt scannen oder einen ganzen Ordner einlesen. Du kannst Dateien auch einfach hierher ziehen.</div>`;
       return;
@@ -213,12 +228,55 @@
       const tr = fund && !fund.bedeutung ? fund.treffer : 0;
       const nae = fund && fund.bedeutung ? `<span class="treffer-zahl naehe-zahl dok-treffer" data-naehe="${fund.w.toFixed(3)}" title="Nähe zur Frage — eine Rangfolge, keine Prozent">🧠 ${fund.w.toFixed(2).replace('.', ',')}</span>` : '';
       return `<div class="dok${WAHL.has(d.id) ? ' gewaehlt' : ''}" data-id="${d.id}"${fund && fund.bedeutung ? ' data-bedeutung' + (fund.schwach ? ' data-schwach' : '') : ''}>${nae}${tr ? `<span class="treffer-zahl dok-treffer" data-treffer="${tr}" title="Treffer in diesem Dokument">🔎${tr}</span>` : ''}
+        <button class="dok-hoch" data-hoch title="Ganz nach oben" aria-label="Ganz nach oben">↑</button>
         <button class="dok-haken" data-haken title="Auswählen (mehrere teilen oder verschieben)" aria-label="Auswählen" aria-pressed="${WAHL.has(d.id)}">${WAHL.has(d.id) ? '✓' : ''}</button>
         <button class="dok-bild" data-auf style="background-image:url('${d.thumb || ''}')" title="Öffnen">
           <span class="marken">${v ? `<span class="marke-klein ki">🤖 ${v} zu prüfen</span>` : ''}${d.quelle === 'foto' ? '<span class="marke-klein">📷 Foto</span>' : ''}${d.uebersetzung ? `<span class="marke-klein">🌐 ${h((d.uebersetzung.von || '').toUpperCase())}→${h((d.uebersetzung.nach || '').toUpperCase())}${d.uebersetzung.gegenprobe ? ' Gegenprobe' : ''}</span>` : ''}${d.ausgefuellt ? `<span class="marke-klein">↩ ausgefüllt aus ${h((d.ausgefuellt.aus || '').toUpperCase())}</span>` : ''}</span></button>
         <div class="dok-info"><div class="dok-name" data-kein-ue title="${h(d.name)}">${nm(d.name)}</div>
-          <div class="dok-meta">${d.pages.length} Seite${d.pages.length === 1 ? '' : 'n'} · ${d.fields.length} Feld${d.fields.length === 1 ? '' : 'er'}${EINST.sortierung === 'groesse' && _groesse.has(d.id) ? ' · ' + mbText(_groesse.get(d.id)) : ''}${ord && S.aktOrdner === 'alle' ? ' · 🗂️ ' + nm(ord.name) : ''}</div>${fund ? (fund.bedeutung ? bedeutungZeile(fund) : fundZeilen(fund)) : ''}</div>
+          <div class="dok-meta">${d.pages.length} Seite${d.pages.length === 1 ? '' : 'n'} · ${d.fields.length} Feld${d.fields.length === 1 ? '' : 'er'}${EINST.sortierung === 'groesse' && _groesse.has(d.id) ? ' · ' + mbText(_groesse.get(d.id)) : ''}${ord && S.aktOrdner === 'alle' ? ' · 🗂️ ' + nm(ord.name) : ''}</div>${(EINST.sortierung === 'erstellt' || S.datum) ? '<div class="dok-meta dok-erstellt" data-erstellt="' + tagVon(d.createdAt) + '">' + (d.createdAt ? h('erstellt ' + tagText(tagVon(d.createdAt))) : h('ohne Erstellungsdatum')) + '</div>' : ''}${fund ? (fund.bedeutung ? bedeutungZeile(fund) : fundZeilen(fund)) : ''}</div>
         <div class="dok-akt"><button data-auf title="Öffnen">✏️</button><button data-verschieben title="In Ordner verschieben">🗂️</button><button data-kopie title="Duplizieren (z. B. als Vorlage)">⧉</button><button data-teilen title="Teilen mit … (E-Mail, Messenger …)">📤</button><button data-loeschen title="Löschen">🗑</button></div></div>`;
+  }
+  /* Pfeil nach oben (Klaus 2026-09-27: „neben dem Markierenpunkt noch ein Pfeil nach oben … komplett
+     einmal bis nach oben scrollen. Sonst muss ich die ganzen Dokumente wieder nach oben scrollen").
+     Er steht an jeder Karte links neben dem Auswahl-Punkt, aber erst, wenn die Seite ein Stück
+     heruntergerollt ist (html.gerollt) — ganz oben hätte er nichts zu tun. */
+  function ganzNachOben() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  const gerolltPruefen = () => document.documentElement.classList.toggle('gerollt', window.scrollY > 160);
+  window.addEventListener('scroll', gerolltPruefen, { passive: true });
+  /* Schiebe-Griff für die Ordner-Leiste (Klaus 2026-09-27: „Der Schieberegler ist aber ganz schlecht
+     anzufassen … es müsste da ein Griff sein"). Die Leiste des Browsers ist am Tablet ein dünner
+     Strich, der nach dem Rollen verschwindet. Darunter steht deshalb eine eigene Spur mit einem
+     breiten Griff (mind. 48 px, mit Rillen), den man mit Finger oder Maus zieht; ein Tipp auf die
+     Spur springt dorthin. Sie steht nur da, wenn die Ordner wirklich über den Rand ragen. */
+  function griffZeichnen() {
+    const ol = $('ordnerLeiste'), spur = $('ordnerGriff'); if (!ol || !spur) return;
+    const griff = spur.firstElementChild, zuViel = ol.scrollWidth - ol.clientWidth;
+    spur.hidden = !(zuViel > 2);
+    if (spur.hidden) return;
+    const breite = spur.clientWidth, gb = Math.max(48, Math.round(breite * ol.clientWidth / ol.scrollWidth));
+    griff.style.width = gb + 'px';
+    griff.style.transform = 'translateX(' + Math.round((breite - gb) * (ol.scrollLeft / zuViel)) + 'px)';
+  }
+  function griffBinden() {
+    const ol = $('ordnerLeiste'), spur = $('ordnerGriff'); if (!ol || !spur) return;
+    const griff = spur.firstElementChild;
+    ol.addEventListener('scroll', griffZeichnen, { passive: true });
+    window.addEventListener('resize', griffZeichnen);
+    let zieht = null;
+    const setze = x => {   // x = Mitte des Griffs in der Spur → scrollLeft
+      const r = spur.getBoundingClientRect(), gb = griff.offsetWidth, frei = r.width - gb;
+      const anteil = frei > 0 ? Math.min(1, Math.max(0, (x - r.left - zieht) / frei)) : 0;
+      ol.scrollLeft = anteil * (ol.scrollWidth - ol.clientWidth); griffZeichnen();
+    };
+    spur.addEventListener('pointerdown', e => {
+      const gr = griff.getBoundingClientRect();
+      zieht = e.target === griff ? e.clientX - gr.left : griff.offsetWidth / 2;   // am Griff: dort festhalten, wo er gefasst wurde
+      try { spur.setPointerCapture(e.pointerId); } catch (_) {}   // ein Zeiger ohne Kennung (Probe, alte Browser) darf das Ziehen nicht abbrechen
+      spur.classList.add('zieht'); setze(e.clientX); e.preventDefault();
+    });
+    spur.addEventListener('pointermove', e => { if (zieht !== null) setze(e.clientX); });
+    const los = () => { zieht = null; spur.classList.remove('zieht'); };
+    spur.addEventListener('pointerup', los); spur.addEventListener('pointercancel', los);
   }
   function kartenBinden(g, FUND) {
     g.querySelectorAll('.dok').forEach(el => {
@@ -230,6 +288,7 @@
       el.querySelectorAll('[data-auf]').forEach(b => b.onclick = auf);
       const fz = el.querySelector('[data-fundzeilen]'); if (fz) fz.onclick = auf;
       el.querySelector('[data-haken]').onclick = () => { WAHL_AN = true; wahlUmschalten(id); };
+      el.querySelector('[data-hoch]').onclick = ganzNachOben;
       const tk = el.querySelector('[data-teilen]'); if (tk) tk.onclick = () => teilenDocs([id]);   // Platzhalter, kein Ausstieg
       ziehenBinden(el, id);
       el.querySelector('[data-verschieben]').onclick = () => verschieben(id);
@@ -624,7 +683,7 @@
   function ziehenBinden(el, id) {
     el.addEventListener('contextmenu', e => { if (ZG) e.preventDefault(); });
     el.addEventListener('pointerdown', e => {
-      if (e.button || e.target.closest('.dok-akt,[data-haken],[data-fundzeilen] a')) return;
+      if (e.button || e.target.closest('.dok-akt,[data-haken],[data-hoch],[data-fundzeilen] a')) return;
       if (ZG) ziehAus();
       ZG = { id, el, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, maus: e.pointerType === 'mouse', aktiv: false };
       ZG.timer = setTimeout(() => { if (ZG && !ZG.aktiv) ziehStart(); }, LANGDRUCK_MS);
@@ -2337,7 +2396,7 @@
   function spracheingabe() {
     const k = $('bibMic'), feld = $('bibSuche'); if (!k || !feld || !window.WFSprechen) return;
     let erstes = true;
-    WFSprechen.anhaengen({ knopf: k, nach: $('bibForm'),
+    WFSprechen.anhaengen({ knopf: k, nach: $('bibForm'), feld,
       sprache: () => { if (erstes) { toast('🎤 Ich höre zu … (die Aufnahme geht zur Erkennung an Google)'); erstes = false; } return MIC_LANG[(WFP.Sprache && WFP.Sprache.lang) || 'de'] || 'de-DE'; },
       text: (t, fertig) => { feld.value = t; if (fertig) { S.suche = t; zeichneBibliothek(); } },
       meldung: toast });
@@ -2440,7 +2499,7 @@
       e.preventDefault(); suchen(); $('bibSuche').blur();
       const g = $('dokGitter'); if (g && g.scrollIntoView) g.scrollIntoView({ block: 'start', behavior: 'smooth' });
     };
-    spracheingabe();
+    spracheingabe(); griffBinden();
     // Im Dokument: beim Tippen suchen (kurz verzögert, ein langes PDF kostet Zeit), Lupe/▼ = nächster Treffer
     let _eds = null, _edq = '';
     $('edSuche').oninput = () => { clearTimeout(_eds); _eds = setTimeout(() => { _edq = $('edSuche').value; imDokSuchen(_edq); }, 250); };
