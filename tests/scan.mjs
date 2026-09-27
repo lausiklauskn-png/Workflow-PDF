@@ -102,7 +102,7 @@ console.log('Scannen — A2 · Auftrag an ChatGPT (ohne Browser)');
 {
   // Der einfachere Weg: ein fertiges BILD von ChatGPT (Klaus 2026-09-27, „mach's nicht zu kompliziert")
   const bU = SB.bildAuftrag({ nach: 'en' }), bR = SB.bildAuftrag({ nach: 'ru' });
-  ok('Bild-Auftrag: kurz, wie Klaus ihn schreibt — Text extrahieren, übersetzen, an derselben Stelle einfügen, Bild zurück', /Extrahiere den Text/.test(bU) && /auf Englisch/.test(bU) && /derselben Stelle/.test(bU) && /fertige Bild/.test(bU) && bU.length < 300 && !/JSON|zeilen/.test(bU), bU);
+  ok('Bild-Auftrag: kurz, wie Klaus ihn schreibt — Text extrahieren, übersetzen, an derselben Stelle einfügen, Bild zurück', /Extrahiere den Text/.test(bU) && /auf Englisch/.test(bU) && /derselben Stelle/.test(bU) && /fertige Bild/.test(bU) && /Bildqualität/.test(bU) && /hoher Auflösung/.test(bU) && bU.length < 450 && !/JSON|zeilen/.test(bU), bU);
   ok('Bild-Auftrag: die Sprache kommt aus der Wahl', /auf Russisch/.test(bR) && Object.keys(SB.BILD_SPRACHEN).length >= 3);
 }
 
@@ -402,7 +402,9 @@ try {
   await page.waitForFunction(() => window.__wfpdfBildKi && window.__wfpdfBildKi.weg, null, { timeout: 10000 }).catch(() => {});
   const OHNE = await page.evaluate(() => ({ weg: window.__wfpdfBildKi && window.__wfpdfBildKi.weg, auf: window.__geoeffnet }));
   ok('Ohne Teilen: Bild wird gespeichert und ChatGPT geöffnet', OHNE.weg === 'speichern' && OHNE.auf.length === 1 && /chatgpt\.com/.test(OHNE.auf[0]), OHNE);
-  const kiF = path.join(TMP, 'ChatGPT-Bild.png'); fs.copyFileSync(zweiF, kiF);
+  // ein GROSSES Bild wie von ChatGPT (2200 px): nur daran ist zu sehen, ob das PDF es herunterrechnet
+  const kiGross = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 2200; c.height = 1500; const x = c.getContext('2d'); x.fillStyle = '#fff5c0'; x.fillRect(0, 0, 2200, 1500); x.fillStyle = '#111'; x.font = 'bold 80px Arial'; x.fillText('Further information', 300, 400); x.fillText('Have a pleasant stay', 300, 700); return c.toDataURL('image/png'); });
+  const kiF = path.join(TMP, 'ChatGPT-Bild.png'); fs.writeFileSync(kiF, Buffer.from(kiGross.split(',')[1], 'base64'));
   // eine zweite Seite dahinter: nur dann unterscheidet sich „dahinter“ von „ans Ende“
   await page.evaluate(() => { const st = WFP.Scanner.zustand(); st.seiten.push(Object.assign({}, st.seiten[0], { id: 'zweite', name: 'Zweite Seite' })); st.akt = 0; st.ansicht = 'ergebnis'; WFP.Scanner.zeichne(); });
   const vor = await page.evaluate(() => window.__wfpdfScan.seiten.map(s => s.name));
@@ -420,6 +422,10 @@ try {
   const [dl1] = await Promise.all([page.waitForEvent('download'), page.click('.scan [data-laden]')]);
   await page.waitForFunction(() => window.__wfpdfScanAbgelegt, null, { timeout: 30000 }).catch(() => {});
   const AB1 = await page.evaluate(async () => { const id = window.__wfpdfScanAbgelegt, d = id && await WFP.DB.get('docs', id); return { id, n: (await WFP.DB.all('docs')).length, seiten: d && d.pages.length, datei: !!(id && await WFP.DB.getFile(id)), offen: !!document.querySelector('.scan') }; });
+  const DPI = await page.evaluate(() => ({ seiten: window.__wfpdfScanDpi || [], foto: (() => { const s = WFP.Scanner.zustand().seiten.find(x => x.kiBild); return s ? Math.max(s.foto.width, s.foto.height) : 0; })() }));
+  const kiD = DPI.seiten.find(x => x.ki), orD = DPI.seiten.find(x => !x.ki);
+  ok('(Selbst-Riegel) das ChatGPT-Bild ist wirklich groß (2200 px) — sonst misst die Zeile darunter nichts', DPI.foto === 2200, DPI);
+  ok('Das ChatGPT-Bild kommt in SEINER Auflösung ins PDF (nicht auf 150 dpi heruntergerechnet)', kiD && orD && kiD.dpi > orD.dpi && kiD.px >= 2090, DPI);
   ok('„⬇ PDF herunterladen" lädt herunter UND legt das PDF in Workfloh PDF ab (alle 3 Seiten, Werkzeug bleibt offen)', !!dl1 && AB1.id && AB1.n === docsVor + 1 && AB1.seiten === 3 && AB1.datei && AB1.offen, { docsVor, AB1 });
   await Promise.all([page.waitForEvent('download'), page.click('.scan [data-laden]')]);
   await page.waitForFunction(() => window.__wfpdfScanAblagen >= 2, null, { timeout: 30000 }).catch(() => {});
