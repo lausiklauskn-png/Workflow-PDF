@@ -111,6 +111,15 @@ await page.evaluate(async () => { const W = window.__wfpdf; const o = { id: 'o-h
 await page.reload(); await page.waitForFunction(() => window.__wfpdf && window.__wfpdf.S.ordner.length >= 1);
 await page.click('.ordner-chip[data-o="o-hb"]'); await page.click('[data-ausgabe]'); await page.waitForSelector('.dlg [data-weg]');
 await foto('ordner', page.locator('.dlg')); await esc();
+// Auswahl: zwei Karten gewählt, oben die Leiste
+await page.setViewportSize({ width: 620, height: 1100 });
+await page.evaluate(() => { const W = window.__wfpdf; for (const d of W.S.docs) W.dlg.wahlUmschalten(d.id); }); await page.waitForTimeout(300);
+await page.evaluate(() => window.scrollTo(0, 0));
+{ const bb = async s => page.evaluate(s => { const r = document.querySelector(s).getBoundingClientRect(); return { x: r.x, y: r.y + scrollY, width: r.width, height: r.height }; }, s);
+  const a = await bb('#wahlLeiste'), k = await bb('#dokGitter .dok');
+  bilder.auswahl = (await page.screenshot({ type: 'jpeg', quality: 80, fullPage: true, clip: { x: a.x - 8, y: a.y - 8, width: a.width + 16, height: k.y + k.height - a.y + 16 } })).toString('base64'); }
+await page.evaluate(() => window.__wfpdf.dlg.wahlEnde());
+await page.setViewportSize({ width: 1180, height: 820 });
 // Scannen: ein Foto (aus tests/scan-fotos, Scanics Testbilder) — Blatt gefunden, Ecken zum Prüfen
 await page.click('#btnScan'); await page.waitForSelector('.scan [data-galerie]');
 await page.setInputFiles('.scan [data-in-galerie]', path.join(W, 'tests/scan-fotos/foto01.jpg'));

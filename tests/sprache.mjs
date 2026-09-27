@@ -120,6 +120,11 @@ async function rundreise(p) {
     await p.evaluate(W => { const w = window[W]; w.bedeutung.bedeutungAus(); w.S.suche = ''; w.suche.zeichneBibliothek(); }, W);
   });
   await schritt(p, 'Verschieben', () => p.evaluate(([W, id]) => { window[W].dlg.verschieben(id); }, [W, ids[0]]));
+  // Teilen, Auswahl (2026-09-27): Auswahl-Leiste, Schattenbild beim Ziehen, Teilen-Dialog ohne Teilen am Gerät
+  await schritt(p, 'Auswahl', async () => { await p.evaluate(([W, id]) => { window[W].dlg.wahlUmschalten(id); }, [W, ids[0]]); await ruhe(p);
+    await p.evaluate(() => { const g = document.createElement('div'); g.className = 'zieh-geist'; g.id = 'ziehGeistProbe'; g.textContent = `📄 ${2} · auf einen Ordner ziehen`; document.body.appendChild(g); }); await ruhe(p);
+    await p.evaluate(W => { document.getElementById('ziehGeistProbe').remove(); window[W].dlg.wahlEnde(); }, W); });
+  await schritt(p, 'Teilen-Dialog', async () => { await p.evaluate(([W, ids]) => { Object.defineProperty(navigator, 'canShare', { configurable: true, value: undefined }); window[W].dlg.teilenDocs(ids); }, [W, ids]); await p.waitForSelector('.dlg [data-dl]', { timeout: 20000 }); });
   await schritt(p, 'Löschen-Frage', () => p.evaluate(([W, id]) => { window[W].dlg.loeschen(id); }, [W, ids[0]]));
   await schritt(p, 'Ordner ausgeben', () => p.evaluate(W => { const w = window[W]; const o = w.S.ordner.find(o => w.S.docs.some(d => d.folderId === o.id)); if (o) w.dlg.ordnerAusgabe(o); }, W));
   await schritt(p, 'Erkennen', () => p.evaluate(([W, ids]) => { window[W].dlg.erkennenDialog(ids); }, [W, ids]));

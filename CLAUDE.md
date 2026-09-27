@@ -436,6 +436,30 @@ Ordner als Ganzes mit den integrierten PDFs freigeben oder ausgeben".
   deshalb aus `window.__wfpdfOrdnerAusgabe`. Was das Tablet daraus macht, ist ungemessen.
 - Proben: `tests/ordner.mjs` (in `npm test`) · `node tests/gegenprobe_ordner.mjs` (14 Fälle).
 
+## 📤 Teilen, Mehrfachauswahl, auf einen Ordner ziehen (Klaus 2026-09-27)
+
+„sodass man am schnellsten von einem Ort zum Teilen kommt, wenn man fertig ist" · „durch ein
+dauerhaftes Klick soll ein kleines Kästchen oben angehen … wie bei Bilderauswahl" · „fest andrücken
+und ziehen" auf einen Ordner.
+
+- **📤 an jeder Karte** (vor 🗑) und **im Editor direkt vor „⬇ PDF ausgeben"** (`edTeilen`). Beide rufen
+  `teilenDocs(ids)`: mit Einträgen das feste PDF, ohne Einträge das Original. Der Editor speichert vorher.
+  Teilen braucht einen frischen Tipp — verweigert Android es nach dem Bauen (NotAllowedError), steht
+  „📤 Jetzt teilen …" da; kann das Gerät nicht teilen: Herunterladen (mehrere als ZIP).
+- **Auswahl** (`WAHL`, `WAHL_AN`): Kästchen oben rechts auf der Karte (am Tablet immer sichtbar, mit
+  Maus beim Darüberfahren) oder langer Druck (`LANGDRUCK_MS` 450). Im Auswahl-Modus wählt ein Tipp,
+  statt zu öffnen. Leiste `#wahlLeiste`: Anzahl · Alle wählen · 📤 Teilen · 🗂️ Verschieben · ✕ Fertig.
+- **Ziehen** — die Technik aus Mein Rezeptbuch: nach dem langen Druck folgt ein Schattenbild dem Finger,
+  gesucht wird per `elementFromPoint` (Schatten kurz ausgeblendet), überstrichene Karten kommen in die
+  Auswahl, loslassen auf einem Ordner-Chip verschiebt alle gewählten (`inOrdner`), „＋ Ordner" legt erst
+  einen an, „Alle" ist kein Ziel. Mit der Maus beginnt das Ziehen nach 10 px Weg; mit dem Finger heißt
+  sofortiges Bewegen Rollen. `touchmove` ist nicht passiv und wird nur beim Ziehen abgefangen; der Klick
+  nach dem Ziehen/langen Druck wird geschluckt (`klickSperre`). `verschieben(id|ids)` nimmt beides.
+- ⚠ **Nicht gemessen:** echtes Teilen am Tablet (headless ist `navigator.share` gestellt) und das Ziehen
+  mit echtem Finger auf Android/DeX (gemessen mit CDP-Touch-Ereignissen).
+- Proben: `tests/teilen.mjs` (in `npm test`) · `node tests/gegenprobe_teilen.mjs` (18 Fälle,
+  Wegwerf-Kopie; `NUR_ANKER=1`, `NUR_FALL="…"`).
+
 ## 🔗 Links im Feld (Klaus 2026-09-26)
 
 Beim Ausfüllen wird eine E-Mail, eine Internetadresse (www…, …de) oder eine Telefonnummer
@@ -453,7 +477,7 @@ das auch in den Feldinhalten sucht. Nummern werden beim Übersetzen nicht übers
 
 ## 📘 Handbuch und Beispiel-Formular (Klaus 2026-09-25)
 
-`beispiele/Workfloh-PDF-Benutzerhandbuch.pdf` (19 Seiten, neu gebaut 2026-09-27: Scannen in Kapitel 3, Kapitel 6 Suchen mit Spracheingabe und Bedeutungssuche, Kapitel 7 Sortieren/Ordner ausgeben, Übersetzen in Teilen) und
+`beispiele/Workfloh-PDF-Benutzerhandbuch.pdf` (20 Seiten, neu gebaut 2026-09-27: Scannen in Kapitel 3, Kapitel 6 Suchen mit Spracheingabe und Bedeutungssuche, Kapitel 7 Teilen/Auswahl/Sortieren/Ordner ausgeben, Übersetzen in Teilen) und
 `beispiele/Beispiel-Amtsformular-Bewohnerparkausweis.pdf` (erfunden, Stadt Musterstadt).
 Zum Nachlesen UND als Testmaterial fürs Übersetzen, ohne eigene Daten ins Netz zu geben:
 Bilder, Farbkästen, Tabellen, Zweispalter, Querformat, eine gescannte Seite ohne Textebene.
