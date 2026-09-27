@@ -141,6 +141,14 @@ fotografieren" (an ein Dokument anhängen). Der alte Aufnahme-Dialog ist weg.
   der Kopfleiste (nicht greifbar). Jetzt 52 dvh für das Foto, das Scan-Fenster ROLLT, und das Bild
   hält 20 px Abstand für die halben Griffe (keine 200-px-Untergrenze mehr). Quer (740×360) bleibt
   das Foto klein — benannte Grenze.
+- **Vollbild quer und Handy gleich in allen drei Apps** (Klaus 2026-09-27: „Zuschneiden und Ergebnis … nicht so schmal" ·
+  „die Vollbildansicht nutzt den Platz für das Bild nicht optimal aus"): ab 761 px quer steht das Foto links über die
+  ganze Höhe, Werkzeug · Seiten · Fuß rechts in einer Spalte (360 px), die rollt; gemessen bei 1000 × 540: Bühne
+  151 → 482 px. Das Foto im Zuschneiden wird nicht mehr bei 100 % gedeckelt (kleine Fotos füllen die Bühne). Am Handy
+  Reiter ≤ 30 px, Befund einzeilig mit Nachsatz (≤ 48 px). Dieselben Blöcke stehen in `assets/wfpdf/scanner.css`
+  beider WorkFlohs; dort heißt Rot `--scan-rot`, weil tomy-ui `--rot` per `@property` als Winkel anmeldet (in Tomys
+  war der gewählte Reiter durchsichtig). ⚠ Dass ein KLEINES Foto größer gezeigt wird, misst keine Probe — die
+  Testfotos sind groß.
 - **Seitengröße** (Klaus 2026-09-27): Automatisch (Vorgabe) · Original (wie das Blatt) · A4 · A5 · A6 · US Letter.
   Automatisch: Verhältnis ± 8 % um √2 (`AUTO_TOLERANZ`) → A4, sonst Original — und es SAGT, was es gewählt hat
   (`data-format-ist`). A4, A5, A6 haben dasselbe Verhältnis; welche Größe das Papier hatte, zeigt ein Foto nicht.

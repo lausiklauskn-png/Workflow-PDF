@@ -377,9 +377,13 @@
     // mit „mindestens 200" ragte das Bild am Handy (Bühne 156 px) oben unter die Kopfleiste,
     // und die oberen Ecken waren nicht mehr zu greifen (gemessen 2026-09-27, 360×740).
     const maxW = Math.max(60, b.clientWidth - 40), maxH = Math.max(60, b.clientHeight - 40);
-    const f = Math.min(maxW / s.foto.width, maxH / s.foto.height, 1);
+    // Kein Deckel bei 1 (Klaus 2026-09-27: „die Vollbildansicht nutzt den Platz für das Bild nicht optimal
+    // aus"): ein kleines Foto füllt die Bühne wie in der Ergebnis-Ansicht. Die Leinwand bekommt die
+    // Pixel des Schirms, gezeichnet wird höchstens in der Auflösung des Fotos.
+    const f = Math.min(maxW / s.foto.width, maxH / s.foto.height);
     const W = Math.round(s.foto.width * f), H = Math.round(s.foto.height * f);
-    cv.width = W; cv.height = H; cv.getContext('2d').drawImage(s.foto, 0, 0, W, H);
+    const dp = Math.max(1, Math.min(window.devicePixelRatio || 1, s.foto.width / W));
+    cv.width = Math.round(W * dp); cv.height = Math.round(H * dp); cv.getContext('2d').drawImage(s.foto, 0, 0, cv.width, cv.height);
     rahmen.style.width = W + 'px'; rahmen.style.height = H + 'px';
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', W); svg.setAttribute('height', H);
     const griffe = s.ecken.map((p, i) => { const g = document.createElement('button'); g.className = 'scan-griff'; g.dataset.ecke = i; g.setAttribute('aria-label', ['Ecke oben links', 'Ecke oben rechts', 'Ecke unten rechts', 'Ecke unten links'][i]); rahmen.appendChild(g); return g; });

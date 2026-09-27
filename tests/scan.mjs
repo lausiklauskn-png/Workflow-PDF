@@ -493,6 +493,11 @@ try {
   });
   ok('Handy 360×740: das Foto bekommt mindestens ein Drittel der Höhe (vorher 156 px)', HM.hoehe >= HM.schirm / 3, HM);
   ok('Handy: alle vier Ecken sind zu greifen — keine liegt unter der Kopfleiste', HM.griffe.length === 4 && HM.griffe.every(Boolean), HM);
+  // Klaus 2026-09-27: Reiter und Befund schmal — dieselben Maße stehen in beiden WorkFlohs (scanner.css)
+  const HT = await hp.evaluate(() => { const t = document.querySelector('.scan-tabs .modus-k'), bf = document.querySelector('.scan-befund');
+    return { tab: Math.round(t.getBoundingClientRect().height), befund: bf ? Math.round(bf.getBoundingClientRect().height) : 0 }; });
+  ok('Handy: Reiter Zuschneiden/Ergebnis höchstens 30 px hoch', HT.tab <= 30, HT);
+  ok('Handy: der Befund („Ecken …") höchstens 48 px hoch', HT.befund > 0 && HT.befund <= 48, HT);
   const hg = await hp.locator('.scan .scan-griff').nth(2).boundingBox();
   await hp.mouse.move(hg.x + hg.width / 2, hg.y + hg.height / 2); await hp.mouse.down();
   await hp.mouse.move(hg.x + hg.width / 2 - 20, hg.y + hg.height / 2 - 15, { steps: 4 });
@@ -500,6 +505,21 @@ try {
   await hp.mouse.up();
   ok('Handy: Lupe sichtbar, ≤ 64 px, deckt den Punkt nicht', HL && HL.sichtbar && HL.gezogen && HL.lupe[2] <= 64 && HL.deckt === false, HL);
   await hp.context().close();
+
+  /* ---------- Vollbild quer (Klaus 2026-09-27: „nutzt den Platz für das Bild nicht optimal aus") ---------- */
+  const gp = await (await browser.newContext({ viewport: { width: 1000, height: 540 } })).newPage();
+  gp.on('pageerror', e => konsole.push('Vollbild: ' + e));
+  await gp.goto(URL0);
+  await gp.waitForFunction(() => window.__wfpdf && window.WFP && WFP.Scanner);
+  await gp.click('#btnScan');
+  await gp.setInputFiles('.scan [data-in-galerie]', foto1);
+  await gp.waitForSelector('.scan .scan-griff', { timeout: 60000 });
+  const GM = await gp.evaluate(() => { const b = document.querySelector('.scan-buehne').getBoundingClientRect(), r = document.querySelector('.scan [data-rahmen]').getBoundingClientRect(), l = document.querySelector('.scan-leiste').getBoundingClientRect(), f = document.querySelector('.scan-fuss').getBoundingClientRect();
+    return { buehne: Math.round(b.height), bild: Math.round(Math.max(r.width, r.height)), schirm: innerHeight, leisteRechts: l.left >= b.right - 1, fussRechts: f.left >= b.right - 1, leiste: Math.round(l.height) }; });
+  ok('Vollbild 1000×540: die Bühne nimmt mindestens 80 % der Höhe (vorher 151 px)', GM.buehne >= GM.schirm * 0.8, GM);
+  ok('Vollbild: das Foto füllt die Bühne (auch ein kleines Foto wird größer gezeigt)', GM.bild >= GM.buehne - 60, GM);
+  ok('Vollbild: Seitenleiste und Fuß stehen rechts neben dem Foto, nicht darunter', GM.leisteRechts && GM.fussRechts && GM.leiste >= 60, GM);
+  await gp.context().close();
 
   ok('kein Aufruf ins Netz (Modell, Texterkennung, Schrift liegen auf dem Gerät)', fremd.length === 0, fremd);
   ok('keine Fehler in der Konsole', konsole.length === 0, konsole);
