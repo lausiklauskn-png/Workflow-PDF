@@ -5,6 +5,12 @@ ausfüllen → festes / ausfüllbares PDF / leere Vorlage. Kein Build-Schritt.
 Vorlage war der Originaldokument-Modus von Mein-WorkFloh (Felder in Prozent
 über der echten Seite, „bearbeiten" gegen „ausfüllen").
 
+## To-Do-Liste
+
+Klaus' Prüf-Befunde für alle Workflow-Repos (Workflow-PDF · Mein-WorkFloh ·
+Tomys-Hub/workfloh) stehen in **`docs/TODO.md`**. Sagt er „To-Do für Workflow",
+wird dort eingetragen — abgearbeitet wird über Plan/Brief.
+
 ## Namen
 
 In der Kopfleiste **Workfloh PDF** (mit h), in sachlichen Erklärungen
