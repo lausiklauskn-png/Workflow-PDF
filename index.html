@@ -13,7 +13,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1">
 <link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png?v=1">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1">
-<link rel="stylesheet" href="assets/style.css?v=19">
+<link rel="stylesheet" href="assets/style.css?v=20">
 </head>
 <body>
 <header class="kopf">
@@ -64,6 +64,7 @@
     <!-- Suche nach Bedeutung (Stufe 2): Knopf zum Einschalten, Ladebalken, Zustand -->
     <div class="bedeutung-leiste" id="bedeutungLeiste" data-bed-zustand="aus"></div>
     <div class="ordner-aktionen" id="ordnerAktionen"></div>
+    <div class="wahl-leiste" id="wahlLeiste" hidden></div>
     <div class="dok-gitter" id="dokGitter"></div>
   </section>
 
@@ -79,6 +80,7 @@
       <button class="knopf" id="edErkennen" title="Formularfelder erkennen lassen">🤖<span class="lang"> Felder</span> erkennen</button>
       <div class="zoom"><button class="knopf klein" id="zMinus" title="Kleiner">−</button><button class="knopf klein" id="zPlus" title="Größer">+</button></div>
       <button class="knopf" id="edSpeichern" title="Speichern · Arbeitsstand als Datei sichern">💾<span class="lang"> Speichern</span></button>
+      <button class="knopf" id="edTeilen" title="Teilen mit … (E-Mail, Messenger …)">📤<span class="lang"> Teilen</span></button>
       <button class="knopf rot" id="edExport">⬇ PDF<span class="lang"> ausgeben</span></button>
     </div>
     <!-- Im Dokument suchen (Klaus 2026-09-26): wie die Suche im PDF-Programm — alle Treffer markiert,
@@ -115,9 +117,9 @@
 <script src="assets/export.js?v=7"></script>
 <script src="assets/html-export.js?v=2"></script>
 <script src="assets/uebersetzung.js?v=12"></script>
-<script src="assets/sprache-texte.js?v=17"></script>
+<script src="assets/sprache-texte.js?v=18"></script>
 <script src="assets/sprache.js?v=1"></script>
 <script src="assets/sprechen.js?v=1"></script>
-<script src="assets/app.js?v=40"></script>
+<script src="assets/app.js?v=41"></script>
 </body>
 </html>

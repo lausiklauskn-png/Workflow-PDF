@@ -171,7 +171,7 @@
     // Ist ein Ordner gewählt, zeigt die Suche NUR ihn (Klaus 2026-09-26) — ein Knopf hebt das auf.
     const imOrdner = d => imO(d, S.aktOrdner);
     S.fund = FUND;
-    const sicht = S.docs.filter(d => imOrdner(d) && (!such.length || FUND.has(d.id)));
+    const sicht = S.sicht = S.docs.filter(d => imOrdner(d) && (!such.length || FUND.has(d.id)));
     if (such.length) sicht.sort((a, b) => FUND.get(b.id).punkte - FUND.get(a.id).punkte);
     else sortiere(sicht);
     const sortWahl = !such.length && sicht.length > 1 ? `<label class="sortier">Sortieren: <select data-sort>${Object.entries(SORTIERUNG).map(([k, v]) => `<option value="${k}"${k === EINST.sortierung ? ' selected' : ''}>${v}</option>`).join('')}</select></label>` : '';
@@ -193,6 +193,7 @@
       await DB.del('folders', o.id); S.aktOrdner = 'alle'; ladeBibliothek();
     };
 
+    wahlLeiste();
     const g = $('dokGitter');
     const nurOrdner = such.length && S.aktOrdner !== 'alle' ? '<div class="hinweis such-ordner" data-suchordner><span>Gesucht nur in diesem Ordner.</span><button class="knopf klein" data-alleordner>In allen Ordnern suchen</button></div>' : '';
     const alleOrdnerKnopf = () => { const b = g.querySelector('[data-alleordner]'); if (b) b.onclick = () => { S.aktOrdner = 'alle'; zeichneBibliothek(); }; };
@@ -211,20 +212,26 @@
       const v = offeneVorschlaege(d), ord = S.ordner.find(x => x.id === d.folderId);
       const tr = fund && !fund.bedeutung ? fund.treffer : 0;
       const nae = fund && fund.bedeutung ? `<span class="treffer-zahl naehe-zahl dok-treffer" data-naehe="${fund.w.toFixed(3)}" title="Nähe zur Frage — eine Rangfolge, keine Prozent">🧠 ${fund.w.toFixed(2).replace('.', ',')}</span>` : '';
-      return `<div class="dok" data-id="${d.id}"${fund && fund.bedeutung ? ' data-bedeutung' + (fund.schwach ? ' data-schwach' : '') : ''}>${nae}${tr ? `<span class="treffer-zahl dok-treffer" data-treffer="${tr}" title="Treffer in diesem Dokument">🔎${tr}</span>` : ''}
+      return `<div class="dok${WAHL.has(d.id) ? ' gewaehlt' : ''}" data-id="${d.id}"${fund && fund.bedeutung ? ' data-bedeutung' + (fund.schwach ? ' data-schwach' : '') : ''}>${nae}${tr ? `<span class="treffer-zahl dok-treffer" data-treffer="${tr}" title="Treffer in diesem Dokument">🔎${tr}</span>` : ''}
+        <button class="dok-haken" data-haken title="Auswählen (mehrere teilen oder verschieben)" aria-label="Auswählen" aria-pressed="${WAHL.has(d.id)}">${WAHL.has(d.id) ? '✓' : ''}</button>
         <button class="dok-bild" data-auf style="background-image:url('${d.thumb || ''}')" title="Öffnen">
           <span class="marken">${v ? `<span class="marke-klein ki">🤖 ${v} zu prüfen</span>` : ''}${d.quelle === 'foto' ? '<span class="marke-klein">📷 Foto</span>' : ''}${d.uebersetzung ? `<span class="marke-klein">🌐 ${h((d.uebersetzung.von || '').toUpperCase())}→${h((d.uebersetzung.nach || '').toUpperCase())}${d.uebersetzung.gegenprobe ? ' Gegenprobe' : ''}</span>` : ''}${d.ausgefuellt ? `<span class="marke-klein">↩ ausgefüllt aus ${h((d.ausgefuellt.aus || '').toUpperCase())}</span>` : ''}</span></button>
         <div class="dok-info"><div class="dok-name" data-kein-ue title="${h(d.name)}">${nm(d.name)}</div>
           <div class="dok-meta">${d.pages.length} Seite${d.pages.length === 1 ? '' : 'n'} · ${d.fields.length} Feld${d.fields.length === 1 ? '' : 'er'}${EINST.sortierung === 'groesse' && _groesse.has(d.id) ? ' · ' + mbText(_groesse.get(d.id)) : ''}${ord && S.aktOrdner === 'alle' ? ' · 🗂️ ' + nm(ord.name) : ''}</div>${fund ? (fund.bedeutung ? bedeutungZeile(fund) : fundZeilen(fund)) : ''}</div>
-        <div class="dok-akt"><button data-auf title="Öffnen">✏️</button><button data-verschieben title="In Ordner verschieben">🗂️</button><button data-kopie title="Duplizieren (z. B. als Vorlage)">⧉</button><button data-loeschen title="Löschen">🗑</button></div></div>`;
+        <div class="dok-akt"><button data-auf title="Öffnen">✏️</button><button data-verschieben title="In Ordner verschieben">🗂️</button><button data-kopie title="Duplizieren (z. B. als Vorlage)">⧉</button><button data-teilen title="Teilen mit … (E-Mail, Messenger …)">📤</button><button data-loeschen title="Löschen">🗑</button></div></div>`;
   }
   function kartenBinden(g, FUND) {
     g.querySelectorAll('.dok').forEach(el => {
       const id = el.dataset.id;
       const fund = el.hasAttribute('data-bedeutung') ? (S.bedeutungFund && S.bedeutungFund.get(id)) : FUND.get(id);
       // Aus der Suche geöffnet: die Fundstellen kommen mit und werden auf der Seite markiert
-      el.querySelectorAll('[data-auf]').forEach(b => b.onclick = () => oeffneDok(id, fund));
-      const fz = el.querySelector('[data-fundzeilen]'); if (fz) fz.onclick = () => oeffneDok(id, fund);
+      // Im Auswahl-Modus wählt ein Tipp, statt zu öffnen — wie bei einer Bilderauswahl
+      const auf = () => { if (WAHL_AN) wahlUmschalten(id); else oeffneDok(id, fund); };
+      el.querySelectorAll('[data-auf]').forEach(b => b.onclick = auf);
+      const fz = el.querySelector('[data-fundzeilen]'); if (fz) fz.onclick = auf;
+      el.querySelector('[data-haken]').onclick = () => { WAHL_AN = true; wahlUmschalten(id); };
+      el.querySelector('[data-teilen]').onclick = () => teilenDocs([id]);
+      ziehenBinden(el, id);
       el.querySelector('[data-verschieben]').onclick = () => verschieben(id);
       el.querySelector('[data-kopie]').onclick = () => duplizieren(id);
       el.querySelector('[data-loeschen]').onclick = () => loeschen(id);
@@ -551,14 +558,179 @@
     S.aktOrdner = o.id; await ladeBibliothek(); return o;
   }
   async function verschieben(id) {
-    const d = S.docs.find(x => x.id === id); if (!d) return;
-    dialog(`<h2>In Ordner verschieben</h2><p class="hinweis">„${nm(d.name)}"</p>
+    const ids = Array.isArray(id) ? id : [id];
+    const ds = ids.map(i => S.docs.find(x => x.id === i)).filter(Boolean); if (!ds.length) return;
+    const d = ds[0];
+    dialog(`<h2>In Ordner verschieben</h2><p class="hinweis">${ds.length === 1 ? `„${nm(d.name)}"` : `${ds.length} Dokumente`}</p>
       ${S.ordner.map(o => `<button class="wahl" data-o="${o.id}"><b>🗂️ ${nm(o.name)}</b></button>`).join('')}
       <button class="wahl" data-o=""><b>Ohne Ordner</b></button><button class="wahl" data-neu><b>＋ Neuer Ordner …</b></button>
       <div class="zeile"><button class="knopf" data-x>Abbrechen</button></div>`, (dl, zu) => {
-      dl.querySelectorAll('[data-o]').forEach(b => b.onclick = async () => { d.folderId = b.dataset.o || null; await DB.put('docs', d); zu(); ladeBibliothek(); });
-      dl.querySelector('[data-neu]').onclick = async () => { zu(); const o = await neuerOrdner(); if (o) { d.folderId = o.id; await DB.put('docs', d); ladeBibliothek(); } };
+      dl.querySelectorAll('[data-o]').forEach(b => b.onclick = async () => { zu(); await inOrdner(ds.map(x => x.id), b.dataset.o || null); });
+      dl.querySelector('[data-neu]').onclick = async () => { zu(); const o = await neuerOrdner(); if (o) await inOrdner(ds.map(x => x.id), o.id); };
       dl.querySelector('[data-x]').onclick = zu;
+    });
+  }
+  /* ---------- Teilen, Auswahl, Ziehen auf einen Ordner (Klaus 2026-09-27) ----------
+     „sodass man am schnellsten von einem Ort zum Teilen kommt, wenn man fertig ist" · „durch ein
+     dauerhaftes Klick soll ein kleines Kästchen oben angehen … Klick, Klick, Klick, wie bei
+     Bilderauswahl … auch mit ziehen sollen gleich mehrere selektiert werden" · „fest andrücken und
+     ziehen" auf einen Ordner (die Technik aus Mein Rezeptbuch: langer Druck, ein Schattenbild folgt
+     dem Finger, darunter wird per elementFromPoint gesucht). */
+  const WAHL = new Set(); let WAHL_AN = false;
+  const LANGDRUCK_MS = 450, ZIEH_PX = 10;
+  function wahlUmschalten(id) {
+    if (WAHL.has(id)) WAHL.delete(id); else WAHL.add(id);
+    if (!WAHL.size) WAHL_AN = false;
+    wahlMarken(); wahlLeiste();
+  }
+  function wahlEnde() { WAHL.clear(); WAHL_AN = false; wahlMarken(); wahlLeiste(); }
+  function wahlMarken() {
+    document.querySelectorAll('#dokGitter .dok[data-id]').forEach(el => {
+      const an = WAHL.has(el.dataset.id); el.classList.toggle('gewaehlt', an);
+      const hk = el.querySelector('[data-haken]'); if (hk) { hk.textContent = an ? '✓' : ''; hk.setAttribute('aria-pressed', String(an)); }
+    });
+    $('dokGitter').classList.toggle('wahl-an', WAHL_AN);
+  }
+  function wahlLeiste() {
+    const l = $('wahlLeiste'); if (!l) return;
+    for (const id of [...WAHL]) if (!S.docs.some(d => d.id === id)) WAHL.delete(id);
+    if (!WAHL_AN && !WAHL.size) { l.hidden = true; l.innerHTML = ''; $('dokGitter').classList.remove('wahl-an'); return; }
+    l.hidden = false;
+    const n = WAHL.size, alle = (S.sicht || []).length;
+    l.innerHTML = `<b data-wahl-zahl="${n}">✓ ${n} ausgewählt</b>
+      ${alle && n < alle ? '<button class="knopf klein" data-wahl-alle>Alle wählen</button>' : ''}
+      <button class="knopf klein primaer" data-wahl-teilen${n ? '' : ' disabled'}>📤 Teilen</button>
+      <button class="knopf klein" data-wahl-verschieben${n ? '' : ' disabled'}>🗂️ Verschieben</button>
+      <button class="knopf klein" data-wahl-ende>✕ Fertig</button>
+      <span class="hinweis wahl-tipp">Tippen wählt · lange drücken und ziehen wählt mehrere · auf einen Ordner oben ziehen verschiebt</span>`;
+    const q = s => l.querySelector(s);
+    if (q('[data-wahl-alle]')) q('[data-wahl-alle]').onclick = () => { for (const d of S.sicht || []) WAHL.add(d.id); wahlMarken(); wahlLeiste(); };
+    q('[data-wahl-teilen]').onclick = () => teilenDocs([...WAHL]);
+    q('[data-wahl-verschieben]').onclick = () => verschieben([...WAHL]);
+    q('[data-wahl-ende]').onclick = wahlEnde;
+    $('dokGitter').classList.toggle('wahl-an', WAHL_AN);
+  }
+  async function inOrdner(ids, folderId) {
+    let n = 0;
+    for (const id of ids) { const d = S.docs.find(x => x.id === id); if (!d || (d.folderId || null) === folderId) continue; d.folderId = folderId; await DB.put('docs', d); n++; }
+    const o = S.ordner.find(x => x.id === folderId);
+    toast(`🗂️ ${n} verschoben`);
+    WAHL.clear(); WAHL_AN = false;
+    await ladeBibliothek();
+  }
+  // Langer Druck (Finger) oder Mauszug: wählt, sammelt beim Ziehen weitere Karten ein, und wer auf
+  // einem Ordner oben loslässt, verschiebt alles Gewählte dorthin.
+  let ZG = null, klickSperre = false;
+  function ziehenBinden(el, id) {
+    el.addEventListener('contextmenu', e => { if (ZG) e.preventDefault(); });
+    el.addEventListener('pointerdown', e => {
+      if (e.button || e.target.closest('.dok-akt,[data-haken],[data-fundzeilen] a')) return;
+      if (ZG) ziehAus();
+      ZG = { id, el, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, maus: e.pointerType === 'mouse', aktiv: false };
+      ZG.timer = setTimeout(() => { if (ZG && !ZG.aktiv) ziehStart(); }, LANGDRUCK_MS);
+    });
+  }
+  function ziehStart() {
+    ZG.aktiv = true; clearTimeout(ZG.timer);
+    WAHL_AN = true; WAHL.add(ZG.id); wahlMarken(); wahlLeiste();
+    try { navigator.vibrate && navigator.vibrate(15); } catch (_) {}
+    const g = document.createElement('div'); g.className = 'zieh-geist'; g.id = 'ziehGeist';
+    ZG.geist = g; document.body.appendChild(g); ziehGeist();
+    document.body.classList.add('zieht');
+  }
+  function ziehGeist() { if (!ZG || !ZG.geist) return; ZG.geist.textContent = `📄 ${WAHL.size} · auf einen Ordner ziehen`; ZG.geist.style.left = (ZG.x + 14) + 'px'; ZG.geist.style.top = (ZG.y + 14) + 'px'; }
+  function ziehZiel() {
+    document.querySelectorAll('.ordner-chip.ziel').forEach(c => c.classList.remove('ziel'));
+    if (ZG.geist) ZG.geist.style.display = 'none';
+    const el = document.elementFromPoint(ZG.x, ZG.y);
+    if (ZG.geist) ZG.geist.style.display = '';
+    const chip = el && el.closest('.ordner-chip');
+    ZG.ziel = chip && (chip.hasAttribute('data-neu') || (chip.dataset.o && chip.dataset.o !== 'alle')) ? chip : null;
+    if (ZG.ziel) ZG.ziel.classList.add('ziel');
+    // Über eine Karte gezogen: sie kommt dazu
+    const karte = el && el.closest('#dokGitter .dok[data-id]');
+    if (karte && !WAHL.has(karte.dataset.id)) { WAHL.add(karte.dataset.id); wahlMarken(); wahlLeiste(); }
+  }
+  let _rollen = null;
+  function ziehRollen() {
+    clearInterval(_rollen); _rollen = null; if (!ZG || !ZG.aktiv) return;
+    const rand = 60, h = window.innerHeight, v = ZG.y < rand ? -12 : ZG.y > h - rand ? 12 : 0;
+    if (v) _rollen = setInterval(() => { window.scrollBy(0, v); if (ZG) ziehZiel(); }, 30);
+  }
+  function ziehAus() {
+    if (!ZG) return; clearTimeout(ZG.timer); clearInterval(_rollen); _rollen = null;
+    if (ZG.geist) ZG.geist.remove();
+    document.querySelectorAll('.ordner-chip.ziel').forEach(c => c.classList.remove('ziel'));
+    document.body.classList.remove('zieht'); ZG = null;
+  }
+  document.addEventListener('pointermove', e => {
+    if (!ZG) return; ZG.x = e.clientX; ZG.y = e.clientY;
+    if (!ZG.aktiv) {
+      if (Math.hypot(e.clientX - ZG.x0, e.clientY - ZG.y0) > ZIEH_PX) { if (ZG.maus) ziehStart(); else { ziehAus(); return; } }
+      else return;
+    }
+    e.preventDefault(); ziehGeist(); ziehZiel(); ziehRollen();
+  });
+  // Der Finger darf die Seite nicht rollen, solange gezogen wird (Rezeptbuch: touchmove, nicht passiv)
+  document.addEventListener('touchmove', e => { if (ZG && ZG.aktiv && e.cancelable) e.preventDefault(); }, { passive: false });
+  document.addEventListener('pointerup', async () => {
+    if (!ZG) return;
+    const war = ZG.aktiv, ziel = ZG.ziel; ziehAus();
+    if (!war) return;
+    klickSperre = true; setTimeout(() => { klickSperre = false; }, 400);
+    if (!ziel) return;
+    const ids = [...WAHL];
+    if (ziel.hasAttribute('data-neu')) { const o = await neuerOrdner(); if (o) await inOrdner(ids, o.id); }
+    else await inOrdner(ids, ziel.dataset.o === 'ohne' ? null : ziel.dataset.o);
+  });
+  document.addEventListener('pointercancel', () => ziehAus());
+  // Nach dem Ziehen feuert oft noch ein Klick — er darf weder öffnen noch abwählen
+  document.addEventListener('click', e => { if (klickSperre && e.target.closest('#dokGitter,.ordner-leiste')) { e.preventDefault(); e.stopPropagation(); klickSperre = false; } }, true);
+
+  /* Teilen: ein oder mehrere Dokumente als PDF an eine App geben (Mail, Messenger, Drive …).
+     Mit Einträgen geht das feste PDF hinaus (die Einträge fest auf der Seite), ohne das Original.
+     Teilen verlangt einen frischen Tipp; wird es nach dem Bauen verweigert, steht „📤 Jetzt teilen …" da. */
+  function nimmEintraege(d) { return d.fields.some(f => f.value !== undefined && f.value !== null && f.value !== '' && f.value !== false); }
+  async function teilenDocs(ids) {
+    ids = ids.filter(Boolean); if (!ids.length) return;
+    if (S.doc && ids.includes(S.doc.id)) await speichernJetzt();
+    const fb = ids.length > 1 ? fortschritt('Dateien werden vorbereitet') : null;
+    const dateien = [], hinweise = [], namen = new Set();
+    try {
+      for (let i = 0; i < ids.length; i++) {
+        if (fb) fb.setze(i / ids.length, 'Dokument ' + (i + 1) + ' von ' + ids.length);
+        const offen = S.doc && S.doc.id === ids[i];
+        const d = offen ? S.doc : (S.docs.find(x => x.id === ids[i]) || await DB.get('docs', ids[i]));
+        const bytes = offen ? S.bytes : await DB.getFile(ids[i]);
+        if (!d || !bytes) { hinweise.push('„' + (d ? d.name : ids[i]) + '" hat keine Datei mehr — übersprungen.'); continue; }
+        const m = nimmEintraege(d) ? 'fest' : 'original';
+        const r = await ausgabeBytes(d, bytes, m);
+        let name = dateiName(d.name) + '.pdf', k = 2; while (namen.has(name.toLowerCase())) name = dateiName(d.name) + ' (' + (k++) + ').pdf';
+        namen.add(name.toLowerCase()); dateien.push({ name, bytes: r.bytes, m });
+      }
+    } catch (e) { if (fb) fb.zu(); console.error(e); return toast('⚠️ Teilen fehlgeschlagen: ' + (e.message || e)); }
+    if (fb) fb.zu();
+    if (!dateien.length) return toast('⚠️ ' + (hinweise[0] || 'Nichts zu teilen.'));
+    const titel = dateien.length === 1 ? dateien[0].name.replace(/\.pdf$/, '') : dateien.length + ' PDFs';
+    const files = dateien.map(f => new File([f.bytes], f.name, { type: 'application/pdf' }));
+    window.__wfpdfTeilen = { ids, dateien: dateien.map(f => ({ name: f.name, groesse: f.bytes.length, m: f.m })) };
+    let teilbar = false; try { teilbar = !!(navigator.canShare && navigator.canShare({ files })); } catch (_) {}
+    if (teilbar && !hinweise.length) {
+      try { await navigator.share({ files, title: titel }); window.__wfpdfTeilen.geteilt = true; return; }
+      catch (e) { if (e && e.name === 'AbortError') return; /* verweigert (Tipp verbraucht) → Knopf unten */ }
+    }
+    const zipNamen = () => (S.ordner.find(o => o.id === S.aktOrdner) || {}).name || 'Workfloh PDF';
+    dialog(`<h2>📤 Teilen</h2>
+      <ul>${dateien.map(f => `<li><b>${nm(f.name)}</b> · ${mbText(f.bytes.length)}${f.m === 'fest' ? ' · mit Einträgen' : ''}</li>`).join('')}</ul>
+      ${hinweise.map(x => '<p class="hinweis">' + h(x) + '</p>').join('')}
+      ${teilbar ? '' : '<p class="hinweis" data-nicht-teilbar>Dieses Gerät kann hier nicht direkt teilen — herunterladen und dann versenden.</p>'}
+      <div class="zeile">${teilbar ? '<button class="knopf primaer" data-teilen-jetzt>📤 Jetzt teilen …</button>' : ''}<button class="knopf" data-dl>⬇ ${dateien.length > 1 ? 'Als ZIP herunterladen' : 'Herunterladen'}</button><button class="knopf" data-x>Schließen</button></div>`, (d, zu) => {
+      d.querySelector('[data-x]').onclick = zu;
+      if (d.querySelector('[data-teilen-jetzt]')) d.querySelector('[data-teilen-jetzt]').onclick = () => navigator.share({ files, title: titel }).then(() => { window.__wfpdfTeilen.geteilt = true; zu(); }).catch(() => {});
+      d.querySelector('[data-dl]').onclick = () => {
+        if (dateien.length === 1) laden(dateien[0].name, dateien[0].bytes);
+        else laden(dateiName(zipNamen()) + '.zip', WFP.Zip.zip(dateien.map(f => ({ name: f.name, bytes: f.bytes }))), 'application/zip');
+      };
     });
   }
   async function duplizieren(id) {
@@ -2307,6 +2479,7 @@
     $('mAusfuellen').onclick = () => { S.modus = 'ausfuellen'; S.sel = null; zeichneModus(); };
     $('edErkennen').onclick = () => erkennenDialog([S.doc.id]);
     $('edExport').onclick = exportDialog;
+    $('edTeilen').onclick = () => teilenDocs([S.doc.id]);
     $('edSpeichern').onclick = speichernDialog;
     // Beim Schließen oder Wechseln der App sofort sichern — sonst ginge verloren,
     // was in den letzten 0,35 s getippt wurde (Befund Klaus 2026-09-25).
@@ -2345,7 +2518,7 @@
     ladeBibliothek().then(() => { if (EINST.bedeutung) bedeutungStarten(); }).then(chromeTabRueckweg).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
     window.__wfpdf = { beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner,
       // für tests/sprache.mjs: jeden Dialog einmal öffnen und seine Texte nachschlagen
-      dlg: { neuerOrdner, verschieben, loeschen, speichernDialog, scanStarten, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe, bedeutungDialog } };   // für die Probe
+      dlg: { neuerOrdner, verschieben, teilenDocs, wahlEnde, WAHL, wahlUmschalten, loeschen, speichernDialog, scanStarten, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe, bedeutungDialog } };   // für die Probe
   }
   start();
 })();
