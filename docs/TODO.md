@@ -51,6 +51,10 @@ Datei, wird er hier behoben und dann in die WorkFlohs kopiert.
   Oder eben nicht Name, zuletzt geändert, Dateigröße, Seitenzahl, sondern Erstellungsdatum."
   (Also zwei Wünsche: Suche nach dem Erstellungsdatum des DOKUMENTS, nicht nach Daten im Inhalt —
   und „Erstellungsdatum" als weitere Sortierung neben Name · Zuletzt geändert · Dateigröße · Seitenzahl.)
+- [ ] 2026-09-27 · Workflow-PDF + beide WorkFlohs (`sprechen.js` ist byte-1:1 geteilt) · **Spracheingabe schreibt Wörter doppelt.**
+  Klaus: „Bei der Mikrofoneingabe über Sprache spreche ich nur ein Wort und er macht immer zwei Worte.
+  Also gleich am Anfang. Ich habe nur einmal ‚kopieren' gesagt, er macht es zweimal rein. Das ist bei
+  allen Sachen so gewesen bis jetzt. Manchmal sogar dreimal."
 
 ## Erledigt
 
