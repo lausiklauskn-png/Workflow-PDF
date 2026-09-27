@@ -192,7 +192,11 @@ Bildes. Das ist wichtiger." · „Rote Punkte … um 20 % verkleinert, aber nich
 - Griff `.feld .griff` 16 → 13 px; `::after` (inset −9 px) hält die Greiffläche groß.
 - Scanner (≤ 760 px): Bild 52 → 60 % der Höhe, Knöpfe und Chips flacher. ⚠ **Ohne Wächter** — eine Sabotage daran
   fängt keine Probe (von Hand nachgestellt).
-- **Start-Kacheln am Handy** (≤ 640 px, Klaus 2026-09-27): untereinander, je eine Zeile, höchstens 40 px wie die Scanner-Knöpfe, Unterzeile ausgeblendet (per CSS — der Sprach-Schlüssel mit `<br><small>` bleibt heil). Dasselbe Maß gilt in beiden WorkFlohs für die Blatt-Knöpfe (≤ 36 px).
+- **Start-Kacheln zwischen Handy und Bildschirm** (Klaus 2026-09-27: „fast Original Handyformat … zu schmal"): mit
+  `auto-fit(220 px)` standen sie bei 641–999 px in 3 schmalen Spalten (bei 720 px je 224 px), die vierte allein darunter.
+  Jetzt: bis 760 px untereinander, bis 1199 px zwei nebeneinander (2 × 2), ab 1200 px vier. `tests/schieber.mjs`
+  misst 720 · 820 · 1000 px.
+- **Start-Kacheln am Handy** (≤ 760 px, Klaus 2026-09-27): untereinander, je eine Zeile, höchstens 40 px wie die Scanner-Knöpfe, Unterzeile ausgeblendet (per CSS — der Sprach-Schlüssel mit `<br><small>` bleibt heil). Dasselbe Maß gilt in beiden WorkFlohs für die Blatt-Knöpfe (≤ 36 px).
 - `tests/schieber.mjs` misst Blatt (> 58 %), Knopfhöhe (≤ 32 px), Griff (12–14 px) und den Tipp daneben; von Hand
   gegengeprüft (Griff 16 px, 10 px, ohne `::after`, dicke Knöpfe, ganzer Block weg): jede Sabotage wirft ihre
   eigene rote Zeile. Die erste Schwelle „die Hälfte" war blind — ohne Änderung waren es schon 53 %.
