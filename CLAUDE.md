@@ -141,6 +141,15 @@ fotografieren" (an ein Dokument anhängen). Der alte Aufnahme-Dialog ist weg.
   der Kopfleiste (nicht greifbar). Jetzt 52 dvh für das Foto, das Scan-Fenster ROLLT, und das Bild
   hält 20 px Abstand für die halben Griffe (keine 200-px-Untergrenze mehr). Quer (740×360) bleibt
   das Foto klein — benannte Grenze.
+- **Seitengröße** (Klaus 2026-09-27): Automatisch (Vorgabe) · Original (wie das Blatt) · A4 · A5 · A6 · US Letter.
+  Automatisch: Verhältnis ± 8 % um √2 (`AUTO_TOLERANZ`) → A4, sonst Original — und es SAGT, was es gewählt hat
+  (`data-format-ist`). A4, A5, A6 haben dasselbe Verhältnis; welche Größe das Papier hatte, zeigt ein Foto nicht.
+  `seitenMass` gibt `format` (das tatsächlich genommene) mit zurück.
+- **Die WorkFlohs tragen scanner.js und scan-bild.js byte-1:1** (seit 2026-09-27, per SHA gepinnt in
+  `Mein-WorkFloh/scripts/wfpdf_kanon.mjs` und `Tomys-Hub/tests/wfpdf_kanon.mjs`) — nur hier ändern, dann dort neu
+  kopieren und die Pins nachziehen. Dafür sind die Pfade einstellbar (`WFP.Scanner.pfade({vendor, scanic, ocr})`
+  oder `opt.pfade`) und der Ablageort benennbar (`opt.ort`, `opt.ortKurz`; Vorgabe wörtlich wie vorher, damit
+  die Sprach-Schlüssel gelten).
 - Fotos werden auf ≤ 2400 px lange Kante verkleinert, nie abgewiesen. Einstellungen
   (Filter, Format, Qualität, durchsuchbar, Sprache) in `localStorage` `wfpdf_scan_v1`.
 - Proben: `tests/scan.mjs` (in `npm test`, A Rechnung · B 17 Fotos · C ganzer Weg mit echtem
