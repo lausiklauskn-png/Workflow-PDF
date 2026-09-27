@@ -575,6 +575,13 @@ mit derselben Nummer (`nummerOeffnen`); eine Kundenverwaltung/Warenwirtschaft h�
 `window.WF_KUNDE_OEFFNEN(nr)` / `window.WF_ARTIKEL_OEFFNEN(nr)` ein. Die Bibliothek hat ein Suchfeld,
 das auch in den Feldinhalten sucht. Nummern werden beim Übersetzen nicht übersetzt.
 
+## ⚖️ Impressum & Datenschutz (Klaus 2026-09-27)
+
+Unter der Bibliothek steht „Impressum & Datenschutz" (`#rechtFuss`, öffnet `impressum.html`). Der Datenschutz dort
+nennt jetzt auch Scannen (samt „Mit ChatGPT übersetzen" über das Teilen-Fenster), die Suche nach Bedeutung
+(Download von jsDelivr + Hugging Face), die Spracheingabe (Chrome → Google), Rechtsgrundlagen und Stand 27.09.2026.
+Wer eine Funktion ergänzt, die etwas ins Netz schickt, zieht dort nach. `tests/schieber.mjs` misst Fuß und Stand.
+
 ## 📘 Handbuch und Beispiel-Formular (Klaus 2026-09-25)
 
 `beispiele/Workfloh-PDF-Benutzerhandbuch.pdf` (20 Seiten, neu gebaut 2026-09-27: Scannen in Kapitel 3, Kapitel 6 Suchen mit Spracheingabe und Bedeutungssuche, Kapitel 7 Teilen/Auswahl/Sortieren/Ordner ausgeben, Übersetzen in Teilen) und

@@ -58,6 +58,13 @@ try {
   ok('Handy: vier Start-Kacheln, jede höchstens 40 px hoch (Maß: Scanner-Knöpfe)', kacheln.length === 4 && kacheln.every(k => k.h <= 40), kacheln);
   ok('Handy: die Start-Kacheln stehen untereinander', kacheln.length === 4 && kacheln.every((k, i) => i === 0 || (k.l === kacheln[0].l && k.t > kacheln[i - 1].t)), kacheln);
   ok('Handy: die Unterzeile der Start-Kacheln ist ausgeblendet', kacheln.length === 4 && kacheln.every(k => !k.unter), kacheln);
+  // Impressum & Datenschutz stehen sichtbar unter der Bibliothek (Klaus 2026-09-27: „damit ich die Apps ausliefern kann")
+  const recht = await page.evaluate(async () => { const a = document.querySelector('#rechtFuss a'); if (!a) return null; a.scrollIntoView(); await new Promise(r => setTimeout(r, 50));
+    const r = a.getBoundingClientRect(); return { href: a.getAttribute('href'), text: a.textContent.trim(), sicht: a.checkVisibility() && r.width > 0 && r.bottom <= innerHeight && r.top >= 0 }; });
+  ok('Handy: „Impressum & Datenschutz" steht sichtbar unter der Bibliothek und führt zur Seite', !!recht && recht.sicht && recht.href === 'impressum.html' && /Impressum/.test(recht.text), recht);
+  await page.evaluate(() => scrollTo(0, 0));
+  const imp = fs.readFileSync(path.join(WURZEL, 'impressum.html'), 'utf8');
+  ok('die Datenschutzerklärung nennt Scannen, Suche nach Bedeutung und Spracheingabe (Stand 27.09.2026)', /Scannen/.test(imp) && /Suche nach Bedeutung/.test(imp) && /Spracheingabe/.test(imp) && /Stand: 27\.09\.2026/.test(imp));
   // „Fast Handyformat" (DeX-Fenster, Klaus 2026-09-27: „zu schmal"): bis 760 px untereinander über die
   // ganze Breite, darüber zwei nebeneinander — nie drei schmale Spalten mit einer allein darunter.
   const vorher = page.viewportSize();
