@@ -108,7 +108,10 @@ button{cursor:pointer}
 .feld.check-feld .etikett{display:none}
 .feld.sel .etikett{display:block;top:auto;bottom:100%;transform:none;left:-1px;right:auto;max-width:240px;font-size:10px;opacity:1;padding:1px 5px;border-radius:4px 4px 0 0;background:var(--blau);color:#fff}
 .feld.sel.ki .etikett{background:var(--ki)}
-.feld .griff{display:none;position:absolute;right:-7px;bottom:-7px;width:16px;height:16px;border-radius:50%;background:var(--rot);border:2px solid #fff;box-shadow:0 0 0 1px var(--rot);cursor:nwse-resize}
+/* Griff (Klaus 2026-09-27: „rote Punkte ein bisschen dick … um 20 % verkleinert, aber nicht mehr"): 16 → 13 px.
+   Die Greiffläche bleibt so groß wie vorher — ein unsichtbarer Rand (::after) fängt den Finger. */
+.feld .griff{display:none;position:absolute;right:-6px;bottom:-6px;width:13px;height:13px;border-radius:50%;background:var(--rot);border:2px solid #fff;box-shadow:0 0 0 1px var(--rot);cursor:nwse-resize}
+.feld .griff::after{content:"";position:absolute;inset:-9px;border-radius:50%}
 .feld.sel .griff{display:block}
 .feld .wert{position:absolute;inset:0;display:flex;align-items:center;padding:0 3px;overflow:hidden;white-space:nowrap;color:#0b1a52;pointer-events:none}
 .feld .wert.mz{align-items:flex-start;white-space:pre-wrap;line-height:1.15}
@@ -391,3 +394,26 @@ html.gerollt .dok .treffer-zahl.dok-treffer{right:74px}
 .zieh-geist{position:fixed;z-index:9999;pointer-events:none;background:var(--rot);color:#fff;font-weight:700;padding:6px 12px;border-radius:999px;box-shadow:0 4px 16px rgba(0,0,0,.3);white-space:nowrap}
 body.zieht{cursor:grabbing}
 body.zieht .dok-gitter,body.zieht .ordner-leiste{touch-action:none}
+
+/* Handy: flachere Knöpfe, mehr Platz fürs Bild (Klaus 2026-09-27: „die Button in der Handyansicht zu fett …
+   flacher, etwas kleiner, so dass mehr Fläche bleibt für die Ansicht des Bildes. Das ist wichtiger.")
+   Steht am ENDE, damit es die älteren Handy-Regeln oben überstimmt. */
+@media (max-width:640px){
+  .ed-leiste{gap:4px;padding:4px 6px}
+  .ed-leiste .knopf{padding:3px 8px;min-height:30px;font-size:.88rem;border-width:1.5px}
+  .ed-name{padding:3px 8px;font-size:.9rem;border-width:1.5px}
+  .modus-k{padding:3px 8px;min-height:28px;font-size:.82rem}
+  .ed-such{padding:3px 6px;gap:4px}
+  .ed-such .bib-suche{padding:5px 10px}
+  .ed-such .knopf{min-height:30px;padding:2px 9px}
+  .vorschlag-band{padding:4px 6px}
+  .vorschlag-band .knopf{min-height:28px;padding:2px 8px}
+  .ed-fuss{padding:4px 6px;gap:4px}
+  .werkzeug .knopf{min-height:30px;padding:3px 8px;font-size:.88rem;border-width:1.5px}
+  .ed-fuss .hinweis{font-size:.78rem;line-height:1.25;margin:0}
+}
+@media (max-width:760px){
+  .scan-buehne{height:60vh;height:60dvh}
+  .scan .knopf{min-height:32px;padding:4px 10px}
+  .scan-chips .chip{padding:3px 10px}
+}

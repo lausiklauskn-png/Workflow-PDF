@@ -70,6 +70,26 @@ try {
   ok('unter der Leiste steht ein Schieberegler, und man SIEHT ihn', !!a && a.bahnSicht && a.griffSicht, a);
   ok('der Griff ist ein Viereck mit Rillen, groß genug für einen Finger (≥ 44 × 18 px)', !!a && a.griffB >= 44 && a.griffH >= 18 && a.rillen === 3, a);
   ok('die dünne Leiste des Browsers ist ausgeblendet (nur EINE Anzeige)', !!a && a.fremdeLeiste === 'none', a);
+  // Handy: mehr Fläche fürs Blatt, flachere Knöpfe, kleinere Griffe (Klaus 2026-09-27: „die Button in der
+  // Handyansicht zu fett … flacher … so dass mehr Fläche bleibt für die Ansicht des Bildes"; „rote Punkte
+  // … um 20 % verkleinert, aber nicht mehr"). Gemessen, was man SIEHT: vorher 47 % des Schirms fürs Blatt.
+  const flach = await page.evaluate(() => {
+    const sicht = e => e.offsetParent && e.getBoundingClientRect().height > 0;
+    const hoehen = [...document.querySelectorAll('.ed-leiste .knopf, .ed-such .knopf, #edFuss .werkzeug .knopf')].filter(sicht).map(e => Math.round(e.getBoundingClientRect().height));
+    const fl = document.querySelector('.ed-flaeche').getBoundingClientRect();
+    // Griff an einem gestellten, gewählten Feld messen — und ob der Finger NEBEN dem Punkt ihn noch trifft
+    const f = document.createElement('div'); f.className = 'feld sel'; f.style.cssText = 'position:fixed;left:120px;top:300px;width:80px;height:24px';
+    const g = document.createElement('span'); g.className = 'griff'; f.appendChild(g); document.body.appendChild(f);
+    f.style.zIndex = '9999'; const r = g.getBoundingClientRect(); const neben = document.elementFromPoint(r.right + 5, r.top + r.height / 2);
+    const w = { knoepfe: hoehen, blatt: Math.round(fl.height), schirm: innerHeight, griff: Math.round(r.width), nebenTrifft: neben === g };
+    f.remove(); return w;
+  });
+  // Gemessen bei 380 × 800: vorher 423 px (53 %), nachher 487 px (61 %). „Die Hälfte" wäre schon VORHER
+  // wahr gewesen — die Gegenprobe hat es gezeigt. Die Schwelle liegt deshalb zwischen beiden.
+  ok('Handy: das Blatt bekommt mehr als 58 % des Schirms (vorher 53 %)', flach.blatt >= flach.schirm * 0.58, flach);
+  ok('Handy: die Knöpfe im Bearbeiten-Fenster sind flach (höchstens 32 px)', flach.knoepfe.length >= 5 && Math.max(...flach.knoepfe) <= 32, flach);
+  ok('Handy: der rote Griff ist um rund 20 % kleiner, nicht mehr (12–14 px statt 16)', flach.griff >= 12 && flach.griff <= 14, flach);
+  ok('… und ein Finger knapp daneben trifft ihn trotzdem (Greiffläche blieb groß)', flach.nebenTrifft, flach);
   ok('am Anfang steht der Griff links', !!a && a.links === 0 && a.griffX - a.griffB / 2 - a.bahnL <= 2, a);
 
   // Griff mit dem Finger ganz nach rechts ziehen
