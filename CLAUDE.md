@@ -443,10 +443,10 @@ steht schon beim Sprechen im Feld; gesucht wird am Ende (nach 2,6 s Pause von se
   (Option `feld`: das Feld wird unten höher) · „■ Stopp". Benannte Grenze: ein absichtlich als eigene
   Äußerung wiederholtes Wort kommt einmal.
 - **Eine Lupe:** der Platzhalter trägt keine mehr, der 🔍-Knopf bleibt (Klaus: „Suche ist okay").
-- Proben: `tests/bibliothek.mjs`, `tests/sprechen.mjs` · Gegenproben `gegenprobe_bibliothek.mjs` (23),
+- Proben: `tests/bibliothek.mjs`, `tests/sprechen.mjs` · Gegenproben `gegenprobe_bibliothek.mjs` (17),
   `gegenprobe_sprechen.mjs` (25). ⚠ Im Headless-Chromium geht nach einem Finger-Zug über eine Fläche mit
-  `touch-action:none` der NÄCHSTE Tipp verloren (an einer leeren Testseite nachgestellt, keine Eigenheit
-  des Griffs) — die Probe misst den ↑ deshalb VOR dem Griff. Am Tablet ungemessen.
+  `touch-action:none` der NÄCHSTE Tipp verloren (an einer leeren Testseite nachgestellt) — die Probe
+  misst den ↑ deshalb ohne Zug davor. Am Tablet ungemessen.
 
 ## 🎚 Sichtbarer Schieberegler (Klaus 2026-09-27)
 
