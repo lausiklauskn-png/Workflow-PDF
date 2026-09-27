@@ -426,6 +426,28 @@ steht schon beim Sprechen im Feld; gesucht wird am Ende (nach 2,6 s Pause von se
 - Proben: `tests/sprechen.mjs` (in `npm test`, gestellte Erkennung) ·
   `node tests/gegenprobe_sprechen.mjs` (16 Fälle, Wegwerf-Kopie; `NUR_ANKER=1` nur die Anker).
 
+## 📋 Aus der To-Do-Liste vom 2026-09-27 (docs/TODO.md, alle 7 erledigt)
+
+- **Schiebe-Griff:** zweimal gebaut, einmal behalten. Eine Parallel-Sitzung hat am selben Tag
+  `assets/schieber.js` für Feldarten- UND Ordner-Leiste gemergt (#67, Abschnitt unten); der eigene Griff
+  (`#ordnerGriff`) ist beim Zusammenführen wieder raus — die To-Do-Liste verlangt EINE Bauweise für beide.
+- **↑ an jeder Karte** links neben dem Auswahl-Punkt (`.dok-hoch`, `ganzNachOben`), erst wenn die Seite
+  gerollt ist (`html.gerollt`, scrollY > 160). Ein langer Druck darauf startet kein Ziehen.
+- **Kopfleiste schmal:** ≤ 480 px und ≤ 370 px kleinere Knöpfe/Floh, der Schriftzug darf umbrechen
+  („Workfloh / PDF") statt unter die Knöpfe zu laufen; `.marke` schneidet notfalls ab. Gemessen bei
+  320 · 360 · 390 · 412 · 480 px, MIT sichtbarem Installieren-Knopf.
+- **Erstellungsdatum:** Sortierung `erstellt` (neueste zuerst) und „📅 Erstellt am" (`S.datum`, ein Tag,
+  nur `createdAt`, Ortszeit via `tagVon`) — kein Datum aus dem Inhalt, nicht das Änderungsdatum.
+- **Spracheingabe** (`assets/sprechen.js`, byte-1:1 in beide WorkFlohs): Text wird bei jedem Ereignis aus
+  der GANZEN Ergebnisliste gebaut (`zusammenfuegen`, keine Doppelwörter mehr) · Balken sofort und IM Feld
+  (Option `feld`: das Feld wird unten höher) · „■ Stopp". Benannte Grenze: ein absichtlich als eigene
+  Äußerung wiederholtes Wort kommt einmal.
+- **Eine Lupe:** der Platzhalter trägt keine mehr, der 🔍-Knopf bleibt (Klaus: „Suche ist okay").
+- Proben: `tests/bibliothek.mjs`, `tests/sprechen.mjs` · Gegenproben `gegenprobe_bibliothek.mjs` (23),
+  `gegenprobe_sprechen.mjs` (25). ⚠ Im Headless-Chromium geht nach einem Finger-Zug über eine Fläche mit
+  `touch-action:none` der NÄCHSTE Tipp verloren (an einer leeren Testseite nachgestellt, keine Eigenheit
+  des Griffs) — die Probe misst den ↑ deshalb VOR dem Griff. Am Tablet ungemessen.
+
 ## 🎚 Sichtbarer Schieberegler (Klaus 2026-09-27)
 
 „Dass man ihn anfassen kann mit einem Viereck … Bei kleineren Handys ist sonst nicht zu erkennen, dass

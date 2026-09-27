@@ -32,40 +32,46 @@ Datei, wird er hier behoben und dann in die WorkFlohs kopiert.
   ragen, entsteht ein Schieberegler. Also bei den Ordner-Buttons. Der Schieberegler ist aber ganz
   schlecht anzufassen. Das heißt, es müsste da ein Griff sein oder ein kleines Viereck, wo man
   erkennt: ah, das ist ein Schieberegler, mit dem kann man es hin und her schieben."
-- [ ] 2026-09-27 · Workflow-PDF (in den WorkFlohs mitprüfen) · **Pfeil nach oben neben dem Markieren-Punkt.**
+- [x] 2026-09-27 · Workflow-PDF (in den WorkFlohs mitprüfen) · **Pfeil nach oben neben dem Markieren-Punkt.**
+  ✅ Erledigt (Workflow-PDF #65): ↑ an jeder Karte links neben dem Auswahl-Punkt, erst nach dem Herunterrollen; ein Tipp rollt ganz nach oben. In den WorkFlohs mitgeprüft, nicht gebaut: dort gibt es keine Karten-Liste mit Auswahl-Punkt.
   Klaus: „In einer schmalen Handyansicht scrolle ich nach unten und die Dokumente scrollen der Reihe
   nach nach unten. Es sollte neben dem Markierenpunkt noch ein Pfeil nach oben sein. Also rechts oben
   ist ein Punkt, wo ich den markieren kann. Und der Pfeil nach oben sollte komplett einmal bis nach
   oben scrollen. Sonst muss ich die ganzen Dokumente wieder nach oben scrollen, um an die
   Bedienelemente heranzukommen."
-- [ ] 2026-09-27 · Workflow-PDF · **Kopfleisten-Knöpfe überlagern den Schriftzug.**
+- [x] 2026-09-27 · Workflow-PDF · **Kopfleisten-Knöpfe überlagern den Schriftzug.**
+  ✅ Erledigt (Workflow-PDF #65): ≤ 480 und ≤ 370 px kleinere Knöpfe, der Schriftzug bricht um statt unter die Knöpfe zu laufen. Gemessen 320–480 px mit Installieren-Knopf. Nebenbei: der Knopf „Suche nach Bedeutung“ machte die Seite bei 320 px 328 px breit (auch vorher) — bricht jetzt um.
   Klaus: „Die Button oben in Workflow PDF, Deutsch, also DE, Aktualisieren, Fragezeichen und
   Zahnrädchen werden bei einer schmalen Handyansicht zu groß und gehen auf Workflow PDF Schrifttext,
   überlagern ihn."
   Beleg (Klaus' Bildschirmfoto 2026-09-27, schmales App-Fenster in DeX, nur die Kopfleiste ausgeschnitten):
   vom Schriftzug sind nur „W" und „fl" zu sehen, der Rest liegt unter DE · ⟳ · ? · ⚙️.
   ![Kopfleiste schmal](todo-belege/2026-09-27_kopfleiste-schmal.png)
-- [ ] 2026-09-27 · Workflow-PDF · **Nach Erstellungsdatum suchen und sortieren.**
+- [x] 2026-09-27 · Workflow-PDF · **Nach Erstellungsdatum suchen und sortieren.**
+  ✅ Erledigt (Workflow-PDF #65): Sortierung „Erstellungsdatum“ (neueste zuerst) und „📅 Erstellt am“ (ein Tag, nur das Anlagedatum, Ortszeit, nicht das Änderungsdatum und nichts aus dem Inhalt).
   Klaus: „Die Sortieren- oder Zuletzt-geändert- oder Suchen-Funktion sollte noch eine Datumsfunktion
   beinhalten. Das heißt, wenn ich ein Dokument nach Datum suche — nach Datum nicht sortieren, sondern
   nach Datum suchen. Das heißt nur das Dokument, nicht der Inhalt. Wann wurde das Datum erstellt?
   Oder eben nicht Name, zuletzt geändert, Dateigröße, Seitenzahl, sondern Erstellungsdatum."
   (Also zwei Wünsche: Suche nach dem Erstellungsdatum des DOKUMENTS, nicht nach Daten im Inhalt —
   und „Erstellungsdatum" als weitere Sortierung neben Name · Zuletzt geändert · Dateigröße · Seitenzahl.)
-- [ ] 2026-09-27 · Workflow-PDF + beide WorkFlohs (`sprechen.js` ist byte-1:1 geteilt) · **Spracheingabe schreibt Wörter doppelt.**
+- [x] 2026-09-27 · Workflow-PDF + beide WorkFlohs (`sprechen.js` ist byte-1:1 geteilt) · **Spracheingabe schreibt Wörter doppelt.**
+  ✅ Erledigt (Workflow-PDF #65, Mein-WorkFloh #230, Tomys-Hub #209): der Text wird bei jedem Ereignis aus der ganzen Ergebnisliste gebaut, statt Endstücke anzuhängen. Benannte Grenze: ein absichtlich als eigene Äußerung wiederholtes Wort kommt einmal.
   Klaus: „Bei der Mikrofoneingabe über Sprache spreche ich nur ein Wort und er macht immer zwei Worte.
   Also gleich am Anfang. Ich habe nur einmal ‚kopieren' gesagt, er macht es zweimal rein. Das ist bei
   allen Sachen so gewesen bis jetzt. Manchmal sogar dreimal."
   Beleg (Klaus' Bildschirmfoto 2026-09-27, nur Suchfeld ausgeschnitten): im Feld steht
   „kopieren kopieren", die Suche meldet „Kein Dokument passt zu ‚kopieren kopieren'".
   ![Spracheingabe doppelt](todo-belege/2026-09-27_sprache-doppelt.png)
-- [ ] 2026-09-27 · Workflow-PDF + beide WorkFlohs (`sprechen.js` geteilt) · **Sprach-Laufbalken: zu spät, falscher Ort, kein Stopp.**
+- [x] 2026-09-27 · Workflow-PDF + beide WorkFlohs (`sprechen.js` geteilt) · **Sprach-Laufbalken: zu spät, falscher Ort, kein Stopp.**
+  ✅ Erledigt (Workflow-PDF #65, Mein-WorkFloh #230, Tomys-Hub #209): Balken sofort beim Tipp, IM Suchfeld (das Feld wird unten höher), eigener „■ Stopp“-Knopf, die Lupe bleibt.
   Klaus: „Der Anzeigenbalken für die Sprache taucht zu spät auf. Und er sollte in dem Feld sein, wo
   der Text dann hineinkommt. Genauso wie hier in Claude. Und ein Stoppen-Button sollte sein. Und statt
   ein Suche ein Pfeil. Ne, Suche ist okay."
   (Also: Balken sofort beim Drücken · IM Eingabefeld statt darunter, wie in der Claude-App · eigener
   Stopp-Knopf · die Lupe zum Suchen bleibt, kein Pfeil.)
-- [ ] 2026-09-27 · Workflow-PDF · **Zwei Lupen im leeren Suchfeld.**
+- [x] 2026-09-27 · Workflow-PDF · **Zwei Lupen im leeren Suchfeld.**
+  ✅ Erledigt (Workflow-PDF #65): die Lupe im Platzhalter ist weg, der 🔍-Knopf rechts bleibt (passt zu „Suche ist okay“ aus dem Punkt davor).
   Klaus: „Eine Doppelung im Suchfeld, wenn kein Text drin steht. Und zwar zweimal die Lupe. Die erste
   Lupe muss nicht sein. Oder du machst anstatt der zweiten Lupe rechts des großen Buttons einen Pfeil.
   So wie hier auch."

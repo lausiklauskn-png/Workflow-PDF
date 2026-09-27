@@ -19,15 +19,27 @@ const FAELLE = [
   { name: 'Pausen zeigen keine Pünktchen', datei: S, anker: 'if (letzterText && seit < 380)', ersatz: 'if (letzterText)', trifft: /Pünktchen nach/ },
   { name: 'nach der Pause endet sie nicht von selbst', datei: S, anker: 'if (!spricht && seit > STILLE_ENDE) stop();', ersatz: ';', trifft: /endet sie von selbst/ },
   { name: 'der Endstand wird nicht abgegeben', datei: S, anker: 'if (t && !abgeschickt) { abgeschickt = true; opt.text && opt.text(t, true); }', ersatz: ';', trifft: /wird gesucht|sucht/ },
-  { name: '„Fertig" tut nichts', datei: S, anker: "balken.querySelector('.wfs-fertig').onclick = stop;", ersatz: ';', trifft: /Fertig/ },
+  { name: '„Stopp" tut nichts', datei: S, anker: "balken.querySelector('.wfs-fertig').onclick = stop;", ersatz: ';', trifft: /Stopp" beendet sofort/ },
   { name: 'ein Fehler wird verschwiegen', datei: S, anker: "if (e !== 'aborted' && !(e === 'no-speech' && textJetzt())) opt.meldung && opt.meldung(fehlerText(e));", ersatz: ';', trifft: /verweigertes/ },
-  { name: 'der Balken bleibt nach dem Ende stehen', datei: S, anker: "balken.hidden = true; k.classList.remove('hoert');", ersatz: "k.classList.remove('hoert');", trifft: /endet sie von selbst|geht weg/ },
+  { name: 'der Balken bleibt nach dem Ende stehen', datei: S, anker: "balken.hidden = true; feldZu(); k.classList.remove('hoert');", ersatz: "feldZu(); k.classList.remove('hoert');", trifft: /endet sie von selbst|geht weg/ },
   { name: 'ohne Sprache hört sie nie auf', datei: S, anker: 'else if (t - beginn > NICHTS_ENDE) stop();', ersatz: ';', trifft: /ohne jede Sprache/ },
   { name: 'immer Deutsch, auch bei englischer Oberfläche', datei: A, anker: "return MIC_LANG[(WFP.Sprache && WFP.Sprache.lang) || 'de'] || 'de-DE'; },", ersatz: "return 'de-DE'; },", trifft: /hört die Erkennung Englisch/ },
   { name: 'ohne Spracherkennung bleibt der Knopf an', datei: S, anker: "if (!SR) { k.disabled = true; k.title = 'Spracheingabe kann dieser Browser nicht — bitte tippen'; return null; }", ersatz: 'if (!SR) { return null; }', trifft: /ohne Spracherkennung/ },
-  { name: 'der Balken steht im Suchfeld statt darunter', datei: A, anker: "nach: $('bibForm'),", ersatz: "nach: $('bibSuche'),", trifft: /unter dem Suchfeld/ },
-  { name: 'Balken läuft am Handy über den Rand', datei: S, anker: 'height:28px;overflow:hidden;min-width:0}', ersatz: 'height:28px}', trifft: /Handy/ },
-  { name: 'der Knopf zeigt das Zuhören nicht', datei: S, anker: "balken.hidden = false; k.classList.add('hoert');", ersatz: 'balken.hidden = false;', trifft: /Knopf zeigt/ }
+  { name: 'der Balken steht wieder UNTER dem Suchfeld (feld nicht übergeben)', datei: A, anker: "nach: $('bibForm'), feld,", ersatz: "nach: $('bibForm'),", trifft: /IM Suchfeld/ },
+  { name: 'der Balken erscheint erst nach start() (zu spät)', datei: S, anker: "balken.hidden = false; feldAuf(); k.classList.add('hoert'); k.setAttribute('aria-pressed', 'true');\n      try { rec.start(); }", ersatz: "try { rec.start(); }", trifft: /SOFORT/ },
+  { name: 'das Feld wird nicht höher (Balken deckt die Textzeile)', datei: S, anker: "feld.style.paddingBottom = (pb + HOEHE) + 'px';", ersatz: ";", trifft: /höher|IM Suchfeld/ },
+  { name: 'das Feld behält nach dem Ende seine Höhe', datei: S, anker: "feld.style.paddingBottom = altPolster; altPolster = null;", ersatz: "altPolster = null;", trifft: /alte Höhe/ },
+  { name: 'Endstücke werden wieder angehängt (alte Rechnung, „kopieren kopieren")', datei: S, anker: "text = zusammenfuegen(archiv.concat(jetztListe.map(x => x.t)));", ersatz: "text = (text + ' ' + jetztListe.slice(ev.resultIndex || 0).map(x => x.t).join(' ')).trim();", trifft: /EINMAL|einmal/ },
+  // Die Zeile „if (n === letzte) continue;" ist raus: dieser Fall rutschte durch, weil „enthält alles
+  // Bisherige" und „steht schon am Ende" dasselbe Stück längst fangen. Ein Riegel, den keine Probe von
+  // seinem Fehlen unterscheiden kann, ist eine Behauptung. Gemessen wird stattdessen der Riegel, der trägt:
+  { name: 'ein Stück, das schon am Ende steht, wird noch einmal angehängt', datei: S, anker: "if (o && o.endsWith(' ' + n)) continue;", ersatz: ";", trifft: /EINMAL|einmal/ },
+  { name: 'ein Stück mit allem Bisherigen wird angehängt statt ersetzt', datei: S, anker: "if (o && (n === o || n.startsWith(o + ' '))) { aus = t; continue; }", ersatz: ";", trifft: /ersetzt es/ },
+  { name: 'beim Neubeginn der Liste geht Gesagtes verloren (kein Archiv)', datei: S, anker: "if (jetztListe.length < vorige.length) for (const x of vorige) if (x.fertig) archiv.push(x.t);", ersatz: ";", trifft: /schon Gesagte/ },
+  { name: 'Wiederholung IN einem Stück wird weggerechnet', datei: S, anker: "const t = String(roh || '').replace(/\\s+/g, ' ').trim(), n = norm(t); if (!n) continue;", ersatz: "const t = String(roh || '').replace(/\\s+/g, ' ').trim().split(' ').filter((w, i, a) => w !== a[i - 1]).join(' '), n = norm(t); if (!n) continue;", trifft: /sehr sehr/ },
+  { name: 'der Stopp-Knopf heißt wieder „Fertig"', datei: S, anker: "title=\"Aufnahme beenden\">■ Stopp</button>", ersatz: "title=\"Aufnahme beenden\">Fertig</button>", trifft: /Stopp/ },
+  { name: 'Balken läuft am Handy über den Rand', datei: S, anker: 'height:28px;overflow:hidden;min-width:0}', ersatz: 'height:28px}', trifft: /Handy \(320 px\) passt/ },
+  { name: 'der Knopf zeigt das Zuhören nicht', datei: S, anker: "balken.hidden = false; feldAuf(); k.classList.add('hoert');", ersatz: 'balken.hidden = false; feldAuf();', trifft: /Knopf zeigt/ }
 ];
 
 let gefangen = 0, durch = 0, falsch = 0, tot = 0;
