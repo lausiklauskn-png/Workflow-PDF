@@ -157,7 +157,7 @@ try {
   const [ox, oy] = await mitte(page.locator('.ordner-chip[data-o="ziel-o"]'));
   await page.mouse.move(ax, ay); await page.mouse.down();
   await page.mouse.move(ax + 20, ay + 5, { steps: 3 });
-  await page.mouse.move(bx, by, { steps: 8 });
+  await page.mouse.move(bx, by, { steps: 8 }); await page.waitForTimeout(400);   // auf B verweilen
   ok('Mauszug: ein Schattenbild folgt der Maus', await page.evaluate(() => !!document.getElementById('ziehGeist')));
   ok('… und die überstrichene Karte kommt dazu (2 gewählt)', await page.evaluate(() => document.querySelector('[data-wahl-zahl]')?.dataset.wahlZahl === '2'));
   await page.mouse.move(ox, oy, { steps: 8 });
@@ -178,6 +178,21 @@ try {
   await page.mouse.move(cx, cy); await page.mouse.down(); await page.mouse.move(lx, ly, { steps: 10 }); await page.mouse.up();
   await page.waitForTimeout(300);
   ok('Loslassen auf „Alle" verschiebt nichts', await page.evaluate(async vor => { const d = (await WFP.DB.all('docs')).find(x => x.name === 'Musterbrief C'); return (d.folderId || null) === vor && !document.querySelector('.ordner-chip.ziel'); }, cVor), cVor);
+  await page.evaluate(() => window.__wfpdf.dlg.wahlEnde());
+
+  // A8 — Verweilen (wie VERWEIL_MS in den WorkFlohs): wer über eine Karte nur HINWEGgleitet, nimmt sie nicht mit
+  const gewaehlt = () => page.evaluate(() => [...document.querySelectorAll('#dokGitter .dok.gewaehlt .dok-name')].map(e => e.textContent).sort());
+  const [hax, hay] = await mitte(karte(page, 'Musterbrief C').locator('.dok-bild'));
+  const [hbx, hby] = await mitte(karte(page, 'Musterbrief A').locator('.dok-bild'));
+  const [hcx, hcy] = await mitte(karte(page, 'Musterbrief B').locator('.dok-bild'));
+  await page.mouse.move(hax, hay); await page.mouse.down();
+  await page.mouse.move(hax + 20, hay + 5, { steps: 3 });
+  await page.mouse.move(hbx, hby, { steps: 3 }); await page.mouse.move(hcx, hcy, { steps: 3 });
+  ok('(Selbst-Riegel) das Ziehen läuft, und der Weg führte wirklich über Musterbrief A', await page.evaluate(() => !!document.getElementById('ziehGeist')) && await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('.dok'), [hbx, hby]));
+  ok('… direkt nach dem Überstreichen ist noch keine Karte dazugekommen', JSON.stringify(await gewaehlt()) === '["Musterbrief C"]', await gewaehlt());
+  await page.waitForTimeout(400);
+  ok('… Karten, über die der Zeiger nur HINWEGgleitet, bleiben draußen — die, auf der er verweilt, kommt dazu', JSON.stringify(await gewaehlt()) === '["Musterbrief B","Musterbrief C"]', await gewaehlt());
+  await page.mouse.up(); await page.waitForTimeout(300);
   await page.evaluate(() => window.__wfpdf.dlg.wahlEnde());
   ok('A: kein Seitenfehler', !fehler.length, fehler);
   await ctx.close();
@@ -206,6 +221,7 @@ try {
   await p2.waitForTimeout(500);
   ok('langer Druck (fest andrücken): die Karte ist gewählt, das Kästchen oben an', await p2.evaluate(() => document.querySelector('[data-wahl-zahl]')?.dataset.wahlZahl === '1' && document.querySelector('#dokGitter .dok.gewaehlt [data-haken]')?.textContent === '✓'));
   for (let i = 1; i <= 8; i++) await touch('touchMove', tax + (tbx - tax) * i / 8, tay + (tby - tay) * i / 8);
+  await p2.waitForTimeout(400);   // auf B verweilen
   ok('ziehen über eine zweite Karte wählt sie dazu', await p2.evaluate(() => document.querySelector('[data-wahl-zahl]')?.dataset.wahlZahl === '2'));
   await p2.evaluate(() => { window.__tmGesperrt = 0; window.__tm = 0; window.addEventListener('touchmove', e => { window.__tm++; if (e.defaultPrevented) window.__tmGesperrt++; }, { passive: true }); });
   for (let i = 1; i <= 10; i++) await touch('touchMove', tbx + (tox - tbx) * i / 10, tby + (toy - tby) * i / 10);

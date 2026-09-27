@@ -474,12 +474,15 @@ und ziehen" auf einen Ordner.
 - **Ziehen** — die Technik aus Mein Rezeptbuch: nach dem langen Druck folgt ein Schattenbild dem Finger,
   gesucht wird per `elementFromPoint` (Schatten kurz ausgeblendet), überstrichene Karten kommen in die
   Auswahl, loslassen auf einem Ordner-Chip verschiebt alle gewählten (`inOrdner`), „＋ Ordner" legt erst
-  einen an, „Alle" ist kein Ziel. Mit der Maus beginnt das Ziehen nach 10 px Weg; mit dem Finger heißt
+  einen an, „Alle" ist kein Ziel. **Eine überstrichene Karte kommt erst nach 250 ms Verweilen dazu**
+  (`VERWEIL_MS`, wie in den WorkFlohs, 2026-09-27) — wer zum Ordner oben gleitet, nimmt die Karten auf dem Weg
+  nicht mit. Die alte Uhr wird gestoppt UND prüft beim Feuern, ob der Zeiger noch dort ist (zwei Riegel, ein
+  Gegenprobe-Fall nimmt beide). 250 ms sind gewählt, nicht am Tablet gemessen. Mit der Maus beginnt das Ziehen nach 10 px Weg; mit dem Finger heißt
   sofortiges Bewegen Rollen. `touchmove` ist nicht passiv und wird nur beim Ziehen abgefangen; der Klick
   nach dem Ziehen/langen Druck wird geschluckt (`klickSperre`). `verschieben(id|ids)` nimmt beides.
 - ⚠ **Nicht gemessen:** echtes Teilen am Tablet (headless ist `navigator.share` gestellt) und das Ziehen
   mit echtem Finger auf Android/DeX (gemessen mit CDP-Touch-Ereignissen).
-- Proben: `tests/teilen.mjs` (in `npm test`) · `node tests/gegenprobe_teilen.mjs` (18 Fälle,
+- Proben: `tests/teilen.mjs` (in `npm test`, 47 grün) · `node tests/gegenprobe_teilen.mjs` (20 Fälle, zuletzt 2026-09-27: 20 gefangen · 0 blind · 0 falsch · 0 tote Anker,
   Wegwerf-Kopie; `NUR_ANKER=1`, `NUR_FALL="…"`).
 
 ## 🔗 Links im Feld (Klaus 2026-09-26)
