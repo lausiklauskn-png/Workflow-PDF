@@ -152,7 +152,9 @@ try {
   await page.click('[data-sortbox] > summary'); await page.waitForTimeout(80);
   kb = await kasten();
   ok('4 · zugeklappt sind „von" und „bis" mit eingeklappt', !kb.offen && !kb.zSicht && !kb.vonSicht && !kb.bisSicht, kb);
-  ok('4 · … und die Kopfzeile nennt Sortierung UND Zeitraum', /Erstellungsdatum/.test(kb.kopf) && /20\.09\.2026 – 24\.09\.2026/.test(kb.kurz), kb);
+  // Klaus 2026-09-27: „Es braucht nur Sortieren dastehen mit Pfeil nach oben und unten“ — die Kopfzeile nennt die
+  // Sortierung NICHT mehr (vorher „⇅ Sortieren: Erstellungsdatum“), der Zeitraum bleibt, sonst fehlte die Liste still.
+  ok('4 · … die Kopfzeile heißt nur „⇅ Sortieren“ und nennt den Zeitraum', /^⇅ Sortieren\s*📅/.test(kb.kopf.trim()) && !/Erstellungsdatum/.test(kb.kopf) && /20\.09\.2026 – 24\.09\.2026/.test(kb.kurz), kb);
   ok('4 · zugeklappt bleibt die Eingrenzung in Kraft', (await karten()).length === 6);
   await page.evaluate(() => window.__wfpdf.suche.zeichneBibliothek()); await page.waitForTimeout(60);
   ok('4 · … und der Kasten bleibt zu, wenn die Liste neu gezeichnet wird', !(await kasten()).offen);

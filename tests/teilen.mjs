@@ -137,7 +137,7 @@ try {
   await karte(page, 'Musterbrief C').locator('.dok-bild').click();
   ok('… ein zweiter Tipp nimmt sie wieder heraus', await page.evaluate(() => document.querySelector('[data-wahl-zahl]')?.dataset.wahlZahl === '1'));
   await page.click('[data-wahl-alle]');
-  ok('„Alle wählen" wählt alle sichtbaren', await page.evaluate(() => document.querySelector('[data-wahl-zahl]')?.dataset.wahlZahl === '3'));
+  ok('„Alle" wählt alle sichtbaren', await page.evaluate(() => document.querySelector('[data-wahl-zahl]')?.dataset.wahlZahl === '3'));
   await page.click('[data-wahl-teilen]');
   await page.waitForFunction(() => window.__geteilt.length === 1, null, { timeout: 20000 }).catch(() => {});
   g = await geteilt(page);

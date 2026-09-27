@@ -471,7 +471,9 @@ steht schon beim Sprechen im Feld; gesucht wird am Ende (nach 2,6 s Pause von se
   320 · 360 · 390 · 412 · 480 px, MIT sichtbarem Installieren-Knopf.
 - **Erstellungsdatum:** Sortierung `erstellt` (neueste zuerst) und ein Zeitraum **„📅 Erstellt von … bis …"**
   (`S.von`/`S.bis`, `imZeitraum`, beide Enden eingeschlossen, nur `createdAt`, Ortszeit via `tagVon`) — kein Datum
-  aus dem Inhalt, nicht das Änderungsdatum. Seit 2026-09-27 (Klaus: „nicht außerhalb des Containers … klappt es
+  aus dem Inhalt, nicht das Änderungsdatum. **Die Kopfzeile heißt nur „⇅ Sortieren"** (Klaus 2026-09-27, wie in Tomys
+  WorkFloh: fett, ohne ▶-Pfeil und ohne „: Erstellungsdatum" — was gewählt ist, steht beim Aufklappen im Auswahlfeld);
+  ein gewählter Zeitraum steht zugeklappt weiter daneben. In der Auswahl-Leiste heißt der Knopf nur „Alle". Seit 2026-09-27 (Klaus: „nicht außerhalb des Containers … klappt es
   sich mit ein") stehen Sortieren UND Zeitraum in EINEM `<details data-sortbox>`; zugeklappt nennt die Kopfzeile
   Sortierung und Zeitraum. Offen/zu liegt in `S.sortOffen` (die Leiste wird bei jedem Zeichnen neu gebaut).
   „Erstellungsdatum" wählen öffnet gleich den Kalender für „von". Widersprechen sich die Enden, gewinnt das
