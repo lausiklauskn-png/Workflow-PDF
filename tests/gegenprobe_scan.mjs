@@ -32,7 +32,16 @@ const FAELLE = [
   { name: 'keine Textebene im PDF', datei: 'assets/scanner.js', anker: 'if (ST.durchsuchbar && s.ocr) {', ersatz: 'if (false) {', trifft: /durchsuchbar/ },
   { name: 'Textebene trägt den alten Text', datei: 'assets/scanner.js', anker: 'const zeilenText = (s, i) => (s.aenderungen', ersatz: 'const zeilenText = (s, i) => s.ocr.zeilen[i].text; const _alt = (s, i) => (s.aenderungen', trifft: /alte Text nicht mehr/ },
   { name: 'ungeprüfte Seite wird ohne Frage übernommen', datei: 'assets/scanner.js', anker: 'if (offen && !await ST.opt.frage(', ersatz: 'if (false && !await ST.opt.frage(', trifft: /fragt vor dem Übernehmen/ },
-  { name: 'ZIP enthält keine Bilder', datei: 'assets/scanner.js', anker: 'bytes: await jpeg(seiteRechnen(ST.seiten[i], Q.dpi, true).canvas, Q.q)', ersatz: 'bytes: new Uint8Array(8)', trifft: /ZIP mit einem JPEG/ },
+  { name: 'ZIP enthält keine Bilder', datei: 'assets/scanner.js', anker: 'bytes: await jpeg(alsKopie(ST.seiten[i]) ? kopieRechnen(ST.seiten[i], Q.dpi).canvas : seiteRechnen(ST.seiten[i], Q.dpi, true).canvas, Q.q)', ersatz: 'bytes: new Uint8Array(8)', trifft: /ZIP mit einem JPEG/ },
+  // Kopie und Nebeneinander (2026-09-27)
+  { name: 'Deckfläche und Text in EINEM Durchgang (Band löscht Unterlängen)', datei: 'assets/scanner.js', anker: 'x.closePath(); x.fill();\n    }', ersatz: "x.closePath(); x.fill();\n      if (j.neu) { const st = stilVon(s, j.i); schreibe(x, j.neu, verschoben(j.l, st, W, H), j.l.fs * st.gr, j.l.winkel, '#000', st); }\n    }", extra: { datei: 'assets/scanner.js', anker: '    for (const j of jobs) if (j.neu) {', ersatz: '    for (const j of []) if (j.neu) {' }, trifft: /Unterlängen/ },
+  { name: 'Grundlinie wird nicht gemerkt', datei: 'assets/scanner.js', anker: 'if (bl && ra && ra.rowHeight > 0 && bl.x1 > bl.x0) {', ersatz: 'if (false) {', trifft: /Grundlinie und Schrifthöhe/ },
+  { name: 'Ausrichtung wird in der Kopie nicht beachtet', datei: 'assets/scanner.js', anker: "const ab = st.ausr === 'r' ? l.laenge - br : st.ausr === 'm' ? (l.laenge - br) / 2 : 0;", ersatz: 'const ab = 0;', trifft: /rechten Rand/ },
+  { name: 'Ziehen in der Kopie verschiebt nichts', datei: 'assets/scanner.js', anker: 'st.dx += (ev.clientX - x0) / r.width; st.dy += (ev.clientY - y0) / r.height;', ersatz: '', trifft: /verschiebt die Zeile/ },
+  { name: 'PDF nimmt trotz „Kopie" das Foto', datei: 'assets/scanner.js', anker: "const alsKopie = s => s.ausgabe === 'kopie' && s.ocr;", ersatz: 'const alsKopie = s => false;', trifft: /KEIN Bild auf der Seite/ },
+  { name: 'neu fotografieren hängt eine Seite an', datei: 'assets/scanner.js', anker: "const alt = ST.ersetze ? ST.seiten.findIndex(o => o.id === ST.ersetze) : -1;", ersatz: 'const alt = -1;', trifft: /ersetzt die Seite/ },
+  { name: 'nur das Original, keine Kopie daneben', datei: 'assets/scanner.js', anker: "const tafeln = v === 'neben' ? ['original', 'kopie'] : [v];", ersatz: "const tafeln = ['original'];", trifft: /nebeneinander/ },
+  { name: '„Aus der Galerie" weiß auf weiß', datei: 'assets/style.css', anker: '.scan-leer .knopf:not(.rot){color:var(--ink)}', ersatz: '', trifft: /Galerie/ },
   { name: 'Seite ist nicht A4', datei: 'assets/scan-bild.js', anker: 'else { pw = quer ? A4.h : A4.w; ph = quer ? A4.w : A4.h; }', ersatz: 'else { pw = quer ? 800 : 600; ph = quer ? 600 : 800; }', trifft: /A4/ }
 ];
 

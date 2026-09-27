@@ -290,6 +290,90 @@ try {
   ok('… „Zurück und prüfen" lässt das Werkzeug offen', !!(await page.$('.scan')) && !(await page.$('.dlg')));
   await page.click('.scan [data-schliessen]'); await page.click('.dlg [data-j]');
 
+  /* D · Original und Kopie nebeneinander, Zeilen einstellen (Klaus 2026-09-27) */
+  await page.click('#btnScan'); await page.waitForSelector('.scan [data-galerie]');
+  const gal = await page.evaluate(() => { const k = document.querySelector('.scan-leer [data-galerie]'), cs = getComputedStyle(k); return [cs.color, cs.backgroundColor]; });
+  ok('leeres Werkzeug: „Aus der Galerie" ist lesbar (Schrift ≠ Grund)', gal[0] !== gal[1] && gal[0] !== 'rgb(255, 255, 255)', gal);
+  const zwei = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 1100; c.height = 700; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 1100, 700); x.fillStyle = '#111'; x.font = '40px Arial'; x.fillText('Honig gegen Regen', 80, 200); x.fillText('Zucker und Mehl', 80, 248); x.fillText('Butter backen', 80, 296); return c.toDataURL('image/png'); });
+  const zweiF = path.join(TMP, 'Zwei Zeilen.png'); fs.writeFileSync(zweiF, Buffer.from(zwei.split(',')[1], 'base64'));
+  await page.setInputFiles('.scan [data-in-galerie]', zweiF);
+  await page.waitForFunction(() => window.__wfpdfScan.seiten[0] && window.__wfpdfScan.seiten[0].erkennung, null, { timeout: 60000 });
+  await page.evaluate(() => { const st = WFP.Scanner.zustand(), s = st.seiten[0]; s.manuell = true; s.ecken = WFP.ScanBild.ganz(s.foto.width, s.foto.height); s.filter = 'original'; st.format = 'blatt'; st.ansicht = 'ergebnis'; WFP.Scanner.zeichne(); });
+  await page.click('.scan [data-kopie]');
+  // erst auf die Erkennung warten (die dauert), dann kurz auf die Kopie: fehlt sie, wird es GEMELDET statt gewartet
+  await page.waitForFunction(() => window.__wfpdfScan.seiten[0].ocr > 0, null, { timeout: 180000 });
+  await page.waitForSelector('.scan [data-tafel="kopie"] [data-zeile]', { timeout: 5000 }).catch(() => {});
+  Z = await page.evaluate(() => window.__wfpdfScan);
+  ok('„📄 Kopie neben Original": erkennt den Text und zeigt beide nebeneinander', Z.vergleich === 'neben' && Z.seiten[0].ocr >= 3 && await page.isVisible('.scan [data-tafel="original"] img') && await page.isVisible('.scan [data-tafel="kopie"] img'), Z.seiten[0].ocr);
+  const lage = await page.evaluate(() => { const s = WFP.Scanner.zustand().seiten[0]; return s.ocr.zeilen.map(z => ({ t: z.text, base: !!z.base, rh: z.rh })); });
+  ok('jede Zeile trägt ihre Grundlinie und Schrifthöhe (nicht nur den Rahmen)', lage.length >= 3 && lage.every(z => z.base && z.rh > 0), lage);
+  const kopieOk = await page.evaluate(() => { const i = document.querySelector('.scan [data-tafel="kopie"] img'); return !!i && i.naturalWidth > 0; });
+  ok('die Kopie ist ein eigenes Bild neben dem Original', kopieOk);
+
+  // Unterlängen bleiben: erst alle Deckflächen, dann alle Texte (Klaus: „150 q Butter")
+  const unterl = await page.evaluate(() => {
+    const s = WFP.Scanner.zustand().seiten[0], SBk = WFP.ScanBild;
+    s.aenderungen = { 0: 'gggg gggg gggg', 1: 'xxxx xxxx' }; s.stil = { 0: { ausr: 'l', gr: 2.5, dx: 0, dy: 0 } };
+    const c = WFP.Scanner.seiteRechnen(s, 150, true).canvas, W = c.width, H = c.height, d = c.getContext('2d').getImageData(0, 0, W, H).data;
+    const l0 = SBk.zeilenLage(s.ocr.zeilen[0], W, H), l1 = SBk.zeilenLage(s.ocr.zeilen[1], W, H), band1 = SBk.zeilenBand(l1);
+    const oben = Math.min(...band1.map(p => p[1])), unten = l0.y + l0.tief * 2.5;
+    let dunkel = 0;
+    for (let y = Math.ceil(oben); y < unten; y++) for (let x = Math.round(l0.x); x < Math.round(l0.x + l0.laenge * 0.8); x++) { const o = (y * W + x) * 4; if (d[o] < 90) dunkel++; }
+    return { zone: unten - oben, dunkel };
+  });
+  ok('(Selbst-Riegel) die vergrößerte Zeile ragt in das Band der nächsten — sonst misst die Zeile darunter nichts', unterl.zone > 2, unterl);
+  ok('Unterlängen der vorigen Zeile werden vom Band der nächsten NICHT gelöscht', unterl.dunkel > 20, unterl);
+
+  // Zeile einstellen und Ziehen brauchen die Kopie-Tafel. Fehlt sie, ist das oben schon ROT —
+  // dann wird dieser Teil GEMELDET übersprungen, statt 30 s auf einen Knopf zu warten, den es nicht gibt.
+  const hatKopie = !!(await page.$('.scan [data-tafel="kopie"] [data-zeile="1"]'));
+  if (!hatKopie) ok('Zeile einstellen und Ziehen: übersprungen, weil die Kopie-Tafel fehlt', false);
+  else {
+  // Zeile einstellen: rechtsbündig und größer, im Dialog
+  await page.evaluate(() => { const s = WFP.Scanner.zustand().seiten[0]; s.aenderungen = {}; s.stil = {}; WFP.Scanner.zeichne(); });
+  await page.click('.scan [data-tafel="kopie"] [data-zeile="1"]');
+  await page.click('.dlg [data-ausr="r"]'); await page.click('.dlg [data-gr="1"]'); await page.click('.dlg [data-gr="1"]');
+  await page.click('.dlg [data-j]');
+  Z = await page.evaluate(() => window.__wfpdfScan);
+  ok('Zeile einstellen: rechtsbündig und 120 % gemerkt', Z.seiten[0].stil[1] && Z.seiten[0].stil[1].ausr === 'r' && Math.abs(Z.seiten[0].stil[1].gr - 1.2) < 1e-9, Z.seiten[0].stil);
+  const rechts = await page.evaluate(() => {
+    const s = WFP.Scanner.zustand().seiten[0], c = WFP.Scanner.kopieRechnen(s, 100).canvas, W = c.width, H = c.height, d = c.getContext('2d').getImageData(0, 0, W, H).data;
+    const l = WFP.ScanBild.zeilenLage(s.ocr.zeilen[1], W, H); let maxX = 0, minX = W;
+    for (let y = Math.round(l.mitte - l.rh); y < l.mitte + 2; y++) for (let x = 0; x < W; x++) { const o = (y * W + x) * 4; if (d[o] < 90) { maxX = Math.max(maxX, x); minX = Math.min(minX, x); } }
+    return { maxX, minX, W, x0: l.x };
+  });
+  ok('in der Kopie steht die Zeile jetzt am rechten Rand, nicht mehr links', rechts.maxX > rechts.W * 0.9 && rechts.minX > rechts.x0 + 20, rechts);
+
+  // Ziehen in der Kopie verschiebt die Zeile
+  const kz = await page.$('.scan [data-tafel="kopie"] [data-zeile="2"]'), kb = await kz.boundingBox();
+  await page.mouse.move(kb.x + kb.width / 2, kb.y + kb.height / 2); await page.mouse.down();
+  await page.mouse.move(kb.x + kb.width / 2, kb.y + kb.height / 2 + 40, { steps: 5 }); await page.mouse.up();
+  Z = await page.evaluate(() => window.__wfpdfScan);
+  ok('Ziehen in der Kopie verschiebt die Zeile nach unten (ohne Dialog)', Z.seiten[0].stil[2] && Z.seiten[0].stil[2].dy > 0.02 && !(await page.$('.dlg')), Z.seiten[0].stil);
+
+  }
+
+  // Ins PDF kommt die Kopie: echter Text, kein Bild
+  await page.click('.scan [data-ausgabe="kopie"]');
+  Z = await page.evaluate(() => window.__wfpdfScan);
+  ok('„Ins PDF kommt: Kopie" gemerkt', Z.seiten[0].ausgabe === 'kopie');
+  const kpdf = await page.evaluate(async () => {
+    const b = await WFP.Scanner.pdfBauen(); const pdf = await pdfjsLib.getDocument({ data: b.slice(0) }).promise; const pg = await pdf.getPage(1);
+    const tc = await pg.getTextContent(), ops = await pg.getOperatorList(); pdf.destroy();
+    return { txt: tc.items.map(i => i.str).join(' '), bilder: ops.fnArray.filter(f => f === pdfjsLib.OPS.paintImageXObject || f === pdfjsLib.OPS.paintJpegXObject).length, bytes: b.length };
+  });
+  ok('PDF aus der Kopie: der Text steht als echter Text drin, KEIN Bild auf der Seite', /Zucker/.test(kpdf.txt) && /Honig/.test(kpdf.txt) && kpdf.bilder === 0, kpdf);
+
+  // Kopie stimmt nicht → Seite neu fotografieren ersetzt DIESE Seite
+  const [neu] = await Promise.all([page.waitForEvent('filechooser'), page.click('.scan [data-neufoto]')]);
+  const neuF = path.join(TMP, 'Neu.png'); fs.copyFileSync(zweiF, neuF);
+  await neu.setFiles(neuF);
+  // gewartet wird darauf, dass das neue Foto IRGENDWO angekommen ist — ob es ersetzt oder anhängt, misst die Zeile darunter
+  await page.waitForFunction(() => window.__wfpdfScan.seiten.some(s => s.name === 'Neu.png' && s.erkennung), null, { timeout: 60000 });
+  Z = await page.evaluate(() => window.__wfpdfScan);
+  ok('„📷 Seite neu fotografieren" ersetzt die Seite, statt eine anzuhängen', Z.seiten.length === 1 && Z.seiten[0].name === 'Neu.png' && Z.seiten[0].ocr === null, Z.seiten.map(s => s.name));
+  await page.click('.scan [data-schliessen]'); await page.click('.dlg [data-j]');
+
   ok('kein Aufruf ins Netz (Modell, Texterkennung, Schrift liegen auf dem Gerät)', fremd.length === 0, fremd);
   ok('keine Fehler in der Konsole', konsole.length === 0, konsole);
 } catch (e) {

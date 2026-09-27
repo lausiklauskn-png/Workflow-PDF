@@ -288,6 +288,7 @@ body.scan-offen{overflow:hidden}
 .scan-werkzeug{width:320px;flex:none;overflow:auto;background:var(--flaeche);border-left:1px solid var(--linie);padding:10px 12px;display:flex;flex-direction:column;gap:10px}
 .scan-leer{color:#fff;text-align:center;max-width:420px;padding:20px}
 .scan-leer .zeile{justify-content:center}
+.scan-leer .knopf:not(.rot){color:var(--ink)}
 .scan-sucht{font-size:1.1rem}
 .scan-bild{position:relative;flex:none;touch-action:none;user-select:none}
 .scan-bild canvas,.scan-bild img{display:block;width:100%;height:100%}
@@ -298,6 +299,16 @@ body.scan-offen{overflow:hidden}
 .scan-zeilen{position:absolute;inset:0}
 .scan-zeile{position:absolute;border:1.5px solid rgba(29,78,216,.8);background:rgba(29,78,216,.08);border-radius:3px;padding:0}
 .scan-zeile.geaendert{border-color:var(--ok);background:rgba(21,128,61,.12)}
+.scan-zeile.unsicher{border-color:#d97706;background:rgba(245,158,11,.22)}
+.scan-zeile.hell{outline:3px solid #E0231B;outline-offset:1px;background:rgba(224,35,27,.14)}
+[data-tafel="kopie"] .scan-zeile{border-style:dashed;cursor:grab;touch-action:none}
+.scan-vergleich{display:flex;gap:12px;align-items:center;justify-content:center;width:100%;height:100%}
+.scan-tafel{margin:0;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
+.scan-tafel figcaption{color:#fff;font-size:.85rem;height:22px;line-height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+[data-tafel="kopie"] .scan-bild{box-shadow:0 0 0 1px #ccc}
+.scan-stil{display:flex;align-items:center;gap:10px;margin:8px 0}
+.scan-stil>span{min-width:90px;color:var(--ink2)}
+.scan-stil output{min-width:52px;text-align:center;align-self:center}
 .scan-tabs{display:flex;border:2px solid var(--rot);border-radius:10px;overflow:hidden}
 .scan-tabs .modus-k{flex:1}
 .scan-befund{margin:0;padding:8px 10px;border-radius:10px;font-weight:700;display:flex;flex-direction:column;gap:2px}
