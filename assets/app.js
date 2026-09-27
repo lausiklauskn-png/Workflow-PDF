@@ -651,6 +651,16 @@
     await DB.putFile(d.id, bytes); await DB.put('docs', d); await textAblegen(d.id, text);
     return d;
   }
+  // Ein abgelegtes Dokument mit neuem Inhalt: Kennung, Ordner und Anlagedatum bleiben
+  async function dokErsetzen(alt, name, bytes) {
+    const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
+    const d = Object.assign({}, alt, { name: name || alt.name, updatedAt: jetzt(),
+      pages: await seitenInfo(pdf), thumb: await vorschaubild(pdf), fields: await vorhandeneFelder(pdf) });
+    const text = await seitenText(pdf);
+    try { pdf.destroy(); } catch (_) {}
+    await DB.putFile(d.id, bytes); await DB.put('docs', d); await textAblegen(d.id, text);
+    return d;
+  }
   let _persistGefragt = false;
 
   /* ---------- Arbeitsstand: Datei zum Weiterarbeiten ----------
@@ -751,13 +761,22 @@
   function scanStarten(ziel, start) {
     const titel = ziel === 'uebersetzung' ? 'Brief fotografieren' : ziel === 'anhang' ? 'Seiten fotografieren und anhängen' : 'Scannen';
     const fertigText = ziel === 'uebersetzung' ? 'Weiter zum Übersetzen' : ziel === 'anhang' ? 'Seiten anhängen' : 'PDF erstellen';
+    /* Aus der Bibliothek gescannt: jedes fertige PDF landet hier, auch beim Herunterladen und
+       Teilen (Klaus 2026-09-27). Wer danach noch einmal ablegt, ersetzt DASSELBE Dokument. */
+    const ablegen = async (bytes, info) => {
+      const alt = info.id ? await DB.get('docs', info.id) : null;
+      if (alt) { await dokErsetzen(alt, info.name, bytes); await ladeBibliothek(); return alt.id; }
+      const folderId = S.ordner.some(o => o.id === S.aktOrdner) ? S.aktOrdner : null;
+      const doc = await neuesDok(info.name, bytes, 'foto', folderId);
+      await ladeBibliothek(); return doc.id;
+    };
     return WFP.Scanner.oeffnen({ titel, fertigText, start, toast, dialog, frage, fortschritt, laden,
+      ablegen: ziel === 'uebersetzung' || ziel === 'anhang' ? null : ablegen,
       fertig: async (bytes, info) => {
         if (ziel === 'uebersetzung') { await ueFotoAblegen(bytes); return; }
         if (ziel === 'anhang' && S.doc) { await seitenAnhaengen([bytes]); return; }
-        const folderId = S.ordner.some(o => o.id === S.aktOrdner) ? S.aktOrdner : null;
-        const doc = await neuesDok(info.name, bytes, 'foto', folderId);
-        await ladeBibliothek(); hops(); oeffneDok(doc.id);
+        const id = await ablegen(bytes, info);
+        hops(); oeffneDok(id);
       } });
   }
 

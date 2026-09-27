@@ -114,12 +114,17 @@ fotografieren" (an ein Dokument anhängen). Der alte Aufnahme-Dialog ist weg.
   und es waren zu viele Schritte. Klaus hat den kurzen Auftrag direkt in ChatGPT an seinem Hotel-Aushang
   (DE → RU) gezeigt; über die App ist er nicht mit einer echten ChatGPT-Antwort gemessen.
   ⚠ ChatGPT malt das Bild neu — Zahlen und Namen können sich ändern.
+- **Herunterladen legt auch ab** (Klaus 2026-09-27: „dann lädt er es nicht in das PWA Workflow PDF … Ich muss
+  erst wieder eine Datei importieren"). Beim Scannen aus der Bibliothek legen „⬇ PDF herunterladen", „📤 Teilen"
+  und „✓ PDF erstellen" das PDF IMMER auch in der Bibliothek ab (aktueller Ordner; `opt.ablegen` in app.js,
+  beim Übersetzen/Anhängen nicht). Ein zweites Ablegen ersetzt DASSELBE Dokument (`ST.abgelegt`, `dokErsetzen`
+  behält Kennung, Ordner, Anlagedatum) — kein Doppel. „PDF erstellen" öffnet es danach. ZIP legt nichts ab.
 - **🎭 Textmaske (PNG, durchsichtig):** die Kopie ohne weißen Grund (`kopieRechnen(s, dpi, true)`),
   zum Auflegen auf einen neuen Hintergrund in einem Bildprogramm. Erscheint, sobald Text erkannt ist.
 - Fotos werden auf ≤ 2400 px lange Kante verkleinert, nie abgewiesen. Einstellungen
   (Filter, Format, Qualität, durchsuchbar, Sprache) in `localStorage` `wfpdf_scan_v1`.
 - Proben: `tests/scan.mjs` (in `npm test`, A Rechnung · B 17 Fotos · C ganzer Weg mit echtem
-  Tesseract) · `node tests/gegenprobe_scan.mjs` (39 Fälle, Wegwerf-Kopie; `NUR_ANKER=1`, `NUR_FALL="BILD:"` für den ChatGPT-Weg).
+  Tesseract) · `node tests/gegenprobe_scan.mjs` (43 Fälle, Wegwerf-Kopie; `NUR_ANKER=1`, `NUR_FALL="BILD:"` für den ChatGPT-Weg, `NUR_FALL="ABLAGE:"` fürs Ablegen).
   Gemessen am 2026-09-26: `scan.mjs` 58 grün · Gegenprobe erst **20 gefangen · 1 blind ·
   1 aus falschem Grund**. Blind war „Umordnen": die zweite Seite erbte den gemerkten Filter,
   also sahen beide Seiten gleich aus — gemessen wird jetzt der Dateiname je Seite. Falsch war
