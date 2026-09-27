@@ -111,6 +111,14 @@ await page.evaluate(async () => { const W = window.__wfpdf; const o = { id: 'o-h
 await page.reload(); await page.waitForFunction(() => window.__wfpdf && window.__wfpdf.S.ordner.length >= 1);
 await page.click('.ordner-chip[data-o="o-hb"]'); await page.click('[data-ausgabe]'); await page.waitForSelector('.dlg [data-weg]');
 await foto('ordner', page.locator('.dlg')); await esc();
+// Sortieren nach Erstellungsdatum: der Kasten offen, Zeitraum „von – bis" gewählt (heute)
+await page.evaluate(() => { const W = window.__wfpdf, z = n => String(n).padStart(2, '0'), t = new Date(), tag = t.getFullYear() + '-' + z(t.getMonth() + 1) + '-' + z(t.getDate());
+  W.EINST.sortierung = 'erstellt'; W.S.sortOffen = true; W.S.von = tag; W.S.bis = tag; W.suche.zeichneBibliothek(); });
+await page.setViewportSize({ width: 470, height: 900 });
+await page.waitForSelector('[data-sortbox][open] [data-zeitraum]'); await page.waitForTimeout(250);
+await foto('sortieren', page.locator('[data-sortbox]'));
+await page.setViewportSize({ width: 1180, height: 820 });
+await page.evaluate(() => { const W = window.__wfpdf; W.EINST.sortierung = 'name'; W.S.sortOffen = false; W.S.von = W.S.bis = ''; W.suche.zeichneBibliothek(); });
 // Auswahl: zwei Karten gewählt, oben die Leiste
 await page.setViewportSize({ width: 620, height: 1100 });
 await page.evaluate(() => { const W = window.__wfpdf; for (const d of W.S.docs) W.dlg.wahlUmschalten(d.id); }); await page.waitForTimeout(300);

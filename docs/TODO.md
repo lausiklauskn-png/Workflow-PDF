@@ -134,11 +134,14 @@ Datei (`assets/wfpdf/…`, `werkzeug.js`), wird er beim Abarbeiten auch in Mein-
   in Weiß auf hellem Glas-Knopf, kaum zu erkennen.
   ![Übersetzen-Knopf nicht lesbar](todo-belege/2026-09-27_tomy-uebersetzen-knopf.jpg)
 
-- [ ] 2026-09-27 · Tomys WorkFloh + Mein-WorkFloh · **Dieselbe Maschine wie Workflow PDF: Scannen und PDF bearbeiten.**
+- [x] 2026-09-27 · Tomys WorkFloh + Mein-WorkFloh · **Dieselbe Maschine wie Workflow PDF: Scannen und PDF bearbeiten.**
   Klaus: „alle Funktionen … PDF bearbeiten und PDF scannen, Foto PDF scannen und PDF oder Bild aus Ordner
   einfügen … die ganze Maschinerie dahinter … soll nicht genauso aufgebaut sein, aber dieselbe Technik
   haben. Es sollen zu denselben Ergebnissen führen."
   Auftrag mit Befund (Prüfsummen) und Weg: `docs/sessions/BRIEF_workflohs-dieselbe-maschine.md`.
+  ✅ Nachgeprüft am 2026-09-27: alle zehn geteilten Dateien (erkennung, export, html-export, uebersetzung,
+  blatt, zip, sprechen, schieber, scanner, scan-bild) sind in beiden WorkFlohs byte-gleich mit Workflow PDF,
+  und beide rufen den Scanner über `werkzeug.js`. Nichts geändert.
 
 ## Erledigt
 
