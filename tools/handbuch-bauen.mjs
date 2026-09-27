@@ -31,6 +31,12 @@ const BASIS = `http://127.0.0.1:${srv.address().port}`;
 const exe = ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome'].find(fs.existsSync);
 const browser = await chromium.launch(exe ? { executablePath: exe } : {});
 const ctx = await browser.newContext({ viewport: { width: 1180, height: 820 }, locale: 'de-DE' });
+// Headless-Chromium hat keine Spracherkennung — für das Bild vom Laufbalken wird sie gestellt.
+await ctx.addInitScript(() => {
+  class Stub { constructor() { window.__rec = this; } start() {} stop() { setTimeout(() => this.onend && this.onend(), 20); } abort() {} }
+  window.SpeechRecognition = Stub;
+  window.__sag = t => { const a = [{ transcript: t }]; a.isFinal = false; window.__rec.onresult({ resultIndex: 0, results: [a] }); };
+});
 const page = await ctx.newPage();
 await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, r => r.abort());
 const fehler = []; page.on('pageerror', e => fehler.push(String(e)));
@@ -82,6 +88,34 @@ await page.click('#btnUebersetzen'); await page.waitForSelector('.dlg'); await f
 await page.click('.ordner-chip[data-o="alle"]').catch(() => {});
 await page.click('[data-ueb]'); await page.waitForSelector('.dlg [data-weg]'); await page.waitForTimeout(400);
 await foto('uebersetzen-dialog', page.locator('.dlg')); await esc();
+// Suchen: Wortsuche mit Fundstelle (Kapitel 6)
+await page.fill('#bibSuche', 'Mustermann'); await page.waitForTimeout(300);
+await foto('suche');
+await page.fill('#bibSuche', ''); await page.waitForTimeout(150);
+// Spracheingabe: Text schon im Feld, darunter der Laufbalken
+await page.click('#bibMic'); await page.evaluate(() => window.__rec.onspeechstart && window.__rec.onspeechstart());
+for (const t of ['Antrag', 'Antrag Park', 'Antrag Parkausweis', 'Antrag Parkausweis Musterstadt']) { await page.evaluate(t => window.__sag(t), t); await page.waitForTimeout(260); }
+await page.evaluate(() => window.__rec.onspeechend && window.__rec.onspeechend()); await page.waitForTimeout(500);
+{ const a = await page.locator('#bibForm').boundingBox(), b = await page.locator('[data-wfs]').boundingBox();
+  const x = Math.min(a.x, b.x) - 8, y0 = a.y - 8; bilder.sprechen = (await page.screenshot({ type: 'jpeg', quality: 80, clip: { x, y: y0, width: Math.max(a.x + a.width, b.x + b.width) - x + 8, height: b.y + b.height - y0 + 8 } })).toString('base64'); }
+await page.click('.wfs-fertig'); await page.waitForTimeout(200);
+await page.fill('#bibSuche', ''); await page.evaluate(() => { window.__wfpdf.S.suche = ''; window.__wfpdf.suche.zeichneBibliothek(); });
+// Suche nach Bedeutung: das Fenster VOR dem Laden
+await page.click('[data-bed-an]'); await page.waitForSelector('.dlg'); await foto('bedeutung', page.locator('.dlg')); await esc();
+// Ordner ausgeben: zweites Dokument dazu, beide in einen Ordner
+await page.setInputFiles('#inDatei', path.join(ZIEL, 'Workfloh-PDF-Benutzerhandbuch.pdf'));
+await page.waitForFunction(() => window.__wfpdf.S.docs.length >= 2, null, { timeout: 60000 }); await page.waitForTimeout(400);
+while (await page.$('.dlg')) await esc();
+await page.evaluate(async () => { const W = window.__wfpdf; const o = { id: 'o-hb', name: 'Formulare', erstellt: Date.now() }; await WFP.DB.put('folders', o);
+  for (const d of W.S.docs) { d.folderId = o.id; await WFP.DB.put('docs', d); } });
+await page.reload(); await page.waitForFunction(() => window.__wfpdf && window.__wfpdf.S.ordner.length >= 1);
+await page.click('.ordner-chip[data-o="o-hb"]'); await page.click('[data-ausgabe]'); await page.waitForSelector('.dlg [data-weg]');
+await foto('ordner', page.locator('.dlg')); await esc();
+// Scannen: ein Foto (aus tests/scan-fotos, Scanics Testbilder) — Blatt gefunden, Ecken zum Prüfen
+await page.click('#btnScan'); await page.waitForSelector('.scan [data-galerie]');
+await page.setInputFiles('.scan [data-in-galerie]', path.join(W, 'tests/scan-fotos/foto01.jpg'));
+await page.waitForFunction(() => window.__wfpdfScan && window.__wfpdfScan.seiten[0] && window.__wfpdfScan.seiten[0].erkennung, null, { timeout: 90000 });
+await page.waitForTimeout(800); await foto('scannen');
 const icon = fs.readFileSync(path.join(W, 'icons/w-floh-320.png')).toString('base64');
 
 /* ---------- 3. Das Handbuch ---------- */

@@ -394,6 +394,23 @@ und „↻ Nochmal"). Die Wahl liegt in `EINST.bedeutung`; danach startet sie be
   (27 Fälle, Wegwerf-Kopie; `NUR_ANKER=1` nur die Anker). Die Handbuch-Probe (30 Seiten, Stellvertreter
   mit Takt) misst Fortschritt, Suche während des Einordnens, Fortsetzen nach dem Neuladen und den Treffer auf Seite 30.
 
+## 🎤 Spracheingabe mit Laufbalken (Klaus 2026-09-27)
+
+„Beim Einsprechen sollte wie bei dir und bei ChatGPT ein Laufbalken sein mit Pünktchen und
+senkrechten Strichen … und der Text wird gleich ausgegeben, so wie er eingesprochen wird."
+Mikrofon im Suchfeld der Bibliothek: darunter ein Balken mit 40 Stellen, der nach links läuft —
+Striche, solange die Erkennung Sprache hört und Text liefert, Pünktchen in den Pausen. Der Text
+steht schon beim Sprechen im Feld; gesucht wird am Ende (nach 2,6 s Pause von selbst, oder
+„Fertig"/Mikrofon), weil die Suche nach Bedeutung nicht bei jedem halben Wort neu rechnen soll.
+
+- `assets/sprechen.js` ist **host-neutral** und wird byte-1:1 in die WorkFlohs kopiert
+  (`assets/wfpdf/sprechen.js`, dort per SHA gepinnt) — nur hier ändern, dann dort neu kopieren.
+- ⚠ **Der Balken ist kein Pegel.** Ein zweiter Mikrofon-Zugriff (getUserMedia) neben der
+  Spracherkennung greift auf Android um dasselbe Mikrofon; der Balken folgt deshalb den Meldungen
+  der Erkennung (speechstart/-end, neuer Text). Nicht am Tablet gemessen.
+- Proben: `tests/sprechen.mjs` (in `npm test`, gestellte Erkennung) ·
+  `node tests/gegenprobe_sprechen.mjs` (16 Fälle, Wegwerf-Kopie; `NUR_ANKER=1` nur die Anker).
+
 ## 🗂 Sortieren und Ordner ausgeben (Klaus 2026-09-26)
 
 „Seite 1 bis 40 als erstes, dann Seite 41 bis 81 … nach Dateinamen oder nach Dateigröße" · „der
@@ -436,7 +453,7 @@ das auch in den Feldinhalten sucht. Nummern werden beim Übersetzen nicht übers
 
 ## 📘 Handbuch und Beispiel-Formular (Klaus 2026-09-25)
 
-`beispiele/Workfloh-PDF-Benutzerhandbuch.pdf` (14 Seiten) und
+`beispiele/Workfloh-PDF-Benutzerhandbuch.pdf` (19 Seiten, neu gebaut 2026-09-27: Scannen in Kapitel 3, Kapitel 6 Suchen mit Spracheingabe und Bedeutungssuche, Kapitel 7 Sortieren/Ordner ausgeben, Übersetzen in Teilen) und
 `beispiele/Beispiel-Amtsformular-Bewohnerparkausweis.pdf` (erfunden, Stadt Musterstadt).
 Zum Nachlesen UND als Testmaterial fürs Übersetzen, ohne eigene Daten ins Netz zu geben:
 Bilder, Farbkästen, Tabellen, Zweispalter, Querformat, eine gescannte Seite ohne Textebene.

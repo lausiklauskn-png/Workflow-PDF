@@ -4,6 +4,8 @@
    (fail-soft). Geprüft von tests/sprache.mjs. */
 (function(){ (window.WFP=window.WFP||{}).SPRACH_TEXTE = {
  "en": {
+  "Aufnahme beenden": "Stop recording",
+  "🎤 Kein Mikrofon gefunden.": "🎤 No microphone found.",
   "✨ Text mit ChatGPT erkennen": "✨ Recognize text with ChatGPT",
   "🎨 Mit ChatGPT übersetzen": "🎨 Translate with ChatGPT",
   "📥 Ergebnis zurückholen": "📥 Bring back result",
@@ -781,6 +783,8 @@
   "Zurück und prüfen": "Go back and check"
  },
  "ru": {
+  "Aufnahme beenden": "Остановить запись",
+  "🎤 Kein Mikrofon gefunden.": "🎤 Микрофон не найден.",
   "✨ Text mit ChatGPT erkennen": "✨ Распознать текст через ChatGPT",
   "🎨 Mit ChatGPT übersetzen": "🎨 Перевести через ChatGPT",
   "📥 Ergebnis zurückholen": "📥 Загрузить результат",
@@ -1558,6 +1562,8 @@
   "Zurück und prüfen": "Назад и проверить"
  },
  "ar": {
+  "Aufnahme beenden": "إيقاف التسجيل",
+  "🎤 Kein Mikrofon gefunden.": "🎤 لم يُعثَر على ميكروفون.",
   "✨ Text mit ChatGPT erkennen": "✨ التعرف على النص عبر ChatGPT",
   "🎨 Mit ChatGPT übersetzen": "🎨 ترجمة عبر ChatGPT",
   "📥 Ergebnis zurückholen": "📥 استرجاع النتيجة",
