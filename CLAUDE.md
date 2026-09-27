@@ -149,6 +149,7 @@ fotografieren" (an ein Dokument anhängen). Der alte Aufnahme-Dialog ist weg.
   beider WorkFlohs; dort heißt Rot `--scan-rot`, weil tomy-ui `--rot` per `@property` als Winkel anmeldet (in Tomys
   war der gewählte Reiter durchsichtig). ⚠ Dass ein KLEINES Foto größer gezeigt wird, misst keine Probe — die
   Testfotos sind groß.
+- **Scanner-Kopf einzeilig, keine Erklärtexte** (Klaus 2026-09-27): Schließen ist nur ein ✕ (`aria-label="Schließen"`), Titel und „1 Seite" in einer Zeile (Kopf 68 → 51 px am Handy); Zuschneiden/Ergebnis auf JEDER Breite 28 px hoch, einzeilig. Kein Text „Ecken von Hand gesetzt" (die Marke `data-befund="hand"` bleibt, unsichtbar) und kein Satz zu roten Punkten und Lupe. Wird das Fenster größer gezogen (DeX, Vollbild), zeichnet ein ResizeObserver die Bühne neu — das Foto füllt sie wieder (vorher blieb es klein).
 - **Seitengröße** (Klaus 2026-09-27): Automatisch (Vorgabe) · Original (wie das Blatt) · A4 · A5 · A6 · US Letter.
   Automatisch: Verhältnis ± 8 % um √2 (`AUTO_TOLERANZ`) → A4, sonst Original — und es SAGT, was es gewählt hat
   (`data-format-ist`). A4, A5, A6 haben dasselbe Verhältnis; welche Größe das Papier hatte, zeigt ein Foto nicht.
