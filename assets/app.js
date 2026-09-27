@@ -652,12 +652,14 @@
       ${alle && n < alle ? '<button class="knopf klein" data-wahl-alle>Alle</button>' : ''}
       <button class="knopf klein primaer" data-wahl-teilen${n ? '' : ' disabled'}>📤 Teilen</button>
       <button class="knopf klein" data-wahl-verschieben${n ? '' : ' disabled'}>🗂️ Verschieben</button>
+      <button class="knopf klein" data-wahl-loeschen${n ? '' : ' disabled'}>🗑 Löschen</button>
       <button class="knopf klein" data-wahl-ende>✕ Fertig</button>
       <span class="hinweis wahl-tipp">Tippen wählt · lange drücken und ziehen wählt mehrere · auf einen Ordner oben ziehen verschiebt</span>`;
     const q = s => l.querySelector(s);
     if (q('[data-wahl-alle]')) q('[data-wahl-alle]').onclick = () => { for (const d of S.sicht || []) WAHL.add(d.id); wahlMarken(); wahlLeiste(); };
     q('[data-wahl-teilen]').onclick = () => teilenDocs([...WAHL]);
     q('[data-wahl-verschieben]').onclick = () => verschieben([...WAHL]);
+    q('[data-wahl-loeschen]').onclick = () => loeschenMehrere([...WAHL]);
     q('[data-wahl-ende]').onclick = wahlEnde;
     $('dokGitter').classList.toggle('wahl-an', WAHL_AN);
   }
@@ -800,6 +802,17 @@
     const d = S.docs.find(x => x.id === id); if (!d) return;
     if (!await frage('Dokument löschen?', `<p>„${nm(d.name)}" mit ${d.fields.length} Feldern wird aus diesem Browser gelöscht. Das lässt sich nicht rückgängig machen.</p>`, 'Löschen')) return;
     await DB.del('docs', id); await DB.del('files', id); toast('🗑 gelöscht'); ladeBibliothek();
+  }
+
+  /* Mehrere auf einmal löschen (Klaus 2026-09-27: „Löschen ist auch eine Option"). Eine Frage für alle,
+     mit der Zahl und den Namen — nie still. Gelöscht wird Dokument für Dokument wie beim Einzel-Löschen. */
+  async function loeschenMehrere(ids) {
+    const docs = ids.map(id => S.docs.find(x => x.id === id)).filter(Boolean); if (!docs.length) return;
+    const liste = docs.slice(0, 8).map(d => `<li>${nm(d.name)}</li>`).join('') + (docs.length > 8 ? `<li>… und ${docs.length - 8} weitere</li>` : '');
+    if (!await frage(`${docs.length} Dokumente löschen?`, `<p>Diese Dokumente werden aus diesem Browser gelöscht. Das lässt sich nicht rückgängig machen.</p><ul>${liste}</ul>`, 'Löschen')) return;
+    for (const d of docs) { await DB.del('docs', d.id); await DB.del('files', d.id); WAHL.delete(d.id); }
+    WAHL_AN = false; WAHL.clear();
+    toast(`🗑 ${docs.length} gelöscht`); ladeBibliothek();
   }
 
   /* ---------- Import ---------- */

@@ -545,7 +545,9 @@ und ziehen" auf einen Ordner.
   „📤 Jetzt teilen …" da; kann das Gerät nicht teilen: Herunterladen (mehrere als ZIP).
 - **Auswahl** (`WAHL`, `WAHL_AN`): Kästchen oben rechts auf der Karte (am Tablet immer sichtbar, mit
   Maus beim Darüberfahren) oder langer Druck (`LANGDRUCK_MS` 450). Im Auswahl-Modus wählt ein Tipp,
-  statt zu öffnen. Leiste `#wahlLeiste`: Anzahl · Alle wählen · 📤 Teilen · 🗂️ Verschieben · ✕ Fertig.
+  statt zu öffnen. Leiste `#wahlLeiste`: Anzahl · Alle wählen · 📤 Teilen · 🗂️ Verschieben · 🗑 Löschen · ✕ Fertig.
+  **🗑 Löschen** (Klaus 2026-09-27, `loeschenMehrere`): EINE Frage mit Zahl und Namen (bis 8, dann „… und N weitere“),
+  danach Dokument UND Datei weg (Seitentext und Vektoren über `DB.del('files')`), Auswahl aufgehoben.
 - **Ziehen** — die Technik aus Mein Rezeptbuch: nach dem langen Druck folgt ein Schattenbild dem Finger,
   gesucht wird per `elementFromPoint` (Schatten kurz ausgeblendet), überstrichene Karten kommen in die
   Auswahl, loslassen auf einem Ordner-Chip verschiebt alle gewählten (`inOrdner`), „＋ Ordner" legt erst
