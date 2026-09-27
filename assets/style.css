@@ -424,3 +424,13 @@ body.zieht .dok-gitter,body.zieht .ordner-leiste{touch-action:none}
   .scan .knopf{min-height:32px;padding:4px 10px}
   .scan-chips .chip{padding:3px 10px}
 }
+/* Handy: die vier Start-Kacheln so flach wie die Scanner-Knöpfe (Klaus 2026-09-27:
+   „PDF-Bild könnte schmaler sein … da muss nicht so eine lange Erklärung drunter sein“).
+   Untereinander, je eine flache Zeile ohne Unterzeile. */
+@media (max-width:640px){
+  .import-leiste{grid-template-columns:1fr;gap:6px;margin-bottom:10px}
+  .gross-knopf{padding:4px 8px;gap:6px;min-height:36px;border-width:1.5px;border-radius:10px;box-shadow:none}
+  .gross-knopf .gk-ico{font-size:1.1rem;flex:none}
+  .gross-knopf .gk-t{font-size:.9rem;line-height:1.15;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gross-knopf .gk-t br,.gross-knopf small{display:none}
+}

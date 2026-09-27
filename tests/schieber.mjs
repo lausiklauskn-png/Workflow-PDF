@@ -53,6 +53,11 @@ try {
   await page.goto(URL0);
   await page.waitForFunction(() => window.__wfpdf && window.WFP && WFP.DB);
   ok('der Baustein ist geladen (WFSchieber)', await page.evaluate(() => !!window.WFSchieber));
+  // Start-Kacheln am Handy: untereinander, so flach wie die Scanner-Knöpfe (Klaus 2026-09-27)
+  const kacheln = await page.evaluate(() => [...document.querySelectorAll('.import-leiste .gross-knopf')].map(e => { const r = e.getBoundingClientRect(); return { l: Math.round(r.left), t: Math.round(r.top), h: Math.round(r.height), unter: e.querySelector('small') && e.querySelector('small').getClientRects().length } }));
+  ok('Handy: vier Start-Kacheln, jede höchstens 40 px hoch (Maß: Scanner-Knöpfe)', kacheln.length === 4 && kacheln.every(k => k.h <= 40), kacheln);
+  ok('Handy: die Start-Kacheln stehen untereinander', kacheln.length === 4 && kacheln.every((k, i) => i === 0 || (k.l === kacheln[0].l && k.t > kacheln[i - 1].t)), kacheln);
+  ok('Handy: die Unterzeile der Start-Kacheln ist ausgeblendet', kacheln.length === 4 && kacheln.every(k => !k.unter), kacheln);
 
   // ===== A. Feldarten-Leiste im Bearbeiten-Fenster, schmales Handy =====
   await page.evaluate(async b64 => {
