@@ -164,6 +164,20 @@ fotografieren" (an ein Dokument anhängen). Der alte Aufnahme-Dialog ist weg.
   Qualität der Texterkennung auf echten Briefen. Die Bildschirmfotos im Handbuch zeigen noch
   den alten Aufnahme-Dialog (`node tools/handbuch-bauen.mjs` baut sie neu).
 
+## 📱 Handy: flache Knöpfe, kleinerer Griff (Klaus 2026-09-27)
+
+„Die Button in der Handyansicht zu fett … flacher, etwas kleiner, so dass mehr Fläche bleibt für die Ansicht des
+Bildes. Das ist wichtiger." · „Rote Punkte … um 20 % verkleinert, aber nicht mehr."
+- Block am ENDE von `assets/style.css` (überstimmt die älteren Handy-Regeln): Knöpfe im Bearbeiten-Fenster 30 px
+  statt 36–40 px, Suchzeile und Fuß flacher. Gemessen bei 380 × 800: Blatt **53 % → 61 %** des Schirms
+  (360 × 740: 345 → 411 px).
+- Griff `.feld .griff` 16 → 13 px; `::after` (inset −9 px) hält die Greiffläche groß.
+- Scanner (≤ 760 px): Bild 52 → 60 % der Höhe, Knöpfe und Chips flacher. ⚠ **Ohne Wächter** — eine Sabotage daran
+  fängt keine Probe (von Hand nachgestellt).
+- `tests/schieber.mjs` misst Blatt (> 58 %), Knopfhöhe (≤ 32 px), Griff (12–14 px) und den Tipp daneben; von Hand
+  gegengeprüft (Griff 16 px, 10 px, ohne `::after`, dicke Knöpfe, ganzer Block weg): jede Sabotage wirft ihre
+  eigene rote Zeile. Die erste Schwelle „die Hälfte" war blind — ohne Änderung waren es schon 53 %.
+
 ## 🌐 Übersetzen (seit 2026-09-25)
 
 Eigener Bereich (Knopf „🌐 Übersetzen …", Ordner mit `bereich:'uebersetzung'`,
