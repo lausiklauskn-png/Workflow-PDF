@@ -349,11 +349,26 @@
     if (ST.ansicht === 'zuschnitt') zeichneZuschnitt(b, s); else zeichneErgebnis(b, s);
   }
 
+  /* Lupe: Durchmesser ein Fünftel der kürzeren Bildseite, 56–84 px. Vorher legte
+     `.scan-bild canvas{width:100%}` sie über das GANZE Bild (gemessen 431×574 bei 431×574). */
+  function lupeGroesse(W, H) { return Math.max(56, Math.min(84, Math.round(Math.min(W, H) / 5))); }
+  /* Lage: schräg über dem Punkt, zur Bildmitte hin; oben kein Platz → darunter. Bleibt im Bild
+     und deckt den Punkt (± 18 px Griff) nie ab. */
+  function lupeLage(x, y, d, W, H) {
+    const abst = 22, links = x > W / 2;
+    let lx = links ? x - abst - d : x + abst, ly = y - abst - d;
+    if (ly < 0) ly = y + abst;
+    lx = Math.max(0, Math.min(W - d, lx)); ly = Math.max(0, Math.min(H - d, ly));
+    return [Math.round(lx), Math.round(ly)];
+  }
   /* Zuschnitt: das Foto mit vier Ecken zum Ziehen und einer Lupe */
   function zeichneZuschnitt(b, s) {
-    b.innerHTML = '<div class="scan-bild" data-rahmen><canvas data-foto></canvas><svg class="scan-linie" data-svg></svg><canvas class="scan-lupe" data-lupe width="120" height="120" hidden></canvas></div>';
+    b.innerHTML = '<div class="scan-bild" data-rahmen><canvas data-foto></canvas><svg class="scan-linie" data-svg></svg><canvas class="scan-lupe" data-lupe hidden></canvas></div>';
     const rahmen = b.querySelector('[data-rahmen]'), cv = b.querySelector('[data-foto]'), svg = b.querySelector('[data-svg]'), lupe = b.querySelector('[data-lupe]');
-    const maxW = Math.max(200, b.clientWidth - 8), maxH = Math.max(200, b.clientHeight - 8);
+    // Platz für die halben Griffe (36 px) an allen Seiten — und KEINE Untergrenze über der Bühne:
+    // mit „mindestens 200" ragte das Bild am Handy (Bühne 156 px) oben unter die Kopfleiste,
+    // und die oberen Ecken waren nicht mehr zu greifen (gemessen 2026-09-27, 360×740).
+    const maxW = Math.max(60, b.clientWidth - 40), maxH = Math.max(60, b.clientHeight - 40);
     const f = Math.min(maxW / s.foto.width, maxH / s.foto.height, 1);
     const W = Math.round(s.foto.width * f), H = Math.round(s.foto.height * f);
     cv.width = W; cv.height = H; cv.getContext('2d').drawImage(s.foto, 0, 0, W, H);
@@ -367,21 +382,27 @@
     male();
     griffe.forEach((g, i) => {
       g.onpointerdown = e => {
-        e.preventDefault(); g.setPointerCapture(e.pointerId); lupe.hidden = false;
+        e.preventDefault(); g.setPointerCapture(e.pointerId); lupe.hidden = false; g.dataset.zieht = '1';
         const r0 = rahmen.getBoundingClientRect();
         const bewege = ev => {
           const x = Math.max(0, Math.min(W, ev.clientX - r0.left)), y = Math.max(0, Math.min(H, ev.clientY - r0.top));
           s.ecken[i] = [x / f, y / f]; s.manuell = true; male();
-          // Lupe: 3-fach um den Finger, auf der anderen Seite, damit der Finger sie nicht verdeckt
-          const lx = lupe.getContext('2d'), z = 3, gr = 120 / z;
-          lx.fillStyle = '#fff'; lx.fillRect(0, 0, 120, 120);
-          lx.drawImage(s.foto, s.ecken[i][0] - gr / 2 / f * 1, s.ecken[i][1] - gr / 2 / f * 1, gr / f, gr / f, 0, 0, 120, 120);
-          lx.strokeStyle = '#E0231B'; lx.lineWidth = 2; lx.beginPath(); lx.moveTo(60, 48); lx.lineTo(60, 72); lx.moveTo(48, 60); lx.lineTo(72, 60); lx.stroke();
-          lupe.style.left = (x < W / 2 ? W - 128 : 8) + 'px'; lupe.style.top = '8px';
+          // Lupe (Klaus 2026-09-27: „nur der Punkt, sodass man den Rest noch sehen kann"):
+          // klein, 3-fach, schräg ÜBER dem Punkt (der Finger liegt darunter) — nie über dem Punkt selbst.
+          const d = lupeGroesse(W, H), z = 3, gr = d / z, pr = Math.min(2, window.devicePixelRatio || 1);
+          if (lupe.width !== Math.round(d * pr)) { lupe.width = lupe.height = Math.round(d * pr); }
+          lupe.style.width = lupe.style.height = d + 'px';
+          const lx = lupe.getContext('2d'); lx.setTransform(pr, 0, 0, pr, 0, 0);
+          lx.fillStyle = '#fff'; lx.fillRect(0, 0, d, d);
+          lx.drawImage(s.foto, s.ecken[i][0] - gr / 2 / f, s.ecken[i][1] - gr / 2 / f, gr / f, gr / f, 0, 0, d, d);
+          const m = d / 2, k = d / 6;
+          lx.strokeStyle = '#E0231B'; lx.lineWidth = 1.5; lx.beginPath(); lx.moveTo(m, m - k); lx.lineTo(m, m + k); lx.moveTo(m - k, m); lx.lineTo(m + k, m); lx.stroke();
+          const pos = lupeLage(x, y, d, W, H);
+          lupe.style.left = pos[0] + 'px'; lupe.style.top = pos[1] + 'px';
         };
         bewege(e);
         g.onpointermove = bewege;
-        g.onpointerup = g.onpointercancel = () => { g.onpointermove = null; lupe.hidden = true; s.ocr = null; s.aenderungen = {}; s.stil = {}; zeichneLeiste(); zeichneWerkzeug(); melden(); };
+        g.onpointerup = g.onpointercancel = () => { g.onpointermove = null; lupe.hidden = true; delete g.dataset.zieht; s.ocr = null; s.aenderungen = {}; s.stil = {}; zeichneLeiste(); zeichneWerkzeug(); melden(); };
       };
     });
   }
