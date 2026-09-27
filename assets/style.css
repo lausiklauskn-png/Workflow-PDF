@@ -395,6 +395,13 @@ html.gerollt .dok .treffer-zahl.dok-treffer{right:74px}
 body.zieht{cursor:grabbing}
 body.zieht .dok-gitter,body.zieht .ordner-leiste{touch-action:none}
 
+/* Sortieren + Zeitraum in EINEM Kasten, klappt zusammen (Klaus 2026-09-27) */
+.sortier-box{flex:1 1 100%;border:1px solid var(--linie);border-radius:10px;padding:0 10px;background:var(--flaeche)}
+.sortier-box>summary{cursor:pointer;padding:8px 0;font-size:.92rem;list-style-position:inside}
+.sortier-box .zeitraum-kurz{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;background:rgba(224,35,27,.12);font-size:.85rem}
+.sortier-inhalt{display:flex;flex-direction:column;gap:8px;padding:0 0 10px}
+.sortier-inhalt .zeitraum{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:.9rem}
+.sortier-inhalt .zeitraum input[type=date]{padding:6px 8px;border-radius:8px;min-width:0}
 /* Handy: flachere Knöpfe, mehr Platz fürs Bild (Klaus 2026-09-27: „die Button in der Handyansicht zu fett …
    flacher, etwas kleiner, so dass mehr Fläche bleibt für die Ansicht des Bildes. Das ist wichtiger.")
    Steht am ENDE, damit es die älteren Handy-Regeln oben überstimmt. */

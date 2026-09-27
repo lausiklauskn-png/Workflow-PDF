@@ -98,13 +98,15 @@ try {
   // C. Sortierung in der Ansicht
   ok('Sortier-Auswahl steht über der Liste, vorgewählt „Name (1, 2 … 10)"', await page.evaluate(() => { const s = document.querySelector('[data-sort]'); return !!s && s.value === 'name' && [...s.options].map(o => o.value).join() === 'name,neu,erstellt,groesse,seiten'; }));   // benannt statt gezählt: seit 2026-09-27 steht „Erstellungsdatum" dabei
   ok('nach Name: Teil 1, Teil 2, Teil 10', JSON.stringify(await reihe()) === JSON.stringify(NAME), await reihe());
-  await page.selectOption('[data-sort]', 'seiten');
+  // Die Auswahl steht seit 2026-09-27 in einem aufklappbaren Kasten — wie ein Nutzer erst aufklappen
+  const sortiere = async v => { if (!await page.evaluate(() => document.querySelector('[data-sortbox]').open)) await page.click('[data-sortbox] > summary'); await page.selectOption('[data-sort]', v); };
+  await sortiere('seiten');
   ok('nach Seitenzahl: 3, 2, 1 Seiten (Teil 10, 2, 1)', JSON.stringify(await reihe()) === JSON.stringify([NAME[2], NAME[1], NAME[0]]), await reihe());
-  await page.selectOption('[data-sort]', 'groesse');
+  await sortiere('groesse');
   const groesseOk = await page.waitForFunction(n => [...document.querySelectorAll('#dokGitter .dok .dok-name')][0]?.textContent.trim() === n, NAME[1], { timeout: 8000 }).then(() => true, () => false);
   ok('nach Dateigröße: der dicke Teil 2 zuerst', groesseOk, await reihe());
   ok('… und die Größe steht an jeder Karte', await page.evaluate(() => [...document.querySelectorAll('#dokGitter .dok-meta')].every(m => / (KB|MB)/.test(m.textContent))));
-  await page.selectOption('[data-sort]', 'seiten');
+  await sortiere('seiten');
   await page.reload(); await page.waitForFunction(() => window.__wfpdf && window.__wfpdf.S.docs.length === 3);
   ok('die Wahl übersteht das Neuladen (Einstellungen)', await page.evaluate(() => window.__wfpdf.EINST.sortierung === 'seiten'));
   await page.evaluate(() => { const w = window.__wfpdf; w.S.aktOrdner = w.S.ordner.find(o => o.name === 'Buch · RU').id; w.EINST.sortierung = 'name'; w.einstSpeichern(); w.suche.zeichneBibliothek(); });

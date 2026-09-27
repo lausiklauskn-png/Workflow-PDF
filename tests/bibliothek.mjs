@@ -128,28 +128,78 @@ try {
   ok('4 · nach Erstellungsdatum sortiert: die neuesten zuerst', k.length === 9 && k.map(x => x.t).join() === [...k.map(x => x.t)].sort().reverse().join() && k[0].t === '2026-09-25' && k[8].t === '2026-09-20', k.map(x => x.t));
   ok('4 · … bei gleichem Tag nach Name (Dokument 3 vor Dokument 6 vor Dokument 9)', k.filter(x => x.t === '2026-09-25').map(x => x.n).join() === 'Dokument 3,Dokument 6,Dokument 9', k);
   ok('4 · jede Karte nennt dabei ihr Erstellungsdatum', k.every(x => /erstellt \d\d\.\d\d\.2026/.test(x.text)), k.map(x => x.text));
-  // nach einem Tag suchen
-  await page.fill('[data-datum]', '2026-09-24'); await page.dispatchEvent('[data-datum]', 'change'); await page.waitForTimeout(100);
+  // Der Zeitraum steht IM Sortieren-Kasten und klappt mit ihm ein (Klaus 2026-09-27)
+  const kasten = () => page.evaluate(() => { const box = document.querySelector('[data-sortbox]'), z = document.querySelector('[data-zeitraum]'), sicht = e => !!e && e.getClientRects().length > 0 && e.checkVisibility();
+    return { box: !!box, offen: !!box?.open, drin: !!(box && z && box.contains(z)), zSicht: sicht(z), vonSicht: sicht(document.querySelector('[data-von]')), bisSicht: sicht(document.querySelector('[data-bis]')),
+      aussen: [...document.querySelectorAll('#ordnerAktionen input[type=date]')].filter(i => !box || !box.contains(i)).length, altesFeld: !!document.querySelector('[data-datum]'),
+      kopf: box?.querySelector('summary')?.textContent || '', kurz: document.querySelector('[data-zeitraumkurz]')?.textContent || '' }; });
+  let kb = await kasten();
+  ok('4 · Sortieren steht in EINEM aufklappbaren Kasten', kb.box, kb);
+  ok('4 · … er ist zu, bis man ihn öffnet — und „von"/„bis" sind mit eingeklappt', !kb.offen && kb.drin && !kb.vonSicht, kb);
+  await page.click('[data-sortbox] > summary'); await page.waitForTimeout(60);
+  kb = await kasten();
+  ok('4 · aufgeklappt, mit „Erstellungsdatum": „von" und „bis" stehen darin', kb.offen && kb.drin && kb.vonSicht && kb.bisSicht, kb);
+  ok('4 · kein Datumsfeld steht außerhalb des Kastens (das alte „Erstellt am" ist weg)', kb.aussen === 0 && !kb.altesFeld, kb);
+  // beide Felder setzen, dann EIN change (fill löst selbst schon change aus — dann spräche das erste Feld allein)
+  const zeitraum = async (v, b) => { await page.evaluate(([v, b]) => { const box = document.querySelector('[data-sortbox]'); if (box && !box.open) box.open = true;
+    document.querySelector('[data-von]').value = v; const e = document.querySelector('[data-bis]'); e.value = b; e.dispatchEvent(new Event('change')); }, [v, b]); await page.waitForTimeout(100); };
+  await zeitraum('2026-09-20', '2026-09-24');
   k = await karten();
-  ok('4 · „Erstellt am 24.09.2026": genau die drei Dokumente dieses Tages', k.length === 3 && k.every(x => x.t === '2026-09-24'), k);
-  ok('4 · … und der Ordner-Knopf daneben hebt es wieder auf', await page.evaluate(() => !!document.querySelector('[data-datumweg]')));
+  ok('4 · von 20.09. bis 24.09.: genau die sechs Dokumente dieser Tage (beide Enden gehören dazu)', k.length === 6 && k.every(x => x.t === '2026-09-20' || x.t === '2026-09-24') && k.some(x => x.t === '2026-09-20'), k);
+  kb = await kasten();
+  ok('4 · … der Kasten bleibt dabei offen, und der Weg zurück steht darin', kb.offen && await page.evaluate(() => { const w = document.querySelector('[data-datumweg]'); return !!w && document.querySelector('[data-sortbox]').contains(w); }), kb);
+  // zuklappen: die Felder verschwinden mit, der gewählte Zeitraum steht in der Kopfzeile
+  await page.click('[data-sortbox] > summary'); await page.waitForTimeout(80);
+  kb = await kasten();
+  ok('4 · zugeklappt sind „von" und „bis" mit eingeklappt', !kb.offen && !kb.zSicht && !kb.vonSicht && !kb.bisSicht, kb);
+  ok('4 · … und die Kopfzeile nennt Sortierung UND Zeitraum', /Erstellungsdatum/.test(kb.kopf) && /20\.09\.2026 – 24\.09\.2026/.test(kb.kurz), kb);
+  ok('4 · zugeklappt bleibt die Eingrenzung in Kraft', (await karten()).length === 6);
+  await page.evaluate(() => window.__wfpdf.suche.zeichneBibliothek()); await page.waitForTimeout(60);
+  ok('4 · … und der Kasten bleibt zu, wenn die Liste neu gezeichnet wird', !(await kasten()).offen);
+  await page.click('[data-sortbox] > summary'); await page.waitForTimeout(60);
+  ok('4 · aufgeklappt stehen die Felder wieder da, mit dem Zeitraum darin', await page.evaluate(() => document.querySelector('[data-von]').value === '2026-09-20' && document.querySelector('[data-bis]').value === '2026-09-24'));
+  // „von" hinter „bis" gewählt (wie am Tablet: ein Feld, ein Kalender): das gewählte gewinnt, „bis" rückt nach
+  await page.fill('[data-von]', '2026-09-25'); await page.waitForTimeout(100);
+  k = await karten();
+  ok('4 · „von" hinter „bis" gewählt: „bis" rückt auf denselben Tag — 25.09. = drei Dokumente, keine leere Liste', k.length === 3 && k.every(x => x.t === '2026-09-25') && await page.evaluate(() => document.querySelector('[data-bis]').value === '2026-09-25'), k);
+  await page.fill('[data-bis]', '2026-09-20'); await page.waitForTimeout(100);
+  k = await karten();
+  ok('4 · „bis" vor „von" gewählt: „von" rückt nach — 20.09. = drei Dokumente', k.length === 3 && k.every(x => x.t === '2026-09-20') && await page.evaluate(() => document.querySelector('[data-von]').value === '2026-09-20'), k);
+  // nur eine Seite offen
+  await zeitraum('2026-09-24', '');
+  k = await karten();
+  ok('4 · nur „von": alles ab diesem Tag', k.length === 6 && k.every(x => x.t >= '2026-09-24'), k);
+  await zeitraum('', '2026-09-20');
+  k = await karten();
+  ok('4 · nur „bis": alles bis zu diesem Tag', k.length === 3 && k.every(x => x.t === '2026-09-20'), k);
   // es ist das ANLAGEdatum, nicht ein Datum im Inhalt oder das Änderungsdatum
-  await page.fill('[data-datum]', '2026-09-26'); await page.dispatchEvent('[data-datum]', 'change'); await page.waitForTimeout(100);
+  await zeitraum('2026-09-26', '2026-09-26');
   k = await karten();
-  ok('4 · das Änderungsdatum (26.09.) zählt NICHT — nur das Erstellungsdatum', k.length === 0 && await page.evaluate(() => /24|26/.test(document.querySelector('[data-datumleer]')?.textContent || '')), k);
+  ok('4 · das Änderungsdatum (26.09.) zählt NICHT — nur das Erstellungsdatum', k.length === 0 && await page.evaluate(() => /26/.test(document.querySelector('[data-datumleer]')?.textContent || '')), k);
   ok('4 · ein Tag ohne Dokument sagt das, mit Weg zurück', await page.evaluate(() => /Kein Dokument wurde am 26\.09\.2026 erstellt/.test(document.querySelector('[data-datumleer]')?.textContent || '') && !!document.querySelector('[data-datumweg2]')));
+  await zeitraum('2026-09-26', '2026-09-30');
+  ok('4 · ein leerer Zeitraum nennt beide Enden', await page.evaluate(() => /zwischen dem 26\.09\.2026 und dem 30\.09\.2026/.test(document.querySelector('[data-datumleer]')?.textContent || '')));
   await page.click('[data-datumweg2]'); await page.waitForTimeout(100);
   k = await karten();
   ok('4 · „✕ jedes Datum" zeigt wieder alle', k.length === 9, k.length);
   // zusammen mit der Wortsuche
-  await page.fill('[data-datum]', '2026-09-20'); await page.dispatchEvent('[data-datum]', 'change'); await page.waitForTimeout(80);
+  await zeitraum('2026-09-20', '2026-09-20');
   await page.fill('#bibSuche', 'Dokument 4'); await page.press('#bibSuche', 'Enter'); await page.waitForTimeout(400);
   k = await karten();
-  ok('4 · Datum und Suchwort zusammen: nur „Dokument 4" vom 20.09.', k.length >= 1 && k.every(x => x.t === '2026-09-20') && k.some(x => x.n === 'Dokument 4'), k);
+  ok('4 · Zeitraum und Suchwort zusammen: nur „Dokument 4" vom 20.09.', k.length >= 1 && k.every(x => x.t === '2026-09-20') && k.some(x => x.n === 'Dokument 4'), k);
+  ok('4 · … der Kasten ist auch während einer Suche da', (await kasten()).box);
   await page.fill('#bibSuche', ''); await page.press('#bibSuche', 'Enter');
-  await page.evaluate(() => { const w = window.__wfpdf; w.S.datum = ''; w.EINST.sortierung = 'name'; w.einstSpeichern(); w.suche.zeichneBibliothek(); });
+  await page.evaluate(() => { const w = window.__wfpdf; w.S.von = w.S.bis = ''; w.S.sortOffen = false; w.EINST.sortierung = 'name'; w.einstSpeichern(); w.suche.zeichneBibliothek(); });
+  kb = await kasten();
+  ok('4 · nach Name sortiert und ohne Zeitraum: keine Datumsfelder, Kasten zu', kb.box && !kb.offen && !await page.evaluate(() => !!document.querySelector('[data-zeitraum]')), kb);
+  // Erstellungsdatum wählen öffnet den Zeitraum gleich
+  // aufklappen und im selben Augenblick wählen (bevor „toggle" gefeuert hat): der Kasten darf nicht wieder zugehen
+  await page.evaluate(() => { const b = document.querySelector('[data-sortbox]'); b.open = true; const s = b.querySelector('[data-sort]'); s.value = 'erstellt'; s.dispatchEvent(new Event('change')); }); await page.waitForTimeout(100);
+  kb = await kasten();
+  ok('4 · „Erstellungsdatum" wählen: Kasten offen, „von" steht bereit', kb.offen && kb.vonSicht && await page.evaluate(() => document.activeElement === document.querySelector('[data-von]')), kb);
+  await page.evaluate(() => { const w = window.__wfpdf; w.S.sortOffen = false; w.EINST.sortierung = 'name'; w.einstSpeichern(); w.suche.zeichneBibliothek(); });
   // ein Dokument aus einer Zeitzone kurz nach Mitternacht gehört zum Tag des Geräts
-  const tag = await page.evaluate(() => { const d = window.__wfpdf.S.docs[0]; d.createdAt = new Date(2026, 8, 21, 0, 20).toISOString(); window.__wfpdf.S.datum = '2026-09-21'; window.__wfpdf.suche.zeichneBibliothek(); const n = document.querySelectorAll('#dokGitter .dok').length; window.__wfpdf.S.datum = ''; window.__wfpdf.suche.zeichneBibliothek(); return n; });
+  const tag = await page.evaluate(() => { const w = window.__wfpdf, d = w.S.docs[0]; d.createdAt = new Date(2026, 8, 21, 0, 20).toISOString(); w.S.von = w.S.bis = '2026-09-21'; w.suche.zeichneBibliothek(); const n = document.querySelectorAll('#dokGitter .dok').length; w.S.von = w.S.bis = ''; w.suche.zeichneBibliothek(); return n; });
   ok('4 · 00:20 Uhr Ortszeit zählt zum Tag des Geräts, nicht zum Vortag in UTC', tag === 1, tag);
   ok('keine Fehler auf der Seite', fehler.length === 0, fehler);
   await ctx.close();

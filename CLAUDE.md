@@ -459,8 +459,13 @@ steht schon beim Sprechen im Feld; gesucht wird am Ende (nach 2,6 s Pause von se
 - **Kopfleiste schmal:** ≤ 480 px und ≤ 370 px kleinere Knöpfe/Floh, der Schriftzug darf umbrechen
   („Workfloh / PDF") statt unter die Knöpfe zu laufen; `.marke` schneidet notfalls ab. Gemessen bei
   320 · 360 · 390 · 412 · 480 px, MIT sichtbarem Installieren-Knopf.
-- **Erstellungsdatum:** Sortierung `erstellt` (neueste zuerst) und „📅 Erstellt am" (`S.datum`, ein Tag,
-  nur `createdAt`, Ortszeit via `tagVon`) — kein Datum aus dem Inhalt, nicht das Änderungsdatum.
+- **Erstellungsdatum:** Sortierung `erstellt` (neueste zuerst) und ein Zeitraum **„📅 Erstellt von … bis …"**
+  (`S.von`/`S.bis`, `imZeitraum`, beide Enden eingeschlossen, nur `createdAt`, Ortszeit via `tagVon`) — kein Datum
+  aus dem Inhalt, nicht das Änderungsdatum. Seit 2026-09-27 (Klaus: „nicht außerhalb des Containers … klappt es
+  sich mit ein") stehen Sortieren UND Zeitraum in EINEM `<details data-sortbox>`; zugeklappt nennt die Kopfzeile
+  Sortierung und Zeitraum. Offen/zu liegt in `S.sortOffen` (die Leiste wird bei jedem Zeichnen neu gebaut).
+  „Erstellungsdatum" wählen öffnet gleich den Kalender für „von". Widersprechen sich die Enden, gewinnt das
+  gerade gewählte, das andere rückt auf denselben Tag (nie still eine leere Liste).
 - **Spracheingabe** (`assets/sprechen.js`, byte-1:1 in beide WorkFlohs): Text wird bei jedem Ereignis aus
   der GANZEN Ergebnisliste gebaut (`zusammenfuegen`, keine Doppelwörter mehr) · Balken sofort und IM Feld
   (Option `feld`: das Feld wird unten höher) · „■ Stopp". Benannte Grenze: ein absichtlich als eigene

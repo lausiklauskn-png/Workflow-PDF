@@ -119,6 +119,13 @@ async function rundreise(p) {
     await p.evaluate(W => { const w = window[W], B = w.bedeutung.BED; B.ergebnis = { frage: 'qqqq', fehler: 'x' }; w.suche.zeichneBibliothek(); }, W); await ruhe(p);
     await p.evaluate(W => { const w = window[W]; w.bedeutung.bedeutungAus(); w.S.suche = ''; w.suche.zeichneBibliothek(); }, W);
   });
+  // Sortieren-Kasten mit Zeitraum (2026-09-27): offen, jede Lage des Zeitraums, leere Liste, Suche dabei
+  await schritt(p, 'Sortieren und Zeitraum', async () => {
+    const lagen = [['', ''], ['2026-01-01', '2026-12-31'], ['2026-01-01', ''], ['', '2026-12-31'], ['2001-01-01', '2001-01-01'], ['2001-01-01', '2001-01-02'], ['2001-01-01', ''], ['', '2001-01-02']];
+    for (const [v, b] of lagen) { await p.evaluate(([W, v, b]) => { const w = window[W]; w.EINST.sortierung = 'erstellt'; w.S.sortOffen = true; w.S.von = v; w.S.bis = b; w.suche.zeichneBibliothek(); }, [W, v, b]); await ruhe(p); }
+    await p.evaluate(W => { const w = window[W]; w.S.suche = 'Musterstadt'; w.suche.zeichneBibliothek(); }, W); await ruhe(p);
+    await p.evaluate(W => { const w = window[W]; w.S.suche = ''; w.S.von = w.S.bis = ''; w.S.sortOffen = false; w.EINST.sortierung = 'name'; w.suche.zeichneBibliothek(); }, W);
+  });
   await schritt(p, 'Verschieben', () => p.evaluate(([W, id]) => { window[W].dlg.verschieben(id); }, [W, ids[0]]));
   // Teilen, Auswahl (2026-09-27): Auswahl-Leiste, Schattenbild beim Ziehen, Teilen-Dialog ohne Teilen am Gerät
   await schritt(p, 'Auswahl', async () => { await p.evaluate(([W, id]) => { window[W].dlg.wahlUmschalten(id); }, [W, ids[0]]); await ruhe(p);
