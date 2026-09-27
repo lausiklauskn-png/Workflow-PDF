@@ -2,7 +2,9 @@
    Jeder Fall muss die Probe umwerfen — und zwar mit einer roten Zeile, die zu ihm passt
    („trifft"). Ein Fall, der nur fremde Zeilen rot macht, gilt als „aus falschem Grund".
    Ein Anker, der nicht genau einmal vorkommt, ist ein toter Anker — dann wurde nichts sabotiert.
-   Nicht in npm test (dauert); Aufruf: node tests/gegenprobe_teile.mjs */
+   Nicht in npm test (dauert); Aufruf: node tests/gegenprobe_teile.mjs
+   NUR_ANKER=1 prüft nur die Anker (Sekunden, ohne Browser).
+*/
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -41,9 +43,17 @@ const tausche = (datei, anker, ersatz) => {
 };
 const lauf = () => spawnSync('node', [path.join(kopie, 'tests/teile.mjs')], { env: { ...process.env, WURZEL: kopie }, encoding: 'utf8', timeout: 240000 });
 
+if (process.env.NUR_ANKER) {
+  const lebt = (datei, anker) => fs.readFileSync(path.join(WURZEL, datei), 'utf8').split(anker).length === 2;
+  for (const f of FAELLE) if (!lebt(f.datei, f.anker) || (f.extra && !lebt(f.extra.datei, f.extra.anker))) { tot++; console.log('  ☠ TOTER ANKER: ' + f.name); }
+  console.log(`${FAELLE.length} Anker geprüft · ${tot} tot`); process.exit(tot ? 1 : 0);
+}
 kopieren();
 const basis = lauf();
 if (basis.status !== 0) { console.log('Ausgangslage ist schon rot — Gegenprobe misst nichts.\n' + basis.stdout.slice(-1500)); process.exit(2); }
+// Ein Teil „nicht lauffähig" (Pakete fehlen) ist keine grüne Ausgangslage: die Fälle
+// dahinter liefen gegen nichts und meldeten sich als durchgerutscht (gemessen 2026-09-27).
+if (/⊘/.test(basis.stdout || '')) { console.log('Ausgangslage ist nicht vollständig lauffähig (⊘) — erst npm install.\n' + basis.stdout.slice(-800)); process.exit(2); }
 for (const f of FAELLE) {
   kopieren();
   if (!tausche(f.datei, f.anker, f.ersatz) || (f.extra && !tausche(f.extra.datei, f.extra.anker, f.extra.ersatz))) { tot++; console.log('  ☠ TOTER ANKER: ' + f.name); continue; }

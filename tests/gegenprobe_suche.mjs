@@ -2,7 +2,9 @@
    Jeder Fall muss die Probe umwerfen — und zwar mit einer roten Zeile, die zu ihm passt
    („trifft"). Ein Fall, der nur fremde Zeilen rot macht, gilt als „aus falschem Grund".
    Ein Anker, der nicht genau einmal vorkommt, ist ein toter Anker — dann wurde nichts sabotiert.
-   Nicht in npm test (dauert); Aufruf: node tests/gegenprobe_suche.mjs */
+   Nicht in npm test (dauert); Aufruf: node tests/gegenprobe_suche.mjs
+   NUR_ANKER=1 prüft nur die Anker (Sekunden, ohne Browser).
+*/
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -22,7 +24,7 @@ const FAELLE = [
     // zwei Riegel decken einander (Öffnen UND Schließen leeren) — beide weg, sonst misst der Fall nichts
     extra: { datei: 'assets/app.js', anker: 'S.doc = null; S.sel = null; S.funde = []; S.fundIdx = -1;', ersatz: 'S.doc = null; S.sel = null; S.fundIdx = -1;' }, trifft: /ohne Suche geöffnet/ },
   { name: 'neue Bytes behalten den alten Text', datei: 'assets/db.js', anker: "await DB.put('files', { id, bytes }); await abgeleitetWeg(id);", ersatz: "await DB.put('files', { id, bytes });", trifft: /neue Bytes werfen/ },
-  { name: 'beim Einlesen wird kein Text erfasst, nachgeholt wird nie', datei: 'assets/app.js', anker: '    texteNachholen();\n    if (BED.zustand', ersatz: '    if (BED.zustand', extra: { datei: 'assets/app.js', anker: " await textAblegen(d.id, text);\n", ersatz: '\n' }, trifft: /Probe lief durch|Seitentext/ },
+  { name: 'beim Einlesen wird kein Text erfasst, nachgeholt wird nie', datei: 'assets/app.js', anker: '    texteNachholen();\n    if (BED.zustand', ersatz: '    if (BED.zustand', extra: { datei: 'assets/app.js', anker: " await textAblegen(d.id, text);\n    return d;\n  }\n  // Ein abgelegtes", ersatz: "\n    return d;\n  }\n  // Ein abgelegtes" }, trifft: /Probe lief durch|Seitentext/ },
   { name: 'Suche liest den Seitentext nicht', datei: 'assets/app.js', anker: 'TEXTE.get(d.id) || null, such)', ersatz: 'null, such)', trifft: /SEITENTEXT/ },
   // --- Trefferzahlen, Ordner, Suche im Dokument (2026-09-26)
   { name: 'eine Seite zählt nur einen Treffer', datei: 'assets/suche.js', anker: 'anzahl: st.length || 1,', ersatz: 'anzahl: 1,', trifft: /zwei Stellen|zweimal/ },
@@ -52,9 +54,17 @@ const tausche = (datei, anker, ersatz) => {
 };
 const lauf = () => spawnSync('node', [path.join(kopie, 'tests/suche.mjs')], { env: { ...process.env, WURZEL: kopie }, encoding: 'utf8', timeout: 240000 });
 
+if (process.env.NUR_ANKER) {
+  const lebt = (datei, anker) => fs.readFileSync(path.join(WURZEL, datei), 'utf8').split(anker).length === 2;
+  for (const f of FAELLE) if (!lebt(f.datei, f.anker) || (f.extra && !lebt(f.extra.datei, f.extra.anker))) { tot++; console.log('  ☠ TOTER ANKER: ' + f.name); }
+  console.log(`${FAELLE.length} Anker geprüft · ${tot} tot`); process.exit(tot ? 1 : 0);
+}
 kopieren();
 const basis = lauf();
 if (basis.status !== 0) { console.log('Ausgangslage ist schon rot — Gegenprobe misst nichts.\n' + basis.stdout.slice(-1500)); process.exit(2); }
+// Ein Teil „nicht lauffähig" (Pakete fehlen) ist keine grüne Ausgangslage: die Fälle
+// dahinter liefen gegen nichts und meldeten sich als durchgerutscht (gemessen 2026-09-27).
+if (/⊘/.test(basis.stdout || '')) { console.log('Ausgangslage ist nicht vollständig lauffähig (⊘) — erst npm install.\n' + basis.stdout.slice(-800)); process.exit(2); }
 for (const f of FAELLE) {
   kopieren();
   if (!tausche(f.datei, f.anker, f.ersatz) || (f.extra && !tausche(f.extra.datei, f.extra.anker, f.extra.ersatz))) { tot++; console.log('  ☠ TOTER ANKER: ' + f.name); continue; }
