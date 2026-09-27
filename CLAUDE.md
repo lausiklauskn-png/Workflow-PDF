@@ -584,7 +584,7 @@ Wer eine Funktion ergänzt, die etwas ins Netz schickt, zieht dort nach. `tests/
 
 ## 📘 Handbuch und Beispiel-Formular (Klaus 2026-09-25)
 
-`beispiele/Workfloh-PDF-Benutzerhandbuch.pdf` (21 Seiten, 13 Bilder, zuletzt neu gebaut 2026-09-27 nach #76–#81: Scannen in Kapitel 3, Kapitel 6 Suchen mit Spracheingabe und Bedeutungssuche, Kapitel 7 Teilen/Auswahl/Sortieren mit Erstellungsdatum von–bis (Bild 10)/Ordner ausgeben, Übersetzen in Teilen; die Datumsfelder im Bild zeigen das US-Format des Headless-Browsers) und
+`beispiele/Workfloh-PDF-Benutzerhandbuch.pdf` (22 Seiten, 13 Bilder, zuletzt neu gebaut 2026-09-27 nach #76–#82: Scannen in Kapitel 3, Kapitel 6 Suchen mit Spracheingabe und Bedeutungssuche, Kapitel 7 Teilen/Auswahl/Sortieren mit Erstellungsdatum von–bis (Bild 10)/Ordner ausgeben, Übersetzen in Teilen; die Datumsfelder im Bild zeigen das US-Format des Headless-Browsers) und
 `beispiele/Beispiel-Amtsformular-Bewohnerparkausweis.pdf` (erfunden, Stadt Musterstadt).
 Zum Nachlesen UND als Testmaterial fürs Übersetzen, ohne eigene Daten ins Netz zu geben:
 Bilder, Farbkästen, Tabellen, Zweispalter, Querformat, eine gescannte Seite ohne Textebene.
