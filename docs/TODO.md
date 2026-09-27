@@ -55,6 +55,13 @@ Datei, wird er hier behoben und dann in die WorkFlohs kopiert.
   Oder eben nicht Name, zuletzt geändert, Dateigröße, Seitenzahl, sondern Erstellungsdatum."
   (Also zwei Wünsche: Suche nach dem Erstellungsdatum des DOKUMENTS, nicht nach Daten im Inhalt —
   und „Erstellungsdatum" als weitere Sortierung neben Name · Zuletzt geändert · Dateigröße · Seitenzahl.)
+- [x] 2026-09-27 · Workflow-PDF · **Erstellungsdatum als „von – bis" IM Sortieren-Kasten.**
+  ✅ Erledigt (dieser Durchgang): Sortieren und Zeitraum stehen in einem aufklappbaren Kasten; „von" und „bis"
+  mit Kalender, beide Tage eingeschlossen; zugeklappt steht der Zeitraum in der Kopfzeile, die Felder klappen mit ein.
+  Klaus: „den Link Erstellungsdatum in die Sortiercontainer … mit einzubauen … dann geht der Kalender auf und
+  dann steht da von bis … Von bis ist besser, weil dann kann man in der Woche zum Beispiel eingrenzen … Nicht
+  außerhalb des Containers, weil es einfach wieder zu viel Platz wegnimmt … wenn es im Container mit drin ist,
+  wo die Sortierung steht, klappt es sich mit ein."
 - [x] 2026-09-27 · Workflow-PDF + beide WorkFlohs (`sprechen.js` ist byte-1:1 geteilt) · **Spracheingabe schreibt Wörter doppelt.**
   ✅ Erledigt (Workflow-PDF #65, Mein-WorkFloh #230, Tomys-Hub #209): der Text wird bei jedem Ereignis aus der ganzen Ergebnisliste gebaut, statt Endstücke anzuhängen. Benannte Grenze: ein absichtlich als eigene Äußerung wiederholtes Wort kommt einmal.
   Klaus: „Bei der Mikrofoneingabe über Sprache spreche ich nur ein Wort und er macht immer zwei Worte.

@@ -138,6 +138,12 @@
      und passen zu keinem Datum. */
   const tagVon = iso => { if (!iso) return ''; const t = new Date(iso); if (isNaN(t)) return ''; const z = n => String(n).padStart(2, '0'); return t.getFullYear() + '-' + z(t.getMonth() + 1) + '-' + z(t.getDate()); };
   const tagText = tag => tag ? tag.slice(8, 10) + '.' + tag.slice(5, 7) + '.' + tag.slice(0, 4) : '';
+  // Zeitraum „von – bis" nach dem Erstellungsdatum (Klaus 2026-09-27: „von bis ist besser … in der Woche
+  // eingrenzen"). Beide Enden gehören dazu; fehlt eines, ist die Seite offen. S.von/S.bis: JJJJ-MM-TT.
+  const imZeitraum = d => { if (!S.von && !S.bis) return true; const t = tagVon(d.createdAt); return !!t && (!S.von || t >= S.von) && (!S.bis || t <= S.bis); };
+  const zeitraumText = () => S.von && S.bis ? (S.von === S.bis ? tagText(S.von) : tagText(S.von) + ' – ' + tagText(S.bis)) : S.von ? 'ab ' + tagText(S.von) : S.bis ? 'bis ' + tagText(S.bis) : '';
+  const zeitraumLeer = () => S.von && S.bis ? (S.von === S.bis ? 'Kein Dokument wurde am ' + tagText(S.von) + ' erstellt.' : 'Kein Dokument wurde zwischen dem ' + tagText(S.von) + ' und dem ' + tagText(S.bis) + ' erstellt.')
+    : S.von ? 'Kein Dokument wurde ab dem ' + tagText(S.von) + ' erstellt.' : 'Kein Dokument wurde bis zum ' + tagText(S.bis) + ' erstellt.';
   if (!SORTIERUNG[EINST.sortierung]) EINST.sortierung = 'name';
   const namensVergleich = (a, b) => a.name.localeCompare(b.name, 'de', { numeric: true, sensitivity: 'base' });
   function sortiere(liste) {
@@ -180,18 +186,36 @@
     // Ist ein Ordner gewählt, zeigt die Suche NUR ihn (Klaus 2026-09-26) — ein Knopf hebt das auf.
     const imOrdner = d => imO(d, S.aktOrdner);
     S.fund = FUND;
-    const sicht = S.sicht = S.docs.filter(d => imOrdner(d) && (!such.length || FUND.has(d.id)) && (!S.datum || tagVon(d.createdAt) === S.datum));
+    const sicht = S.sicht = S.docs.filter(d => imOrdner(d) && (!such.length || FUND.has(d.id)) && imZeitraum(d));
     if (such.length) sicht.sort((a, b) => FUND.get(b.id).punkte - FUND.get(a.id).punkte);
     else sortiere(sicht);
-    const sortWahl = !such.length && sicht.length > 1 ? `<label class="sortier">Sortieren: <select data-sort>${Object.entries(SORTIERUNG).map(([k, v]) => `<option value="${k}"${k === EINST.sortierung ? ' selected' : ''}>${v}</option>`).join('')}</select></label>` : '';
-    // Suche nach dem Erstellungsdatum: ein Tag, nur der Anlagetag des Dokuments (siehe tagVon)
-    const datumWahl = S.docs.length ? `<label class="sortier datum-wahl">📅 Erstellt am: <input type="date" data-datum value="${h(S.datum || '')}"></label>${S.datum ? '<button class="knopf klein" data-datumweg title="Datum wieder weglassen">✕ jedes Datum</button>' : ''}` : '';
-    akt.innerHTML = sortWahl + datumWahl + (o && S.docs.some(d => d.folderId === o.id) ? `<button class="knopf" data-ausgabe>📤 Ordner ausgeben</button>` : '') + (sicht.length ? `<button class="knopf" data-ueb>🌐 Übersetzen${sicht.length > 1 ? ' — Dokumente wählen' : ''}</button><button class="knopf" data-erk>🤖 Felder erkennen${sicht.length > 1 ? ' — Dokumente wählen' : ''}</button>` : '')
+    // EIN Kasten für Sortieren UND den Zeitraum (Klaus 2026-09-27: „nicht außerhalb des Containers, weil es
+    // wieder zu viel Platz wegnimmt … wenn es im Container mit drin ist, klappt es sich mit ein").
+    // Zugeklappt nennt die Kopfzeile, wonach sortiert und welcher Zeitraum gewählt ist — eine Eingrenzung,
+    // die man zugeklappt nicht sieht, wäre eine still fehlende Liste.
+    const zr = zeitraumText();
+    const zeitraumZeigen = EINST.sortierung === 'erstellt' || S.von || S.bis;
+    const sortWahl = S.docs.length ? `<details class="sortier-box" data-sortbox${S.sortOffen ? ' open' : ''}><summary>⇅ Sortieren: <b>${h(SORTIERUNG[EINST.sortierung])}</b>${zr ? ` <span class="zeitraum-kurz" data-zeitraumkurz>📅 ${h(zr)}</span>` : ''}</summary>`
+      + `<div class="sortier-inhalt"><label class="sortier">Sortieren nach: <select data-sort>${Object.entries(SORTIERUNG).map(([k, v]) => `<option value="${k}"${k === EINST.sortierung ? ' selected' : ''}>${v}</option>`).join('')}</select></label>`
+      + (such.length ? '<span class="hinweis klein">Bei einer Suche ordnet die Trefferzahl.</span>' : '')
+      + (zeitraumZeigen ? `<div class="zeitraum" data-zeitraum>📅 Erstellt von <input type="date" data-von value="${h(S.von || '')}"> bis <input type="date" data-bis value="${h(S.bis || '')}">${S.von || S.bis ? '<button class="knopf klein" data-datumweg title="Zeitraum wieder weglassen">✕ jedes Datum</button>' : ''}</div>` : '')
+      + '</div></details>' : '';
+    akt.innerHTML = sortWahl + (o && S.docs.some(d => d.folderId === o.id) ? `<button class="knopf" data-ausgabe>📤 Ordner ausgeben</button>` : '') + (sicht.length ? `<button class="knopf" data-ueb>🌐 Übersetzen${sicht.length > 1 ? ' — Dokumente wählen' : ''}</button><button class="knopf" data-erk>🤖 Felder erkennen${sicht.length > 1 ? ' — Dokumente wählen' : ''}</button>` : '')
       + (o ? `<button class="knopf" data-ren>✎ Ordner umbenennen</button><button class="knopf gefahr" data-del>🗑 Ordner löschen</button>` : '');
     const q = s => akt.querySelector(s);
-    if (q('[data-sort]')) q('[data-sort]').onchange = e => { EINST.sortierung = e.target.value; einstSpeichern(); zeichneBibliothek(); };
-    if (q('[data-datum]')) q('[data-datum]').onchange = e => { S.datum = e.target.value || ''; zeichneBibliothek(); };
-    if (q('[data-datumweg]')) q('[data-datumweg]').onclick = () => { S.datum = ''; zeichneBibliothek(); };
+    // Offen/zu merkt sich S.sortOffen. „toggle" feuert erst in einer späteren Aufgabe — wer im Kasten wählt,
+    // liest deshalb den Kasten SELBST (sonst klappt ein schneller Griff ihn beim Neuzeichnen wieder zu).
+    const kastenOffen = () => { const b = q('[data-sortbox]'); if (b) S.sortOffen = b.open; };
+    if (q('[data-sortbox]')) q('[data-sortbox]').ontoggle = kastenOffen;
+    // „Erstellungsdatum" gewählt → der Zeitraum steht da (der Kasten ist offen, man hat ja darin gewählt),
+    // und der Kalender für „von" geht gleich auf.
+    if (q('[data-sort]')) q('[data-sort]').onchange = e => { EINST.sortierung = e.target.value; einstSpeichern(); kastenOffen(); zeichneBibliothek();
+      if (e.target.value === 'erstellt') { const v = $('ordnerAktionen').querySelector('[data-von]'); if (v) { v.focus(); try { v.showPicker(); } catch (_) {} } } };
+    // Widersprechen sich die Enden, gewinnt das gerade gewählte, und das andere rückt auf denselben Tag —
+    // so steht nie still eine leere Liste da, und im Feld sieht man, was gilt.
+    const zeitraumSetzen = welches => () => { let v = q('[data-von]').value || '', b = q('[data-bis]').value || ''; if (v && b && v > b) { if (welches === 'von') b = v; else v = b; } S.von = v; S.bis = b; kastenOffen(); zeichneBibliothek(); };
+    if (q('[data-von]')) { q('[data-von]').onchange = zeitraumSetzen('von'); q('[data-bis]').onchange = zeitraumSetzen('bis'); }
+    if (q('[data-datumweg]')) q('[data-datumweg]').onclick = () => { S.von = S.bis = ''; zeichneBibliothek(); };
     if (q('[data-ausgabe]')) q('[data-ausgabe]').onclick = () => ordnerAusgabe(o);
     if (q('[data-erk]')) q('[data-erk]').onclick = () => erkennenDialog(sicht.map(d => d.id));
     if (q('[data-ueb]')) q('[data-ueb]').onclick = () => uebersetzenDialog(sicht.filter(d => !d.uebersetzung).map(d => d.id).concat(sicht.filter(d => d.uebersetzung).map(d => d.id)));
@@ -211,7 +235,7 @@
     const nurOrdner = such.length && S.aktOrdner !== 'alle' ? '<div class="hinweis such-ordner" data-suchordner><span>Gesucht nur in diesem Ordner.</span><button class="knopf klein" data-alleordner>In allen Ordnern suchen</button></div>' : '';
     const alleOrdnerKnopf = () => { const b = g.querySelector('[data-alleordner]'); if (b) b.onclick = () => { S.aktOrdner = 'alle'; zeichneBibliothek(); }; };
     if (!sicht.length) {
-      if (S.datum && S.docs.some(d => imOrdner(d) && (!such.length || FUND.has(d.id)))) { g.innerHTML = nurOrdner + `<div class="leer" data-datumleer><b>${h('Kein Dokument wurde am ' + tagText(S.datum) + ' erstellt' + (such.length ? ', das zur Suche passt' : '') + '.')}</b><br><button class="knopf klein" data-datumweg2>✕ jedes Datum</button></div>`; g.querySelector('[data-datumweg2]').onclick = () => { S.datum = ''; zeichneBibliothek(); }; alleOrdnerKnopf(); return; }
+      if ((S.von || S.bis) && S.docs.some(d => imOrdner(d) && (!such.length || FUND.has(d.id)))) { g.innerHTML = nurOrdner + `<div class="leer" data-datumleer><b>${h(zeitraumLeer())}</b>${such.length ? '<br>' + h('Die Suche ist dabei mitgezählt.') : ''}<br><button class="knopf klein" data-datumweg2>✕ jedes Datum</button></div>`; g.querySelector('[data-datumweg2]').onclick = () => { S.von = S.bis = ''; zeichneBibliothek(); }; alleOrdnerKnopf(); return; }
       if (such.length) { const bz = bedeutungZusatz(FUND, imOrdner); g.innerHTML = nurOrdner + `<div class="leer" data-suchleer><b>Kein Dokument passt zu „${nm(S.suche.trim())}".</b>${bz.docs.length ? '<br>Nach Wörtern nicht — nach Bedeutung schon, siehe unten.' : ''}</div>` + bz.html + suchStand(); kartenBinden(g, FUND); alleOrdnerKnopf(); return; }
       g.innerHTML = `<div class="leer"><b>Noch keine Dokumente${o ? ' in diesem Ordner' : ''}.</b><br>Oben ein PDF oder Bild wählen, ein Blatt scannen oder einen ganzen Ordner einlesen. Du kannst Dateien auch einfach hierher ziehen.</div>`;
       return;
@@ -232,7 +256,7 @@
         <button class="dok-bild" data-auf style="background-image:url('${d.thumb || ''}')" title="Öffnen">
           <span class="marken">${v ? `<span class="marke-klein ki">🤖 ${v} zu prüfen</span>` : ''}${d.quelle === 'foto' ? '<span class="marke-klein">📷 Foto</span>' : ''}${d.uebersetzung ? `<span class="marke-klein">🌐 ${h((d.uebersetzung.von || '').toUpperCase())}→${h((d.uebersetzung.nach || '').toUpperCase())}${d.uebersetzung.gegenprobe ? ' Gegenprobe' : ''}</span>` : ''}${d.ausgefuellt ? `<span class="marke-klein">↩ ausgefüllt aus ${h((d.ausgefuellt.aus || '').toUpperCase())}</span>` : ''}</span></button>
         <div class="dok-info"><div class="dok-name" data-kein-ue title="${h(d.name)}">${nm(d.name)}</div>
-          <div class="dok-meta">${d.pages.length} Seite${d.pages.length === 1 ? '' : 'n'} · ${d.fields.length} Feld${d.fields.length === 1 ? '' : 'er'}${EINST.sortierung === 'groesse' && _groesse.has(d.id) ? ' · ' + mbText(_groesse.get(d.id)) : ''}${ord && S.aktOrdner === 'alle' ? ' · 🗂️ ' + nm(ord.name) : ''}</div>${(EINST.sortierung === 'erstellt' || S.datum) ? '<div class="dok-meta dok-erstellt" data-erstellt="' + tagVon(d.createdAt) + '">' + (d.createdAt ? h('erstellt ' + tagText(tagVon(d.createdAt))) : h('ohne Erstellungsdatum')) + '</div>' : ''}${fund ? (fund.bedeutung ? bedeutungZeile(fund) : fundZeilen(fund)) : ''}</div>
+          <div class="dok-meta">${d.pages.length} Seite${d.pages.length === 1 ? '' : 'n'} · ${d.fields.length} Feld${d.fields.length === 1 ? '' : 'er'}${EINST.sortierung === 'groesse' && _groesse.has(d.id) ? ' · ' + mbText(_groesse.get(d.id)) : ''}${ord && S.aktOrdner === 'alle' ? ' · 🗂️ ' + nm(ord.name) : ''}</div>${(EINST.sortierung === 'erstellt' || S.von || S.bis) ? '<div class="dok-meta dok-erstellt" data-erstellt="' + tagVon(d.createdAt) + '">' + (d.createdAt ? h('erstellt ' + tagText(tagVon(d.createdAt))) : h('ohne Erstellungsdatum')) + '</div>' : ''}${fund ? (fund.bedeutung ? bedeutungZeile(fund) : fundZeilen(fund)) : ''}</div>
         <div class="dok-akt"><button data-auf title="Öffnen">✏️</button><button data-verschieben title="In Ordner verschieben">🗂️</button><button data-kopie title="Duplizieren (z. B. als Vorlage)">⧉</button><button data-teilen title="Teilen mit … (E-Mail, Messenger …)">📤</button><button data-loeschen title="Löschen">🗑</button></div></div>`;
   }
   /* Pfeil nach oben (Klaus 2026-09-27: „neben dem Markierenpunkt noch ein Pfeil nach oben … komplett
