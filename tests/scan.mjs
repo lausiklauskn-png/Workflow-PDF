@@ -97,6 +97,41 @@ const SB = globalThis.__WFP_SCANBILD;
   ok('textFarben: Papier hell, Schrift dunkel gemessen', f.grund[0] > 180 && f.schrift[0] < 80, f);
 }
 
+/* ---------- A2 · Text von einer KI (Klaus 2026-09-27) ---------- */
+console.log('Scannen — A2 · Text von ChatGPT (ohne Browser)');
+{
+  const auf = SB.kiAuftrag({ art: 'abschreiben' }), aufU = SB.kiAuftrag({ art: 'uebersetzen', nach: 'en' }), aufV = SB.kiAuftrag({ art: 'verbessern' });
+  ok('Auftrag verlangt JSON mit Text und Lage in Prozent', /\{"zeilen"/.test(auf) && /Prozent/.test(auf) && /"text"/.test(auf));
+  ok('Auftrag je Art: abschreiben · übersetzen (mit Sprache) · verbessern sagen Verschiedenes', /derselbe Text/.test(auf) && /Übersetzung ins Englisch/.test(aufU) && /Rechtschreibung/.test(aufV) && auf !== aufU && auf !== aufV);
+  const r1 = SB.kiAntwortLesen('Hier ist das Ergebnis:\n```json\n{"zeilen":[{"text":"150 g Butter","neu":"150 g butter","x":10,"y":20,"b":30,"h":3},{"text":"Mehl","neu":"Mehl","x":10,"y":25,"b":10,"h":3}]}\n```\nViel Erfolg!');
+  ok('Antwort mit Text drumherum und ```json wird gelesen', r1.ok && r1.zeilen.length === 2, r1);
+  ok('Prozent → Anteile der Seite', r1.ok && Math.abs(r1.zeilen[0].box[0] - 0.1) < 1e-9 && Math.abs(r1.zeilen[0].box[3] - 0.03) < 1e-9, r1.zeilen[0]);
+  ok('„neu" gleich „text" → keine Änderung, verschieden → Änderung', r1.ok && r1.zeilen[0].neu === '150 g butter' && r1.zeilen[1].neu === null, r1.zeilen);
+  const r2 = SB.kiAntwortLesen('{"zeilen":[{"text":"a","x":0.1,"y":0.2,"b":0.3,"h":0.04}]}');
+  ok('Anteile (alle ≤ 1,5) bleiben Anteile', r2.ok && Math.abs(r2.zeilen[0].box[0] - 0.1) < 1e-9, r2);
+  const r3 = SB.kiAntwortLesen('{"zeilen":[{"text":"Der „Bienenstich" ist fertig","x":1,"y":2,"b":3,"h":4}]}');
+  ok('„…" mit geradem Schluss wird geheilt statt abgewiesen', r3.ok && r3.zeilen[0].text === 'Der „Bienenstich“ ist fertig', r3);
+  ok('Unsinn → nicht lesbar, keine Zeilen', !SB.kiAntwortLesen('Tut mir leid, ich kann das Bild nicht sehen.').ok && !SB.kiAntwortLesen('').ok);
+  ok('leere Liste → „leer", nicht „json"', SB.kiAntwortLesen('{"zeilen":[]}').grund === 'leer');
+  const geraet = [
+    { text: 'Honig qegen Reqen', conf: 55, box: [0.1, 0.1, 0.5, 0.05], base: [0.1, 0.14, 0.6, 0.14], rh: 0.04, desc: 0.01 },
+    { text: 'Zucker und Mehl', conf: 90, box: [0.1, 0.2, 0.4, 0.05], base: [0.1, 0.24, 0.5, 0.24], rh: 0.04, desc: 0.01 },
+    { text: 'xx|| ~~', conf: 31, box: [0.8, 0.9, 0.1, 0.03] }
+  ];
+  const ab = SB.kiAbgleich([
+    { text: 'Zucker und Mehl', neu: 'Sugar and flour', box: [0.5, 0.5, 0.2, 0.05] },
+    { text: 'Honig gegen Regen', neu: null, box: [0.12, 0.3, 0.4, 0.05] },
+    { text: 'Nur die KI sah das', neu: null, box: [0.1, 0.7, 0.4, 0.05] },
+    { text: 'ohne Lage', neu: null }
+  ], geraet);
+  ok('Abgleich: Text von der KI, Lage vom Gerät (auch bei Lesefehlern „qegen")', ab.zeilen[0].text === 'Zucker und Mehl' && ab.zeilen[0].box[1] === 0.2 && ab.zeilen[0].base && ab.zeilen[1].text === 'Honig gegen Regen' && ab.zeilen[1].base[1] === 0.14, ab);
+  ok('Abgleich: nicht zuzuordnen → Lage der KI, als unsicher (gelb) markiert', ab.zeilen[2].lageKi && ab.zeilen[2].conf < 70 && ab.zeilen[2].box[1] === 0.7 && ab.geraten === 1, ab.zeilen[2]);
+  ok('Abgleich: ohne Lage und ohne Gegenstück → weggelassen und gezählt', ab.zeilen.length === 3 && ab.ohneLage === 1, ab);
+  ok('Abgleich: Übersetzung wird zur Änderung der richtigen Zeile', ab.aenderungen[0] === 'Sugar and flour' && Object.keys(ab.aenderungen).length === 1, ab.aenderungen);
+  const doppelt = SB.kiAbgleich([{ text: 'Zucker und Mehl' }, { text: 'Zucker und Mehl' }], geraet);
+  ok('Abgleich: jede erkannte Zeile wird höchstens einmal vergeben', doppelt.zugeordnet === 1 && doppelt.ohneLage === 1, doppelt);
+}
+
 /* ---------- Browser ---------- */
 function server() {
   const typ = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.wasm': 'application/wasm', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
@@ -372,6 +407,41 @@ try {
   await page.waitForFunction(() => window.__wfpdfScan.seiten.some(s => s.name === 'Neu.png' && s.erkennung), null, { timeout: 60000 });
   Z = await page.evaluate(() => window.__wfpdfScan);
   ok('„📷 Seite neu fotografieren" ersetzt die Seite, statt eine anzuhängen', Z.seiten.length === 1 && Z.seiten[0].name === 'Neu.png' && Z.seiten[0].ocr === null, Z.seiten.map(s => s.name));
+
+  // Text mit ChatGPT: Auftrag + Bild weitergeben, Antwort einfügen, Lage vom Gerät (Klaus 2026-09-27)
+  await page.evaluate(() => { const st = WFP.Scanner.zustand(), s = st.seiten[0]; s.manuell = true; s.ecken = WFP.ScanBild.ganz(s.foto.width, s.foto.height); s.filter = 'original'; st.format = 'blatt'; st.ansicht = 'ergebnis'; st.vergleich = 'original'; WFP.Scanner.zeichne(); });
+  const kiK = await page.evaluate(() => { const b = document.querySelector('.scan [data-ki]'); if (!b) return null; const cs = getComputedStyle(b); return { cls: b.className, anim: cs.animationName, bild: cs.backgroundImage, text: b.textContent }; });
+  ok('ChatGPT-Knopf: Bauart wie im Rezeptbuch — wandernder Verlauf in Rot und Blau, kein Roboterkopf', kiK && /ki-knopf/.test(kiK.cls) && /kiWandern/.test(kiK.anim) && /224, 35, 27/.test(kiK.bild) && /29, 78, 216/.test(kiK.bild) && !/🤖/.test(kiK.text), kiK);
+  await page.click('.scan [data-ki]');
+  await page.waitForFunction(() => window.__wfpdfKi && window.__wfpdfKi.bild, null, { timeout: 30000 }).catch(() => {});
+  let KI = await page.evaluate(() => window.__wfpdfKi || null);
+  ok('Dialog: Auftrag steht bereit, Seitenbild ist gebaut (JPEG)', KI && /\{"zeilen"/.test(KI.auftrag) && KI.bild && KI.bild.bytes > 1000 && /\.jpg$/.test(KI.bild.name), KI && { bild: KI.bild });
+  ok('Dialog: sagt vorher, wohin es geht, und dass die App selbst nichts schickt', await page.evaluate(() => /OpenAI/.test(document.querySelector('.dlg').textContent) && /schickt dafür nichts/.test(document.querySelector('.dlg').textContent)));
+  await page.click('.dlg [data-kiart="uebersetzen"]'); await page.selectOption('.dlg [data-kinach]', 'en');
+  KI = await page.evaluate(() => window.__wfpdfKi);
+  ok('Übersetzen nach Englisch ändert den Auftrag', /Übersetzung ins Englisch/.test(KI.auftrag), KI.auftrag);
+  await page.fill('.dlg [data-kiantwort]', 'Das kann ich leider nicht.');
+  await page.click('.dlg [data-kij]');
+  ok('unlesbare Antwort: Hinweis, Dialog bleibt offen, nichts übernommen', await page.isVisible('.dlg [data-kifehler]') && await page.evaluate(() => WFP.Scanner.zustand().seiten[0].ocr === null));
+  await page.fill('.dlg [data-kiantwort]', '```json\n{"zeilen":[{"text":"Honig gegen Regen","neu":"Honey against rain","x":7,"y":24,"b":35,"h":6},{"text":"Zucker und Mehl","neu":"Sugar and flour","x":7,"y":31,"b":30,"h":6},{"text":"Butter backen","neu":"Bake butter","x":7,"y":38,"b":25,"h":6},{"text":"Nur die KI sah das","neu":"Only the AI saw this","x":7,"y":80,"b":40,"h":5}]}\n```');
+  await page.click('.dlg [data-kij]');
+  await page.waitForSelector('.scan [data-kistand]', { timeout: 180000 }).catch(() => {});
+  const kiS = await page.evaluate(() => { const s = WFP.Scanner.zustand().seiten[0]; return s.ocr && { quelle: s.ocr.quelle, n: s.ocr.zeilen.length, ki: s.ocr.ki, base: s.ocr.zeilen.map(z => !!z.base), aend: Object.assign({}, s.aenderungen), texte: s.ocr.zeilen.map(z => z.text), vgl: WFP.Scanner.zustand().vergleich }; });
+  ok('Antwort übernommen: 4 Zeilen, Quelle KI, Kopie steht daneben', kiS && kiS.quelle === 'ki' && kiS.n === 4 && kiS.vgl === 'neben' && !(await page.$('.dlg')), kiS);
+  ok('die drei gedruckten Zeilen tragen die Lage vom Gerät (Grundlinie), die vierte die der KI', kiS && kiS.ki.zugeordnet === 3 && kiS.ki.geraten === 1 && kiS.base.filter(Boolean).length === 3, kiS);
+  ok('Übersetzung liegt als Änderung auf jeder Zeile (wird ins Original geschrieben)', kiS && Object.values(kiS.aend).includes('Sugar and flour') && Object.keys(kiS.aend).length === 4, kiS && kiS.aend);
+  // Textmaske: nur die Schrift, durchsichtiger Grund
+  const mk = await page.evaluate(() => {
+    const s = WFP.Scanner.zustand().seiten[0], m = WFP.Scanner.kopieRechnen(s, 100, true).canvas, k = WFP.Scanner.kopieRechnen(s, 100).canvas;
+    const d = m.getContext('2d').getImageData(0, 0, m.width, m.height).data; let leer = 0, tinte = 0;
+    for (let i = 3; i < d.length; i += 4) { if (d[i] === 0) leer++; else if (d[i] > 200 && d[i - 3] < 90) tinte++; }
+    return { ecke: d[3], leerAnteil: leer / (d.length / 4), tinte, kopieEcke: k.getContext('2d').getImageData(0, 0, 1, 1).data[3] };
+  });
+  ok('Textmaske ist durchsichtig (Ecke Alpha 0, fast alles leer) und trägt Schrift', mk.ecke === 0 && mk.leerAnteil > 0.9 && mk.tinte > 100 && mk.kopieEcke === 255, mk);
+  await page.click('.scan [data-maske]');
+  await page.waitForFunction(() => window.__wfpdfMaske, null, { timeout: 15000 }).catch(() => {});
+  const mD = await page.evaluate(() => window.__wfpdfMaske || null);
+  ok('„🎭 Textmaske" legt eine PNG-Datei ab', mD && /Textmaske Seite 1\.png$/.test(mD.name) && mD.bytes > 500, mD);
   await page.click('.scan [data-schliessen]'); await page.click('.dlg [data-j]');
 
   ok('kein Aufruf ins Netz (Modell, Texterkennung, Schrift liegen auf dem Gerät)', fremd.length === 0, fremd);
