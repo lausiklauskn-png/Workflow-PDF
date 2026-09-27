@@ -4,6 +4,8 @@
    (fail-soft). Geprüft von tests/sprache.mjs. */
 (function(){ (window.WFP=window.WFP||{}).SPRACH_TEXTE = {
  "en": {
+  "Aufnahme beenden": "Stop recording",
+  "🎤 Kein Mikrofon gefunden.": "🎤 No microphone found.",
   "🧠 Suche nach Bedeutung einschalten": "🧠 Turn on search by meaning",
   "findet auch Dokumente, in denen andere Wörter stehen": "also finds documents that use other words",
   "⬇️ Modell laden": "⬇️ Load model",
@@ -598,6 +600,8 @@
   "Welche Dokumente?": "Which documents?"
  },
  "ru": {
+  "Aufnahme beenden": "Остановить запись",
+  "🎤 Kein Mikrofon gefunden.": "🎤 Микрофон не найден.",
   "🧠 Suche nach Bedeutung einschalten": "🧠 Включить поиск по смыслу",
   "findet auch Dokumente, in denen andere Wörter stehen": "находит и документы, в которых стоят другие слова",
   "⬇️ Modell laden": "⬇️ Загрузить модель",
@@ -1192,6 +1196,8 @@
   "Welche Dokumente?": "Какие документы?"
  },
  "ar": {
+  "Aufnahme beenden": "إيقاف التسجيل",
+  "🎤 Kein Mikrofon gefunden.": "🎤 لم يُعثَر على ميكروفون.",
   "🧠 Suche nach Bedeutung einschalten": "🧠 تشغيل البحث حسب المعنى",
   "findet auch Dokumente, in denen andere Wörter stehen": "يجد أيضًا مستندات تستخدم كلمات أخرى",
   "⬇️ Modell laden": "⬇️ تحميل النموذج",

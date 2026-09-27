@@ -2157,39 +2157,20 @@
       d.querySelector('[data-x]').onclick = zu;
     });
   }
-  /* Spracheingabe fürs Suchfeld (Klaus 2026-09-26), Muster aus PWA Toolpoint.
-     Die Spracherkennung des Browsers schickt die Aufnahme dafür an den Hersteller (in Chrome an
-     Google) — das steht am Knopf und beim ersten Druck. Kann der Browser es nicht, wird der Knopf
-     abgeschaltet und sagt warum; er verschwindet nicht (ein wegfallender Knopf verschiebt die Zeile). */
+  /* Spracheingabe fürs Suchfeld (Klaus 2026-09-26, Laufbalken 2026-09-27).
+     Der Baustein steht in assets/sprechen.js (byte-1:1 auch in den WorkFlohs): Laufbalken mit
+     Strichen, solange Sprache ankommt, Pünktchen in den Pausen, und der Text steht schon beim
+     Sprechen im Feld. Gesucht wird, sobald die Aufnahme zu Ende ist — die Suche nach Bedeutung
+     rechnet, und sie soll nicht bei jedem halben Wort neu anfangen.
+     Die Erkennung schickt die Aufnahme an den Browser-Hersteller (Chrome: Google) — das steht am Knopf. */
   const MIC_LANG = { de: 'de-DE', en: 'en-US', ru: 'ru-RU', ar: 'ar-SA' };
   function spracheingabe() {
-    const k = $('bibMic'), feld = $('bibSuche'); if (!k || !feld) return;
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { k.disabled = true; k.title = 'Spracheingabe kann dieser Browser nicht — bitte tippen'; return; }
-    k.title = 'Sprechen statt tippen — die Aufnahme geht zur Erkennung an den Browser-Hersteller (Chrome: Google)';
-    let lauf = null, erstes = true;
-    k.onclick = () => {
-      if (lauf) { try { lauf.stop(); } catch (_) {} return; }
-      const r = new SR();
-      r.lang = MIC_LANG[(WFP.Sprache && WFP.Sprache.lang) || 'de'] || 'de-DE';
-      r.interimResults = false; r.maxAlternatives = 1;
-      r.onresult = ev => {
-        let t = ''; for (let i = 0; i < ev.results.length; i++) t += ev.results[i][0].transcript;
-        t = t.trim(); if (!t) return;
-        feld.value = t; S.suche = t; zeichneBibliothek();
-        toast('🎤 Verstanden: „' + t + '"');
-      };
-      r.onerror = ev => {
-        const e = (ev && ev.error) || '';
-        toast(e === 'not-allowed' || e === 'service-not-allowed' ? '🎤 Das Mikrofon ist für diese Seite nicht erlaubt.'
-          : e === 'no-speech' ? '🎤 Nichts gehört — bitte näher am Gerät sprechen.'
-          : e === 'network' ? '🎤 Die Spracherkennung braucht Internet und kam nicht durch.'
-          : '🎤 Mit dem Mikrofon ging es gerade nicht — bitte tippen.');
-      };
-      r.onend = () => { lauf = null; k.classList.remove('hoert'); };
-      try { r.start(); lauf = r; k.classList.add('hoert'); toast(erstes ? '🎤 Ich höre zu … (die Aufnahme geht zur Erkennung an Google)' : '🎤 Ich höre zu …'); erstes = false; }
-      catch (_) { toast('🎤 Mit dem Mikrofon ging es gerade nicht — bitte tippen.'); }
-    };
+    const k = $('bibMic'), feld = $('bibSuche'); if (!k || !feld || !window.WFSprechen) return;
+    let erstes = true;
+    WFSprechen.anhaengen({ knopf: k, nach: $('bibForm'),
+      sprache: () => { if (erstes) { toast('🎤 Ich höre zu … (die Aufnahme geht zur Erkennung an Google)'); erstes = false; } return MIC_LANG[(WFP.Sprache && WFP.Sprache.lang) || 'de'] || 'de-DE'; },
+      text: (t, fertig) => { feld.value = t; if (fertig) { S.suche = t; zeichneBibliothek(); } },
+      meldung: toast });
   }
   function spracheKnopf() { const b = $('btnSprache'); if (b && WFP.Sprache) b.querySelector('span').textContent = WFP.Sprache.SPRACHEN.find(x => x.code === WFP.Sprache.lang).kurz; }
   document.addEventListener('wfp-sprache', () => {
