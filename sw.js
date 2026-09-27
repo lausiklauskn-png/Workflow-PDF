@@ -2,7 +2,7 @@
    Cacht die SCHALE (App-Dateien), niemals Dokumente: die liegen in IndexedDB.
    Wer eine Datei aus SCHALE ändert, erhöht CACHE_VERSION — sonst liefert der
    Worker die alte Fassung weiter. */
-const CACHE_VERSION = 'workfloh-pdf-v55';
+const CACHE_VERSION = 'workfloh-pdf-v56';
 /* Suche nach Bedeutung: transformers.js (und seine wasm-Dateien) kommt von jsDelivr, in fester
    Fassung. Das bleibt in EIGENEM Vorrat, damit die Suche offline weiterläuft und ein Cache-Bump
    der Schale nicht jedes Mal Megabytes neu holt. Das Modell selbst legt transformers.js in seinem
@@ -12,7 +12,7 @@ const MODELL_PREFIX = 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/
 const BLEIBT = [MODELL_VORRAT, 'transformers-cache'];
 const SCHALE = [
   './', './index.html', './impressum.html', './manifest.webmanifest',
-  './assets/style.css?v=25', './assets/db.js?v=5', './assets/suche.js?v=2', './assets/bedeutung.js?v=2', './assets/zip.js?v=1', './assets/erkennung.js?v=5', './assets/blatt.js?v=1', './assets/scan-bild.js?v=6', './assets/scanner.js?v=10', './assets/export.js?v=7', './assets/html-export.js?v=2', './assets/uebersetzung.js?v=12', './assets/sprache-texte.js?v=22', './assets/sprache.js?v=1', './assets/sprechen.js?v=3', './assets/schieber.js?v=1', './assets/app.js?v=45',
+  './assets/style.css?v=26', './assets/db.js?v=5', './assets/suche.js?v=2', './assets/bedeutung.js?v=2', './assets/zip.js?v=1', './assets/erkennung.js?v=5', './assets/blatt.js?v=1', './assets/scan-bild.js?v=6', './assets/scanner.js?v=10', './assets/export.js?v=7', './assets/html-export.js?v=2', './assets/uebersetzung.js?v=12', './assets/sprache-texte.js?v=22', './assets/sprache.js?v=1', './assets/sprechen.js?v=3', './assets/schieber.js?v=1', './assets/app.js?v=45',
   './vendor/pdfjs/pdf.min.js', './vendor/pdfjs/pdf.worker.min.js', './vendor/pdf-lib.min.js', './vendor/qrcode.js', './vendor/fontkit.umd.min.js', './vendor/fonts/NotoSans-Regular.ttf',
   './icons/w-floh-160.png', './icons/favicon-32.png?v=1', './icons/favicon-64.png?v=1',
   './icons/icon-192.png?v=1', './icons/icon-512.png?v=1', './icons/icon-512-maskable.png?v=1', './icons/apple-touch-icon.png?v=1'
