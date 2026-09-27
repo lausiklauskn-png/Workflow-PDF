@@ -223,6 +223,7 @@ try {
   await page.mouse.up();
   Z = await page.evaluate(() => window.__wfpdfScan);
   ok('Ecke gezogen → Seite gilt als „von Hand gesetzt", die Ecke hat sich bewegt', Z.seiten[0].manuell && SB.abstand(Z.seiten[0].ecken, mach.ecken, f0[0], f0[1]) > 1 && await page.getAttribute('.scan [data-befund]', 'data-befund') === 'hand');
+  ok('von Hand gesetzt: kein Befund-Text (die Punkte sagen es, Klaus 2026-09-27)', await page.evaluate(() => { const b = document.querySelector('.scan [data-befund]'); return b.hidden && b.getBoundingClientRect().height === 0; }));
   await page.click('.scan [data-auto]');
   Z = await page.evaluate(() => window.__wfpdfScan);
   ok('↺ Automatisch setzt die erkannten Ecken zurück', !Z.seiten[0].manuell && SB.abstand(Z.seiten[0].ecken, mach.ecken, f0[0], f0[1]) < 2);
@@ -498,6 +499,12 @@ try {
     return { tab: Math.round(t.getBoundingClientRect().height), befund: bf ? Math.round(bf.getBoundingClientRect().height) : 0 }; });
   ok('Handy: Reiter Zuschneiden/Ergebnis höchstens 30 px hoch', HT.tab <= 30, HT);
   ok('Handy: der Befund („Ecken …") höchstens 48 px hoch', HT.befund > 0 && HT.befund <= 48, HT);
+  // Klaus 2026-09-27: Schließen nur als ✕, der Kopf einzeilig, kein Erklärtext zu den Punkten
+  const HK = await hp.evaluate(() => { const z = document.querySelector('.scan [data-schliessen]'), k = document.querySelector('.scan-kopf'), t = document.querySelector('.scan-titel');
+    return { zu: z.textContent.trim(), label: z.getAttribute('aria-label'), kopf: Math.round(k.getBoundingClientRect().height), titel: Math.round(t.getBoundingClientRect().height), erklaer: /roten Punkte|Lupe zeigt/.test(document.querySelector('.scan').textContent) }; });
+  ok('Handy: Schließen ist nur ein ✕ (mit Namen für Vorleser)', HK.zu === '✕' && HK.label === 'Schließen', HK);
+  ok('Handy: der Scanner-Kopf ist einzeilig (höchstens 56 px, Titel bricht nicht um)', HK.kopf <= 56 && HK.titel <= 30, HK);
+  ok('Handy: kein Erklärtext zu den roten Punkten und der Lupe', !HK.erklaer, HK);
   const hg = await hp.locator('.scan .scan-griff').nth(2).boundingBox();
   await hp.mouse.move(hg.x + hg.width / 2, hg.y + hg.height / 2); await hp.mouse.down();
   await hp.mouse.move(hg.x + hg.width / 2 - 20, hg.y + hg.height / 2 - 15, { steps: 4 });
@@ -519,6 +526,11 @@ try {
   ok('Vollbild 1000×540: die Bühne nimmt mindestens 80 % der Höhe (vorher 151 px)', GM.buehne >= GM.schirm * 0.8, GM);
   ok('Vollbild: das Foto füllt die Bühne (auch ein kleines Foto wird größer gezeigt)', GM.bild >= GM.buehne - 60, GM);
   ok('Vollbild: Seitenleiste und Fuß stehen rechts neben dem Foto, nicht darunter', GM.leisteRechts && GM.fussRechts && GM.leiste >= 60, GM);
+  // Klaus 2026-09-27: „immer das Maximum" — Fenster größer gezogen (DeX), das Foto wächst mit
+  await gp.setViewportSize({ width: 1600, height: 1000 });
+  const GW = await gp.waitForFunction(() => { const b = document.querySelector('.scan-buehne').getBoundingClientRect(), r = document.querySelector('.scan [data-rahmen]').getBoundingClientRect();
+    return r.height >= b.height - 60 || r.width >= b.width - 60 ? { buehne: Math.round(b.height), bild: Math.round(Math.max(r.width, r.height)) } : null; }, null, { timeout: 5000 }).then(h => h.jsonValue()).catch(() => null);
+  ok('Vollbild: Fenster größer gezogen → das Foto füllt wieder die Bühne', !!GW && GW.bild > GM.bild, { vorher: GM.bild, nachher: GW });
   await gp.context().close();
 
   ok('kein Aufruf ins Netz (Modell, Texterkennung, Schrift liegen auf dem Gerät)', fremd.length === 0, fremd);

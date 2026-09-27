@@ -279,7 +279,7 @@
     el.innerHTML = `
       <div class="scan-kopf">
         <b class="scan-titel">📷 ${h(opt.titel || 'Scannen')}</b><span class="scan-anz" data-anz></span>
-        <button class="knopf klein" data-schliessen>✕ Schließen</button>
+        <button class="knopf klein scan-zu" data-schliessen title="Schließen" aria-label="Schließen">✕</button>
       </div>
       <div class="scan-haupt">
         <div class="scan-buehne" data-buehne></div>
@@ -295,6 +295,17 @@
     $q('[data-in-kamera]').onchange = e => { const f = [...(e.target.files || [])]; e.target.value = ''; if (!f.length) ST.ersetze = null; hinzu(f); };
     $q('[data-in-galerie]').onchange = e => { const f = [...(e.target.files || [])]; e.target.value = ''; hinzu(f); };
     $q('[data-in-ki]').onchange = e => { const f = [...(e.target.files || [])]; e.target.value = ''; const s = akt(); if (f.length) hinzu(f.slice(0, 1), { bildKi: true, hinter: s && s.id }); };
+    // Fenster größer gezogen (DeX, Vollbild, Drehen): die Bühne zeichnet neu, damit das Foto den
+    // ganzen Platz bekommt (Klaus 2026-09-27: „immer das Maximum an der Größe"). Nie während eines Zugs.
+    if (window.ResizeObserver) {
+      let uhr = 0;
+      ST.beob = new ResizeObserver(() => { clearTimeout(uhr); uhr = setTimeout(() => {
+        if (!ST || !ST.bGroesse || ST.el.querySelector('.scan-griff[data-zieht]')) return;
+        const b = $q('[data-buehne]');
+        if (Math.abs(b.clientWidth - ST.bGroesse[0]) > 4 || Math.abs(b.clientHeight - ST.bGroesse[1]) > 4) zeichneBuehne();
+      }, 120); });
+      ST.beob.observe($q('[data-buehne]'));
+    }
     zeichne();
     if (opt.dateien && opt.dateien.length) hinzu(opt.dateien);
     else if (opt.start === 'kamera') $q('[data-in-kamera]').click();
@@ -304,6 +315,7 @@
   }
   function schliessen() {
     if (!ST) return;
+    if (ST.beob) ST.beob.disconnect();
     ST.el.remove(); document.body.classList.remove('scan-offen'); ST = null;
     if (_ocr) { const w = _ocr.worker; _ocr = null; try { w.terminate(); } catch (_) {} }
   }
@@ -346,6 +358,7 @@
   }
   function zeichneBuehne() {
     const b = $q('[data-buehne]'), s = akt();
+    ST.bGroesse = [b.clientWidth, b.clientHeight];
     if (!s) {
       b.innerHTML = `<div class="scan-leer"><p>Blatt auf einen dunklen Untergrund legen, gerade von oben und gut beleuchtet fotografieren. Mehrere Seiten werden ein PDF.</p>
         <div class="zeile"><button class="knopf rot" data-kamera>📷 Kamera</button><button class="knopf" data-galerie>🖼 Aus der Galerie</button></div></div>`;
@@ -526,8 +539,7 @@
     const tabs = `<div class="scan-tabs" role="tablist"><button class="modus-k${ST.ansicht === 'zuschnitt' ? ' on' : ''}" data-ansicht="zuschnitt">✂ Zuschneiden</button><button class="modus-k${ST.ansicht === 'ergebnis' ? ' on' : ''}" data-ansicht="ergebnis">✨ Ergebnis</button></div>`;
     let inhalt;
     if (ST.ansicht === 'zuschnitt') {
-      inhalt = `<p class="scan-befund ${s.manuell ? 'hand' : e.sicher ? 'ok' : 'pruefen'}" data-befund="${s.manuell ? 'hand' : e.sicher ? 'ok' : 'pruefen'}">${s.kiBild ? '🎨 Bild von ChatGPT — das ganze Bild ist die Seite' : s.manuell ? '✋ Ecken von Hand gesetzt' : e.sicher ? '✓ Blatt erkannt' : '⚠ Bitte Ecken prüfen'}<small>${s.manuell ? '' : h(e.grund || '')}</small></p>
-        <p class="hinweis">Die roten Punkte an die Ecken des Papiers ziehen. Eine Lupe zeigt, wo der Finger ist.</p>
+      inhalt = `<p class="scan-befund ${s.manuell ? 'hand' : e.sicher ? 'ok' : 'pruefen'}" data-befund="${s.manuell ? 'hand' : e.sicher ? 'ok' : 'pruefen'}"${s.manuell && !s.kiBild ? ' hidden' : ''}>${s.kiBild ? '🎨 Bild von ChatGPT — das ganze Bild ist die Seite' : s.manuell ? '✋ Ecken von Hand gesetzt' : e.sicher ? '✓ Blatt erkannt' : '⚠ Bitte Ecken prüfen'}<small>${s.manuell ? '' : h(e.grund || '')}</small></p>
         <div class="scan-knoepfe"><button class="knopf" data-auto>↺ Automatisch</button><button class="knopf" data-ganz>▢ Ganzes Foto</button></div>
         <button class="knopf rot scan-weiter" data-ansicht="ergebnis">✓ Zuschnitt passt → Ergebnis</button>`;
     } else {

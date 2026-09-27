@@ -468,3 +468,13 @@ body.zieht .dok-gitter,body.zieht .ordner-leiste{touch-action:none}
   .scan-aktionen .knopf{flex:1 1 45%;min-height:32px;padding:4px 8px}
   .scan-fuss .hinweis{font-size:.78rem;line-height:1.25}
 }
+
+/* Scanner-Kopf und Reiter (Klaus 2026-09-27): Schließen ist nur ein ✕, der Titel bricht nicht um,
+   „1 Seite" steht daneben — mehr Höhe fürs Foto. Die Reiter sind auf jeder Breite 28 px, nie mehr.
+   Dieselben Zeilen stehen in assets/wfpdf/scanner.css beider WorkFlohs. */
+.scan-befund[hidden]{display:none!important}
+.scan-kopf{flex-wrap:nowrap}
+.scan-titel{white-space:nowrap}
+.scan-anz{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.scan .scan-zu{flex:0 0 auto;min-width:36px;min-height:32px;padding:2px 10px;font-size:1.1rem;line-height:1}
+.scan .scan-tabs .modus-k{white-space:nowrap;min-height:0;height:28px;padding:0 8px;font-size:.85rem;line-height:1;overflow:hidden;text-overflow:ellipsis}
