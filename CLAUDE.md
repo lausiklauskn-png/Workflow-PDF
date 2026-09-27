@@ -417,6 +417,22 @@ steht schon beim Sprechen im Feld; gesucht wird am Ende (nach 2,6 s Pause von se
 - Proben: `tests/sprechen.mjs` (in `npm test`, gestellte Erkennung) ·
   `node tests/gegenprobe_sprechen.mjs` (16 Fälle, Wegwerf-Kopie; `NUR_ANKER=1` nur die Anker).
 
+## 🎚 Sichtbarer Schieberegler (Klaus 2026-09-27)
+
+„Dass man ihn anfassen kann mit einem Viereck … Bei kleineren Handys ist sonst nicht zu erkennen, dass
+da noch mehr folgt." Unter der Feldarten-Leiste (Fuß des Editors) und den Ordner-Knöpfen steht eine
+Schiene mit Griff (drei Rillen, mindestens 44 px breit). Griff ziehen oder auf die Schiene tippen rollt
+die Leiste, Wischen in der Leiste lässt den Griff mitlaufen. Passt alles hinein, ist die Schiene weg.
+
+- `assets/schieber.js` ist **host-neutral** und wird byte-1:1 in die WorkFlohs kopiert
+  (`assets/wfpdf/schieber.js`, in Mein-WorkFloh per SHA gepinnt). Nur hier ändern, dann dort neu kopieren.
+- Die Schiene steht als Geschwister NACH der Leiste. Im Flex-Fuß braucht sie `flex:0 0 100%`, sonst
+  schrumpft sie auf **0 px** (Befund beim Bau, eigener Gegenprobe-Fall).
+- Nebenbei behoben: ein Größenwechsel und Zurück zur Bibliothek innerhalb von 250 ms warf
+  (`zeichneSeiten` mit `S.doc = null`).
+- Proben: `tests/schieber.mjs` (in `npm test`, Handy 380 px mit Touch) ·
+  `node tests/gegenprobe_schieber.mjs` (10 Fälle; `NUR_ANKER=1`, `NUR_FALL="…"`).
+
 ## 🗂 Sortieren und Ordner ausgeben (Klaus 2026-09-26)
 
 „Seite 1 bis 40 als erstes, dann Seite 41 bis 81 … nach Dateinamen oder nach Dateigröße" · „der
