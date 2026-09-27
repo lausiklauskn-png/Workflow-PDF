@@ -24,7 +24,7 @@
   const QUALI = { hoch: { dpi: 200, q: 0.9, name: 'Hoch (200 dpi)' }, normal: { dpi: 150, q: 0.85, name: 'Normal (150 dpi)' }, klein: { dpi: 110, q: 0.72, name: 'Klein (110 dpi)' } };
   const FORMAT = { a4: 'A4', letter: 'US Letter', blatt: 'Wie das Blatt' };
   const SPRACHEN = { deu: 'Deutsch', eng: 'English', rus: 'Русский' };
-  const VORSCHAU_DPI = 80, OCR_DPI = 200;
+  const VORSCHAU_DPI = 80, OCR_DPI = 200, KI_DPI = 300;
 
   let ST = null;   // Zustand des offenen Werkzeugs
 
@@ -207,9 +207,14 @@
     return pdf.embedFont(bytes, { subset: false });
   }
   async function jpeg(c, q) { return new Uint8Array(await (await new Promise(r => c.toBlob(r, 'image/jpeg', q))).arrayBuffer()); }
+  function eigeneDpi(s, mindest) {
+    const m = SB().seitenMass(s.ecken, ST.format, 72), lang = Math.max(m.W, m.H) || 1;
+    return Math.min(300, Math.max(mindest, Math.round(Math.max(s.foto.width, s.foto.height) / lang * 72)));
+  }
   async function pdfBauen(melde) {
     const { PDFDocument } = PDFLib; const Q = QUALI[ST.qualitaet] || QUALI.normal;
     const seiten = ST.seiten.filter(s => s.ecken);
+    const dpis = []; window.__wfpdfScanDpi = dpis;
     if (ST.durchsuchbar) for (let i = 0; i < seiten.length; i++) if (!ocrGilt(seiten[i])) { melde && melde(i / seiten.length, 'Text erkennen · Seite ' + (i + 1) + ' von ' + seiten.length); await ocrSeite(seiten[i]); }
     const pdf = await PDFDocument.create();
     for (let i = 0; i < seiten.length; i++) if (seiten[i].ausgabe === 'kopie' && !ocrGilt(seiten[i])) { melde && melde(i / seiten.length, 'Text erkennen · Seite ' + (i + 1) + ' von ' + seiten.length); await ocrSeite(seiten[i]); }
@@ -232,8 +237,12 @@
         });
         continue;
       }
-      const r = seiteRechnen(s, Q.dpi, true);
-      const img = await pdf.embedJpg(await jpeg(r.canvas, Q.q));
+      // Ein Bild von ChatGPT kommt in SEINER Auflösung ins PDF, nicht heruntergerechnet (Klaus 2026-09-27:
+      // „Sehr schlechte Textqualität. Höhere Auflösung wäre besser.") — höchstens 300 dpi.
+      const dpi = s.kiBild ? eigeneDpi(s, Q.dpi) : Q.dpi;
+      const r = seiteRechnen(s, dpi, true);
+      dpis.push({ dpi, ki: !!s.kiBild, px: Math.max(r.canvas.width, r.canvas.height) });
+      const img = await pdf.embedJpg(await jpeg(r.canvas, s.kiBild ? Math.max(Q.q, 0.92) : Q.q));
       const [pw, ph] = r.seite, p = pdf.addPage([pw, ph]);
       p.drawImage(img, { x: 0, y: 0, width: pw, height: ph });
       if (ST.durchsuchbar && s.ocr) {
@@ -453,16 +462,17 @@
      Die App schickt dabei nichts selbst: Android teilt Bild und Auftrag an die App, die man wählt. */
   // Teilen braucht einen frischen Tipp — das Bild wird deshalb VORHER gebaut.
   async function kiBildBauen(s) {
-    const key = schluessel(s, OCR_DPI, true);
+    // 300 dpi statt der 200 der Texterkennung: je schärfer das Bild hinein, desto lesbarer die Schrift zurück
+    const key = schluessel(s, KI_DPI, true);
     if (s._kiBild && s._kiBild.key === key) return s._kiBild.datei;
-    const c = seiteRechnen(s, OCR_DPI, true).canvas;
-    const datei = new File([await jpeg(c, 0.9)], (String(ST.name).replace(/[\\/:*?"<>|]+/g, '_').trim() || 'Scan') + ' - Seite ' + (ST.seiten.indexOf(s) + 1) + '.jpg', { type: 'image/jpeg' });
+    const c = seiteRechnen(s, KI_DPI, true).canvas;
+    const datei = new File([await jpeg(c, 0.92)], (String(ST.name).replace(/[\\/:*?"<>|]+/g, '_').trim() || 'Scan') + ' - Seite ' + (ST.seiten.indexOf(s) + 1) + '.jpg', { type: 'image/jpeg' });
     s._kiBild = { key, datei };
     return datei;
   }
   async function zuChatGPT(s) {
     const auftrag = SB().bildAuftrag({ nach: merk.bildNach || 'en' });
-    const datei = s._kiBild && s._kiBild.key === schluessel(s, OCR_DPI, true) ? s._kiBild.datei : null;
+    const datei = s._kiBild && s._kiBild.key === schluessel(s, KI_DPI, true) ? s._kiBild.datei : null;
     window.__wfpdfBildKi = { auftrag, bild: datei && { name: datei.name, bytes: datei.size } };
     try { if (navigator.clipboard) navigator.clipboard.writeText(auftrag).catch(() => {}); } catch (_) {}
     if (datei && navigator.canShare && navigator.canShare({ files: [datei], text: auftrag })) {
@@ -497,7 +507,7 @@
           ${s.ocr ? `<button class="knopf${ST.textModus ? ' an' : ''}" data-textmodus>✎ Text ändern</button>` : '<button class="knopf" data-ocr>🔤 Text erkennen</button>'}
           <button class="knopf${ST.vergleich === 'neben' && s.ocr ? ' an' : ''}" data-kopie>📄 Kopie neben Original</button></div>
           <div class="scan-knoepfe"><select data-bildnach title="In diese Sprache übersetzt ChatGPT">${Object.entries(SB().BILD_SPRACHEN).map(([k, v]) => `<option value="${k}"${(merk.bildNach || 'en') === k ? ' selected' : ''}>${h(v)}</option>`).join('')}</select><button class="knopf ki-knopf" data-bildki>🎨 Mit ChatGPT übersetzen</button><button class="knopf" data-bildholen>📥 Ergebnis zurückholen</button></div>
-          <p class="hinweis">Gibt Bild und Auftrag an ChatGPT. Das fertige Bild dort speichern und mit 📥 zurückholen — es kommt als neue Seite dahinter.</p>
+          <p class="hinweis">Gibt Bild und Auftrag an ChatGPT — ChatGPT übersetzt und macht die Schrift dabei schärfer. Das fertige Bild dort speichern und mit 📥 zurückholen — es kommt als neue Seite dahinter.</p>
           ${s.ocr ? '<div class="scan-knoepfe"><button class="knopf" data-maske>🎭 Textmaske (PNG, durchsichtig)</button></div>' : ''}
           <div class="scan-stand" data-ocrstand>${s.ocr ? [
             `<p class="hinweis">${s.ocr.zeilen.length} Zeilen erkannt (${s.ocr.dpi || OCR_DPI} dpi)</p>`,

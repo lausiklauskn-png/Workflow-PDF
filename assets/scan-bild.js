@@ -262,7 +262,7 @@
   const BILD_SPRACHEN = { de: 'Deutsch', en: 'Englisch', ru: 'Russisch', uk: 'Ukrainisch', pl: 'Polnisch', tr: 'Türkisch', ar: 'Arabisch', fr: 'Französisch', es: 'Spanisch', it: 'Italienisch' };
   function bildAuftrag(o) {
     const sp = BILD_SPRACHEN[(o || {}).nach] || 'Deutsch';
-    return `Extrahiere den Text aus diesem Bild, übersetze ihn auf ${sp} und füge ihn an derselben Stelle wieder in das Originalbild ein. Gib mir das fertige Bild zurück.`;
+    return `Extrahiere den Text aus diesem Bild, übersetze ihn auf ${sp} und füge ihn an derselben Stelle wieder in das Originalbild ein. Verbessere dabei die Bildqualität: Schrift gestochen scharf und gut lesbar, Unschärfe und Rauschen entfernt, Layout und Farben wie im Original. Gib mir das fertige Bild in möglichst hoher Auflösung zurück.`;
   }
   const API = { A4, LETTER, FILTER, EINIG, sortiere, ausScanic, abstand, taugt, entscheiden, seitenMass, homographie, entzerren, drehen, filtern, hintergrund, textFarben, ganz, zeilenLage, kopieGroessen, zeilenBand, SCHRIFT_JE_ZEILENHOEHE, BILD_SPRACHEN, bildAuftrag };
   if (typeof window !== 'undefined') { window.WFP = window.WFP || {}; window.WFP.ScanBild = API; }
