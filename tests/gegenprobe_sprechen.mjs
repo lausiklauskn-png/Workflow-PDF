@@ -15,7 +15,7 @@ const FAELLE = [
   { name: 'keine Zwischenstände bestellt', datei: S, anker: 'rec.interimResults = true;', ersatz: 'rec.interimResults = false;', trifft: /Zwischenstände/ },
   { name: 'Text erscheint erst am Ende', datei: S, anker: 'if (neu && opt.text) opt.text(neu, false);', ersatz: ';', trifft: /SCHON im Feld/ },
   { name: 'die App sucht bei jedem halben Wort', datei: A, anker: 'feld.value = t; if (fertig) {', ersatz: 'feld.value = t; if (true) {', trifft: /noch nicht/ },
-  { name: 'keine Striche beim Sprechen', datei: S, anker: 'if (h > 0) { el.className', ersatz: 'if (false) { el.className', trifft: /Striche laufen/ },
+  { name: 'keine Striche beim Sprechen', datei: S, anker: 'if (h > 0) { el.className', ersatz: 'if (false) { el.className', trifft: /laufen Striche/ },
   { name: 'Pausen zeigen keine Pünktchen', datei: S, anker: 'if (letzterText && seit < 380)', ersatz: 'if (letzterText)', trifft: /Pünktchen nach/ },
   { name: 'nach der Pause endet sie nicht von selbst', datei: S, anker: 'if (!spricht && seit > STILLE_ENDE) stop();', ersatz: ';', trifft: /endet sie von selbst/ },
   { name: 'der Endstand wird nicht abgegeben', datei: S, anker: 'if (t && !abgeschickt) { abgeschickt = true; opt.text && opt.text(t, true); }', ersatz: ';', trifft: /wird gesucht|sucht/ },
