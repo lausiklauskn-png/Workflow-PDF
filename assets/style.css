@@ -347,3 +347,14 @@ body.scan-offen{overflow:hidden}
   .scan-werkzeug{width:auto;border-left:0;border-top:1px solid var(--linie);flex:0 1 auto;max-height:42%}
   .scan-aktionen{justify-content:stretch}.scan-aktionen .knopf{flex:1 1 45%}
 }
+
+/* ChatGPT-Knopf (Klaus 2026-09-27): Bauart wie „KI-Überraschung" im Rezeptbuch (.fz-trend-btn) —
+   wandernder Verlauf, Leuchten, hüpft beim Zeigen, gibt beim Drücken nach — in Rot-Weiß-Blau */
+.knopf.ki-knopf{position:relative;border:1.5px solid rgba(255,255,255,.85);color:#fff;font-weight:900;letter-spacing:.02em;text-shadow:0 1px 3px rgba(0,0,0,.35);
+  background:linear-gradient(90deg,#b71a13,#E0231B,#1d4ed8,#E0231B,#b71a13);background-size:400% 100%;
+  box-shadow:0 3px 16px rgba(224,35,27,.42),inset 0 1px 0 rgba(255,255,255,.55),inset 0 -2px 0 rgba(0,0,0,.18);animation:kiWandern 5s linear infinite}
+.knopf.ki-knopf:hover{animation:kiWandern 5s linear infinite,kiHuepfen 1.8s ease-in-out infinite;box-shadow:0 5px 22px rgba(224,35,27,.55),0 0 0 3px rgba(29,78,216,.18),inset 0 1px 0 rgba(255,255,255,.6),inset 0 -2px 0 rgba(0,0,0,.18)}
+.knopf.ki-knopf:active{transform:translateY(1px) scale(.96)!important;box-shadow:0 1px 6px rgba(224,35,27,.35),inset 0 2px 4px rgba(0,0,0,.25);filter:brightness(.94)}
+@keyframes kiWandern{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+@keyframes kiHuepfen{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@media (prefers-reduced-motion:reduce){.knopf.ki-knopf,.knopf.ki-knopf:hover{animation:none}}

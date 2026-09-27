@@ -138,12 +138,14 @@
      und dann vergleicht man sie"): ein sauberes weißes Blatt derselben Größe, jede erkannte
      Zeile gerade an ihre Stelle gesetzt. Bilder, Stempel und Handschrift kommen NICHT mit —
      dafür ist das Original da. */
-  function kopieRechnen(s, dpi) {
+  function kopieRechnen(s, dpi, durchsichtig) {
     const m = SB().seitenMass(s.ecken, ST.format, dpi);
     const quer = s.drehung % 2;
     const W = quer ? m.H : m.W, H = quer ? m.W : m.H;
     const c = document.createElement('canvas'); c.width = W; c.height = H;
-    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
+    // durchsichtig = die TEXTMASKE (Klaus 2026-09-27): nur die Schrift, kein Blatt — zum Auflegen
+    // auf einen neuen Hintergrund in einem Bildprogramm
+    const x = c.getContext('2d'); if (!durchsichtig) { x.fillStyle = '#fff'; x.fillRect(0, 0, W, H); }
     if (s.ocr) {
       const lagen = s.ocr.zeilen.map(z => SB().zeilenLage(z, W, H)), fs = SB().kopieGroessen(lagen);
       lagen.forEach((l, i) => { const t = zeilenText(s, i); if (!t) return; const st = stilVon(s, i), m = verschoben(l, st, W, H); schreibe(x, t, { x: m.x, y: m.mitte, laenge: kopieBreite(l, W) }, fs[i] * st.gr, 0, '#1a1a1a', st); });
@@ -435,6 +437,74 @@
       };
     });
   }
+  /* ---------- Text mit ChatGPT / Claude (Klaus 2026-09-27) ----------
+     „ein Dokument … mit einem Prompt zusammen weitergereicht an ChatGPT. Er separiert den Text aus
+     dem Bild … andere Sprache oder bessere Texte … und fügt diese wieder in den Hintergrund ein."
+     Vorbild: der Prompt-Knopf im Rezeptbuch (Auftrag kopieren → ChatGPT öffnen → Antwort zurück).
+     Die App schickt dabei NICHTS selbst — der Nutzer gibt Bild und Auftrag weiter. Den Text nimmt
+     die App von der KI, die Lage von der Erkennung auf dem Gerät (kiAbgleich in scan-bild.js). */
+  const KI_ZIELE = [['https://chatgpt.com/', 'ChatGPT öffnen'], ['https://claude.ai/new', 'Claude öffnen']];
+  function kiDialog(s) {
+    const art = merk.kiArt || 'abschreiben', nach = merk.kiNach || 'de';
+    const sp = Object.entries(SB().KI_SPRACHEN).map(([k, v]) => `<option value="${k}"${k === nach ? ' selected' : ''}>${h(v)}</option>`).join('');
+    ST.opt.dialog(`<h2>✨ Text mit ChatGPT erkennen</h2>
+      <p class="hinweis">ChatGPT oder Claude lesen Text oft besser als die Erkennung auf dem Gerät, besonders auf schiefen oder dunklen Fotos. Die App schickt dafür nichts ins Netz: Sie geben das Bild und den Auftrag selbst weiter. ChatGPT gehört OpenAI, Claude gehört Anthropic — beide in den USA.</p>
+      <div class="scan-stil"><span>Mit dem Text</span><div class="scan-chips" data-kiarten>${[['abschreiben', 'Abschreiben'], ['verbessern', 'Rechtschreibung verbessern'], ['uebersetzen', 'Übersetzen']].map(([k, n]) => `<button class="chip${k === art ? ' on' : ''}" data-kiart="${k}">${n}</button>`).join('')}</div></div>
+      <label class="scan-stil" data-kinachzeile${art === 'uebersetzen' ? '' : ' hidden'}><span>nach</span><select data-kinach>${sp}</select></label>
+      <p class="hinweis"><b>1 · Bild und Auftrag weitergeben</b></p>
+      <div class="scan-knoepfe"><button class="knopf rot" data-kiteilen disabled>📤 Bild + Auftrag teilen …</button><button class="knopf" data-kikopie>📋 Auftrag kopieren</button><button class="knopf" data-kibild disabled>🖼 Seitenbild speichern</button></div>
+      <div class="scan-knoepfe">${KI_ZIELE.map(([u, n]) => `<a class="knopf" href="${u}" target="_blank" rel="noopener noreferrer" data-kiziel>${n}</a>`).join('')}</div>
+      <p class="hinweis">Dort das Bild anhängen (📎) und den Auftrag einfügen. Beim Teilen wird der Auftrag zusätzlich kopiert — falls die App nur das Bild übernimmt, einfach einfügen.</p>
+      <p class="hinweis"><b>2 · Antwort hier einfügen</b></p>
+      <textarea data-kiantwort rows="5" placeholder="Die ganze Antwort von ChatGPT hier einfügen"></textarea>
+      <p class="hinweis" data-kifehler hidden></p>
+      <div class="zeile"><button class="knopf" data-n>Abbrechen</button><button class="knopf rot" data-kij>✓ Übernehmen</button></div>`, (d, zu) => {
+      const w = { art, nach };
+      const auftrag = () => SB().kiAuftrag(w);
+      window.__wfpdfKi = { auftrag: auftrag() };
+      d.querySelectorAll('[data-kiart]').forEach(k => k.onclick = () => {
+        w.art = merk.kiArt = k.dataset.kiart; merken(); window.__wfpdfKi.auftrag = auftrag();
+        d.querySelectorAll('[data-kiart]').forEach(e => e.classList.toggle('on', e === k));
+        d.querySelector('[data-kinachzeile]').hidden = w.art !== 'uebersetzen';
+      });
+      d.querySelector('[data-kinach]').onchange = e => { w.nach = merk.kiNach = e.target.value; merken(); window.__wfpdfKi.auftrag = auftrag(); };
+      const kopieren = () => { try { if (navigator.clipboard) return navigator.clipboard.writeText(auftrag()).catch(() => {}); } catch (_) {} };
+      d.querySelector('[data-kikopie]').onclick = async () => { await kopieren(); ST.opt.toast('📋 Auftrag kopiert — in ChatGPT einfügen'); };
+      // Das Bild wird VOR dem Tipp gebaut: Teilen braucht einen frischen Tipp
+      let datei = null;
+      (async () => {
+        const c = seiteRechnen(s, OCR_DPI, true).canvas;
+        datei = new File([await jpeg(c, 0.85)], (String(ST.name).replace(/[\\/:*?"<>|]+/g, '_').trim() || 'Scan') + ' - Seite ' + (ST.akt + 1) + '.jpg', { type: 'image/jpeg' });
+        window.__wfpdfKi.bild = { name: datei.name, bytes: datei.size, w: c.width, h: c.height };
+        const t = d.querySelector('[data-kiteilen]'); if (t) t.disabled = !(navigator.canShare && navigator.canShare({ files: [datei] }));
+        const b = d.querySelector('[data-kibild]'); if (b) b.disabled = false;
+      })();
+      d.querySelector('[data-kiteilen]').onclick = () => { kopieren(); navigator.share({ files: [datei], text: auftrag() }).catch(() => {}); };
+      d.querySelector('[data-kibild]').onclick = async () => { ST.opt.laden(datei.name, new Uint8Array(await datei.arrayBuffer()), 'image/jpeg'); ST.opt.toast('🖼 ' + datei.name); };
+      d.querySelector('[data-n]').onclick = zu;
+      d.querySelector('[data-kij]').onclick = async () => {
+        const f = d.querySelector('[data-kifehler]'), r = SB().kiAntwortLesen(d.querySelector('[data-kiantwort]').value);
+        if (!r.ok) { f.hidden = false; f.textContent = r.grund === 'leer' ? 'In der Antwort steht keine Zeile Text.' : 'Die Antwort ist nicht lesbar. Bitte die ganze Antwort von ChatGPT einfügen, samt { und }.'; return; }
+        const k = d.querySelector('[data-kij]'); k.disabled = true; k.textContent = '📐 Lage wird auf dem Gerät gemessen …';
+        try { await kiUebernehmen(s, r.zeilen); } catch (e) { k.disabled = false; k.textContent = '✓ Übernehmen'; f.hidden = false; f.textContent = '⚠️ ' + (e.message || e); return; }
+        zu(); zeichne();
+      };
+    });
+  }
+  // Die Lage kommt von der Erkennung auf dem Gerät. Gibt es sie für diesen Zuschnitt schon, wird
+  // sie wiederverwendet; sonst einmal gelesen. Scheitert das, bleibt die Lage der KI.
+  async function kiUebernehmen(s, ki) {
+    const key = JSON.stringify([s.ecken, s.drehung, ST.format]);
+    let geraet = s.ocr && s.ocr.quelle !== 'ki' && ocrGilt(s) ? s.ocr : s.ocrGeraet && s.ocrGeraet.schluessel === key ? s.ocrGeraet : null;
+    if (!geraet) { try { geraet = await ocrSeite(s); } catch (_) { geraet = null; } }
+    if (geraet) s.ocrGeraet = geraet;
+    const r = SB().kiAbgleich(ki, geraet ? geraet.zeilen : []);
+    if (!r.zeilen.length) throw new Error('Keine Zeile ließ sich auf der Seite unterbringen — die Antwort nennt keine Lage, und die Erkennung auf dem Gerät fand nichts Passendes.');
+    s.ocr = { zeilen: r.zeilen, dpi: geraet ? geraet.dpi : OCR_DPI, sprache: ST.sprache, schluessel: key, quelle: 'ki', ki: { zugeordnet: r.zugeordnet, geraten: r.geraten, ohneLage: r.ohneLage } };
+    s.aenderungen = r.aenderungen; s.stil = {}; ST.vergleich = 'neben'; ST.textModus = false;
+    ST.opt.toast('✨ ' + r.zeilen.length + ' Zeilen übernommen' + (r.geraten ? ' · ' + r.geraten + ' Lage bitte prüfen' : '') + (r.ohneLage ? ' · ' + r.ohneLage + ' ohne Lage weggelassen' : ''));
+    return r;
+  }
   function zeichneWerkzeug() {
     const w = $q('[data-werkzeug]'), s = akt();
     if (!s || !s.ecken) { w.innerHTML = ''; return; }
@@ -455,9 +525,10 @@
           <div class="scan-knoepfe"><select data-sprache title="Sprache der Texterkennung">${Object.entries(SPRACHEN).map(([k, v]) => `<option value="${k}"${ST.sprache === k ? ' selected' : ''}>${h(v)}</option>`).join('')}</select>
           ${s.ocr ? `<button class="knopf${ST.textModus ? ' an' : ''}" data-textmodus>✎ Text ändern</button>` : '<button class="knopf" data-ocr>🔤 Text erkennen</button>'}
           <button class="knopf${ST.vergleich === 'neben' && s.ocr ? ' an' : ''}" data-kopie>📄 Kopie neben Original</button></div>
+          <div class="scan-knoepfe"><button class="knopf ki-knopf" data-ki>✨ Text mit ChatGPT erkennen</button>${s.ocr ? '<button class="knopf" data-maske>🎭 Textmaske (PNG, durchsichtig)</button>' : ''}</div>
           <div class="scan-stand" data-ocrstand>${s.ocr ? [
-            `<p class="hinweis">${s.ocr.zeilen.length} Zeilen erkannt (${s.ocr.dpi || OCR_DPI} dpi)</p>`,
-            s.ocr.zeilen.some(z => z.conf < 70) ? `<p class="hinweis">${s.ocr.zeilen.filter(z => z.conf < 70).length} davon unsicher (gelb) — bitte prüfen</p>` : '',
+            s.ocr.quelle === 'ki' ? `<p class="hinweis" data-kistand>✨ ${s.ocr.zeilen.length} Zeilen von der KI übernommen</p>` + (s.ocr.ki && s.ocr.ki.geraten ? `<p class="hinweis">${s.ocr.ki.geraten} davon an der Stelle, die die KI nennt (gelb) — Lage bitte prüfen</p>` : '') : `<p class="hinweis">${s.ocr.zeilen.length} Zeilen erkannt (${s.ocr.dpi || OCR_DPI} dpi)</p>`,
+            s.ocr.quelle !== 'ki' && s.ocr.zeilen.some(z => z.conf < 70) ? `<p class="hinweis">${s.ocr.zeilen.filter(z => z.conf < 70).length} davon unsicher (gelb) — bitte prüfen</p>` : '',
             Object.keys(s.aenderungen).length ? `<p class="hinweis">${Object.keys(s.aenderungen).length} geändert</p>` : '',
             ST.textModus || ST.vergleich !== 'original' ? '<p class="hinweis">Eine Zeile antippen, um sie zu ändern.</p>' : ''].join('') : '<p class="hinweis">Erkennt den Text auf dem Gerät. Danach lassen sich Zeilen ändern, und das PDF wird durchsuchbar.</p>'}</div>
           ${s.ocr ? `<div class="scan-chips" data-ansichten>${[['original', '📷 Original'], ['neben', '◧ Nebeneinander'], ['kopie', '📄 Kopie']].map(([k, n]) => `<button class="chip${(ST.vergleich || 'original') === k ? ' on' : ''}" data-vgl="${k}">${n}</button>`).join('')}</div>
@@ -497,6 +568,14 @@
       const k = q('[data-genauer]'); k.disabled = true; k.textContent = '🔍 Wird genauer erkannt …';
       try { await ocrSeite(s, 300); ST.opt.toast('🔍 ' + s.ocr.zeilen.length + ' Zeilen mit 300 dpi erkannt'); } catch (e) { ST.opt.toast('⚠️ ' + (e.message || e)); }
       zeichne();
+    };
+    if (q('[data-ki]')) q('[data-ki]').onclick = () => kiDialog(s);
+    if (q('[data-maske]')) q('[data-maske]').onclick = async () => {
+      const Q = QUALI[ST.qualitaet] || QUALI.normal, c = kopieRechnen(s, Q.dpi, true).canvas;
+      const b = new Uint8Array(await (await new Promise(r => c.toBlob(r, 'image/png'))).arrayBuffer());
+      const name = (String(ST.name).replace(/[\\/:*?"<>|]+/g, '_').trim() || 'Scan') + ' - Textmaske Seite ' + (ST.akt + 1) + '.png';
+      window.__wfpdfMaske = { name, bytes: b.length, w: c.width, h: c.height };
+      ST.opt.laden(name, b, 'image/png'); ST.opt.toast('🎭 ' + name);
     };
     if (q('[data-neufoto]')) q('[data-neufoto]').onclick = () => { ST.ersetze = s.id; $q('[data-in-kamera]').click(); };
     if (q('[data-weg]')) q('[data-weg]').onclick = () => { ST.seiten.splice(ST.akt, 1); ST.akt = Math.min(ST.akt, ST.seiten.length - 1); ST.ansicht = 'zuschnitt'; zeichne(); };
@@ -575,5 +654,5 @@
   const groesse = n => n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
 
   window.WFP = window.WFP || {};
-  window.WFP.Scanner = { oeffnen, schliessen, hinzu, zustand: () => ST, pdfBauen, seiteRechnen, kopieRechnen, ocrSeite, erkennen, zeichne };
+  window.WFP.Scanner = { oeffnen, schliessen, hinzu, zustand: () => ST, pdfBauen, seiteRechnen, kopieRechnen, ocrSeite, erkennen, zeichne, kiUebernehmen };
 })();

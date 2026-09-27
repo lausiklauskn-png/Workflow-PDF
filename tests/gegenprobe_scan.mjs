@@ -42,7 +42,17 @@ const FAELLE = [
   { name: 'neu fotografieren hängt eine Seite an', datei: 'assets/scanner.js', anker: "const alt = ST.ersetze ? ST.seiten.findIndex(o => o.id === ST.ersetze) : -1;", ersatz: 'const alt = -1;', trifft: /ersetzt die Seite/ },
   { name: 'nur das Original, keine Kopie daneben', datei: 'assets/scanner.js', anker: "const tafeln = v === 'neben' ? ['original', 'kopie'] : [v];", ersatz: "const tafeln = ['original'];", trifft: /nebeneinander/ },
   { name: '„Aus der Galerie" weiß auf weiß', datei: 'assets/style.css', anker: '.scan-leer .knopf:not(.rot){color:var(--ink)}', ersatz: '', trifft: /Galerie/ },
-  { name: 'Seite ist nicht A4', datei: 'assets/scan-bild.js', anker: 'else { pw = quer ? A4.h : A4.w; ph = quer ? A4.w : A4.h; }', ersatz: 'else { pw = quer ? 800 : 600; ph = quer ? 600 : 800; }', trifft: /A4/ }
+  { name: 'Seite ist nicht A4', datei: 'assets/scan-bild.js', anker: 'else { pw = quer ? A4.h : A4.w; ph = quer ? A4.w : A4.h; }', ersatz: 'else { pw = quer ? 800 : 600; ph = quer ? 600 : 800; }', trifft: /A4/ },
+  { name: "KI: Lage vom Gerät wird nie genommen", datei: "assets/scan-bild.js", anker: "if (best >= 0 && bs >= KI_TREFFER) {", ersatz: "if (false) {", trifft: /Lage vom Gerät/ },
+  { name: "KI: geratene Lage gilt als sicher", datei: "assets/scan-bild.js", anker: "conf: 60, box: k.box.slice(), quelle: 'ki', lageKi: true", ersatz: "conf: 100, box: k.box.slice(), quelle: 'ki', lageKi: true", trifft: /unsicher \(gelb\)/ },
+  { name: "KI: Übersetzung wird verschluckt", datei: "assets/scan-bild.js", anker: "if (k.neu) aenderungen[zeilen.length] = k.neu;", ersatz: "", trifft: /Übersetzung/ },
+  { name: "KI: Prozent werden nicht umgerechnet", datei: "assets/scan-bild.js", anker: "const teiler = werte.length && werte.every(v => v <= 1.5) ? 1 : 100;", ersatz: "const teiler = 1;", trifft: /Prozent → Anteile/ },
+  { name: "KI: „…\" wird nicht geheilt", datei: "assets/scan-bild.js", anker: "for (const k of kandidaten) { try { return JSON.parse(k.replace(", ersatz: "for (const k of []) { try { return JSON.parse(k.replace(", trifft: /geheilt/ },
+  { name: "KI: eine erkannte Zeile wird doppelt vergeben", datei: "assets/scan-bild.js", anker: "const o = ocr[best]; frei.delete(best); zugeordnet++;", ersatz: "const o = ocr[best]; zugeordnet++;", trifft: /höchstens einmal/ },
+  { name: "KI: ohne Lage vom Gerät übernommen", datei: "assets/scanner.js", anker: "if (!geraet) { try { geraet = await ocrSeite(s); }", ersatz: "if (false) { try { geraet = await ocrSeite(s); }", trifft: /Lage vom Gerät \(Grundlinie\)/ },
+  { name: "KI: unlesbare Antwort wird trotzdem verarbeitet", datei: "assets/scanner.js", anker: "if (!r.ok) { f.hidden = false;", ersatz: "if (false) { f.hidden = false;", trifft: /unlesbare Antwort/ },
+  { name: "KI: Textmaske hat weißen Grund", datei: "assets/scanner.js", anker: "if (!durchsichtig) { x.fillStyle = '#fff';", ersatz: "if (true) { x.fillStyle = '#fff';", trifft: /durchsichtig/ },
+  { name: "KI: Knopf ohne Bauart des Rezeptbuchs", datei: "assets/style.css", anker: "background:linear-gradient(90deg,#b71a13,#E0231B,#1d4ed8,#E0231B,#b71a13)", ersatz: "background:#E0231B", trifft: /Bauart wie im Rezeptbuch/ }
 ];
 
 const NUR = process.env.NUR_FALL; if (NUR) FAELLE.splice(0, FAELLE.length, ...FAELLE.filter(f => f.name.includes(NUR)));
