@@ -256,104 +256,15 @@
     return [[vor, oben], [nach, oben], [nach, unten], [vor, unten]].map(([u, v]) => [l.x + u * c - v * s, l.y + u * s + v * c]);
   }
 
-  /* ---------- Text von einer KI (ChatGPT, Claude …) — Klaus 2026-09-27 ----------
-     Die KI liest besser als die Erkennung auf dem Gerät, aber ihre Koordinaten sind ungenau
-     (dieselbe Erfahrung wie bei der Felderkennung). Darum: den TEXT nimmt die App von der KI,
-     die LAGE von der Erkennung auf dem Gerät, wo eine Zeile sich zuordnen lässt. Was sich nicht
-     zuordnen lässt, steht an der Stelle, die die KI nennt — und gilt als unsicher (gelb). */
-  const KI_SPRACHEN = { de: 'Deutsch', en: 'Englisch', ru: 'Russisch' };
-  function kiAuftrag(o) {
-    o = o || {};
-    const neu = o.art === 'uebersetzen' ? `die Übersetzung ins ${KI_SPRACHEN[o.nach] || 'Deutsch'}, möglichst nicht länger als das Original`
-      : o.art === 'verbessern' ? 'derselbe Text mit korrigierter Rechtschreibung und Zeichensetzung, sonst unverändert (Zahlen und Einheiten nie ändern)'
-        : 'genau derselbe Text wie in "text"';
-    return [
-      'Auf dem angehängten Bild ist eine Seite (Foto oder Scan). Lies den gedruckten Text Zeile für Zeile ab.',
-      '',
-      'Antworte NUR mit einem JSON-Objekt, ohne Erklärung davor oder danach, in dieser Form:',
-      '{"zeilen":[{"text":"…","neu":"…","x":0,"y":0,"b":0,"h":0}]}',
-      '',
-      '- Eine Zeile im Bild = ein Eintrag. Von oben nach unten; bei Spalten erst die linke Spalte ganz, dann die rechte.',
-      '- "text": genau so, wie es dasteht. Rechtschreibung, Zahlen und Einheiten nicht verändern, nichts ergänzen.',
-      '- "neu": ' + neu + '.',
-      '- x, y, b, h: Lage der Zeile in Prozent der Bildbreite und Bildhöhe (x und y = linke obere Ecke, b = Breite, h = Höhe).',
-      '- Handschrift, Stempel, Logos und Bilder weglassen.',
-      '- Im Text keine geraden Anführungszeichen verwenden, sondern „ und “.'
-    ].join('\n');
+  /* ---------- Bild mit ChatGPT (Klaus 2026-09-27) ----------
+     Ein Knopf gibt Seitenbild + kurzen Auftrag an ChatGPT; zurück kommt ein fertiges BILD. „Mach's nicht zu kompliziert" — der Auftrag ist bewusst so kurz, wie Klaus ihn
+     selbst schreiben würde. */
+  const BILD_SPRACHEN = { de: 'Deutsch', en: 'Englisch', ru: 'Russisch', uk: 'Ukrainisch', pl: 'Polnisch', tr: 'Türkisch', ar: 'Arabisch', fr: 'Französisch', es: 'Spanisch', it: 'Italienisch' };
+  function bildAuftrag(o) {
+    const sp = BILD_SPRACHEN[(o || {}).nach] || 'Deutsch';
+    return `Extrahiere den Text aus diesem Bild, übersetze ihn auf ${sp} und füge ihn an derselben Stelle wieder in das Originalbild ein. Gib mir das fertige Bild zurück.`;
   }
-  // Ein typografisches „…" mit geradem Schluss beendet einen JSON-Text zu früh (Kimhub-Befund
-  // 2026-09-21 an Claudes Antworten). Geheilt wird nur, was ohne Heilung nicht lesbar ist.
-  function jsonLesen(t) {
-    const kandidaten = [t];
-    const a = t.indexOf('{'), b = t.lastIndexOf('}'); if (a >= 0 && b > a) kandidaten.push(t.slice(a, b + 1));
-    const c = t.indexOf('['), d = t.lastIndexOf(']'); if (c >= 0 && d > c) kandidaten.push(t.slice(c, d + 1));
-    for (const k of kandidaten) { try { return JSON.parse(k); } catch (_) {} }
-    for (const k of kandidaten) { try { return JSON.parse(k.replace(/„([^"“”\n]*)"/g, '„$1“')); } catch (_) {} }
-    return null;
-  }
-  function kiAntwortLesen(roh) {
-    const t = String(roh || '').replace(/```(?:json)?/gi, '').trim();
-    const j = jsonLesen(t);
-    const liste = Array.isArray(j) ? j : j && Array.isArray(j.zeilen) ? j.zeilen : j && Array.isArray(j.lines) ? j.lines : null;
-    if (!liste) return { ok: false, grund: 'json', zeilen: [] };
-    const zahl = v => (typeof v === 'number' && isFinite(v)) ? v : (typeof v === 'string' && v.trim() !== '' && isFinite(+v.replace(',', '.'))) ? +v.replace(',', '.') : null;
-    const roh2 = liste.map(e => {
-      if (typeof e === 'string') return { text: e };
-      if (!e || typeof e !== 'object') return null;
-      const text = String(e.text != null ? e.text : e.original != null ? e.original : '').replace(/\s+/g, ' ').trim();
-      const neu = e.neu != null ? String(e.neu).replace(/\s+/g, ' ').trim() : null;
-      return { text, neu, x: zahl(e.x), y: zahl(e.y), b: zahl(e.b != null ? e.b : e.w), h: zahl(e.h) };
-    }).filter(e => e && (e.text || e.neu));
-    // Prozent oder Anteile? Liegt jede Angabe unter 1,5, sind es Anteile.
-    const werte = roh2.flatMap(e => [e.x, e.y, e.b, e.h]).filter(v => v != null);
-    const teiler = werte.length && werte.every(v => v <= 1.5) ? 1 : 100;
-    const zeilen = roh2.map(e => {
-      const z = { text: e.text || e.neu, neu: e.neu && e.neu !== (e.text || e.neu) ? e.neu : null };
-      if ([e.x, e.y, e.b, e.h].every(v => v != null) && e.b > 0 && e.h > 0) {
-        const kl = v => Math.max(0, Math.min(1, v / teiler));
-        const x = kl(e.x), y = kl(e.y);
-        z.box = [x, y, Math.max(0.001, Math.min(1 - x, e.b / teiler)), Math.max(0.001, Math.min(1 - y, e.h / teiler))];
-      }
-      return z;
-    });
-    return zeilen.length ? { ok: true, zeilen } : { ok: false, grund: 'leer', zeilen: [] };
-  }
-  const zeichenfolge = t => String(t || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^\p{L}\p{N}]+/gu, '');
-  function aehnlich(a, b) {
-    a = zeichenfolge(a); b = zeichenfolge(b);
-    if (!a.length || !b.length) return 0;
-    if (a === b) return 1;
-    let v = Array.from({ length: b.length + 1 }, (_, j) => j);
-    for (let i = 1; i <= a.length; i++) {
-      const w = [i];
-      for (let j = 1; j <= b.length; j++) w[j] = Math.min(v[j] + 1, w[j - 1] + 1, v[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-      v = w;
-    }
-    return 1 - v[b.length] / Math.max(a.length, b.length);
-  }
-  const KI_TREFFER = 0.5;   // gewählt, nicht gemessen: halbe Übereinstimmung der Zeichen reicht zum Zuordnen
-  // Ergebnis: { zeilen, aenderungen, zugeordnet, geraten, ohneLage }
-  function kiAbgleich(ki, ocr) {
-    ocr = ocr || []; const frei = new Set(ocr.map((_, i) => i));
-    const zeilen = [], aenderungen = {}; let zugeordnet = 0, geraten = 0, ohneLage = 0;
-    for (const k of ki) {
-      let best = -1, bs = 0;
-      for (const i of frei) { const s = aehnlich(k.text, ocr[i].text); if (s > bs) { bs = s; best = i; } }
-      let z;
-      if (best >= 0 && bs >= KI_TREFFER) {
-        const o = ocr[best]; frei.delete(best); zugeordnet++;
-        z = { text: k.text, conf: 100, box: o.box.slice(), quelle: 'ki' };
-        if (o.base) { z.base = o.base.slice(); z.rh = o.rh; z.desc = o.desc; }
-      } else if (k.box) {
-        geraten++; z = { text: k.text, conf: 60, box: k.box.slice(), quelle: 'ki', lageKi: true };
-      } else { ohneLage++; continue; }
-      if (k.neu) aenderungen[zeilen.length] = k.neu;
-      zeilen.push(z);
-    }
-    return { zeilen, aenderungen, zugeordnet, geraten, ohneLage };
-  }
-
-  const API = { A4, LETTER, FILTER, EINIG, sortiere, ausScanic, abstand, taugt, entscheiden, seitenMass, homographie, entzerren, drehen, filtern, hintergrund, textFarben, ganz, zeilenLage, kopieGroessen, zeilenBand, SCHRIFT_JE_ZEILENHOEHE, KI_SPRACHEN, KI_TREFFER, kiAuftrag, kiAntwortLesen, kiAbgleich, aehnlich };
+  const API = { A4, LETTER, FILTER, EINIG, sortiere, ausScanic, abstand, taugt, entscheiden, seitenMass, homographie, entzerren, drehen, filtern, hintergrund, textFarben, ganz, zeilenLage, kopieGroessen, zeilenBand, SCHRIFT_JE_ZEILENHOEHE, BILD_SPRACHEN, bildAuftrag };
   if (typeof window !== 'undefined') { window.WFP = window.WFP || {}; window.WFP.ScanBild = API; }
   if (typeof globalThis !== 'undefined') globalThis.__WFP_SCANBILD = API;
 })();

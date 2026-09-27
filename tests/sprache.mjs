@@ -81,13 +81,8 @@ async function rundreise(p) {
     await p.evaluate(() => { document.querySelectorAll('.dlg').forEach(d => d.remove()); const st = WFP.Scanner.zustand(), s = st.seiten[0]; s.ocr.zeilen.push({ text: 'Unsicher', conf: 40, box: [0.2, 0.4, 0.3, 0.05], base: [0.2, 0.44, 0.5, 0.44], rh: 0.04, desc: 0.01 }); st.vergleich = 'neben'; s.ausgabe = 'kopie'; WFP.Scanner.zeichne(); }); await ruhe(p);
     await p.click('.scan [data-tafel="kopie"] [data-zeile="1"]'); await ruhe(p);
   });
-  await schritt(p, 'Scannen: Text mit ChatGPT', async () => {
-    await p.evaluate(() => { document.querySelectorAll('.dlg').forEach(d => d.remove()); }); await ruhe(p);
-    await p.click('.scan [data-ki]'); await p.waitForSelector('.dlg [data-kiantwort]'); await p.click('.dlg [data-kiart="uebersetzen"]');
-    await p.fill('.dlg [data-kiantwort]', 'nichts'); await p.click('.dlg [data-kij]'); await ruhe(p);
-  });
-  await schritt(p, 'Scannen: Text von der KI übernommen', async () => {
-    await p.evaluate(() => { document.querySelectorAll('.dlg').forEach(d => d.remove()); const st = WFP.Scanner.zustand(), s = st.seiten[0]; s.ocr = { zeilen: [{ text: 'Musterstadt', conf: 100, box: [0.2, 0.2, 0.4, 0.05], quelle: 'ki' }, { text: 'Lage geraten', conf: 60, box: [0.2, 0.4, 0.4, 0.05], quelle: 'ki', lageKi: true }], sprache: 'deu', schluessel: s.ocr.schluessel, quelle: 'ki', ki: { zugeordnet: 1, geraten: 1, ohneLage: 0 } }; s.aenderungen = {}; WFP.Scanner.zeichne(); }); await ruhe(p);
+  await schritt(p, 'Scannen: Mit ChatGPT übersetzen', async () => {
+    await p.evaluate(() => { document.querySelectorAll('.dlg').forEach(d => d.remove()); const st = WFP.Scanner.zustand(); st.seiten[0]._kiBild = null; WFP.Scanner.zeichne(); }); await ruhe(p);
   });
   await schritt(p, 'Scannen: Teilen', async () => { await p.click('.scan [data-teilen]'); await p.waitForSelector('.dlg [data-dl]'); });
   await scanZu();
