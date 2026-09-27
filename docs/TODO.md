@@ -81,7 +81,23 @@ Tommys Hub Workflow." Eigener Abschnitt, damit Tomys Punkte beim Abarbeiten nich
 geteilten untergehen — die Liste bleibt trotzdem **eine** Datei. Betrifft ein Punkt eine geteilte
 Datei (`assets/wfpdf/…`, `werkzeug.js`), wird er beim Abarbeiten auch in Mein-WorkFloh geprüft.
 
-_(noch keine Punkte — Klaus diktiert sie der Reihe nach)_
+- [ ] 2026-09-27 · Tomys WorkFloh, danach Mein-WorkFloh · **„PDF bearbeiten" wie in Workflow PDF aufbauen, eigene Knöpfe behalten.**
+  Klaus: „Mache bitte Tommys Workflow PDF bearbeiten in der Ansicht … genauso wie Workflow PDF.
+  Aufbau, Button, Anordnung, Funktionen sind gleich. Die gleichen Zuordnungskategorien unten. Nur
+  die Farbe und das UI und die Art, wie es aufgebaut ist, also die Button, wie sie aufgebaut sind,
+  die Farbe und die Art, wie sie wackeln und was sie alles können, das soll gleich bleiben in
+  Tommys Workflow. Der Rest soll in der Art, wie es angerichtet ist, gleich sein von Workflow PDF.
+  Und das ziehst du dann bitte auch bei meinem Workflow nach. Das soll genauso aufgebaut sein. Nur
+  die eigenen Buttonform und Button von meinem Workflow sollen bleiben."
+  (Also: **von Workflow PDF übernehmen** — Aufbau und Anordnung des Bearbeiten-Fensters: Kopfzeile
+  mit Speichern · Teilen · Zurück · Name · PDF, die Umschalter bearbeiten/Ausfüllen/erkennen,
+  − / +, „Im Dokument suchen" mit ▲▼, die Seite groß darunter, die Feldarten-Leiste unten mit
+  denselben Kategorien und dem Hinweis. **Bleibt WorkFloh-eigen** — Knopfform, Farbe, das Wackeln
+  und was die Knöpfe können. Erst Tomys WorkFloh, dann Mein-WorkFloh gleich nachziehen.)
+  Beleg (Klaus' Bildschirmfoto 2026-09-27, zwei App-Fenster ausgeschnitten): links Tomys WorkFloh
+  „Felder erkennen / Verankern", Seite 1 · 2, Vorschläge-Kasten, Feld setzen mit Glas-Knöpfen —
+  rechts Workflow PDF im Modus „bearbeiten".
+  ![Tomys PDF bearbeiten gegen Workflow PDF](todo-belege/2026-09-27_tomy-pdf-bearbeiten-vs-workflow-pdf.jpg)
 
 ## Erledigt
 
