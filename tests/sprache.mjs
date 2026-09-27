@@ -77,6 +77,10 @@ async function rundreise(p) {
     await p.evaluate(() => { const st = WFP.Scanner.zustand(), s = st.seiten[0]; s.ocr = { zeilen: [{ text: 'Musterstadt', conf: 91, box: [0.2, 0.2, 0.4, 0.05] }], sprache: 'deu', schluessel: '' }; s.aenderungen = { 0: 'Beispielstadt' }; st.textModus = true; WFP.Scanner.zeichne(); }); await ruhe(p);
     await p.click('.scan [data-zeile="0"]'); await ruhe(p);
   });
+  await schritt(p, 'Scannen: Kopie neben Original', async () => {
+    await p.evaluate(() => { document.querySelectorAll('.dlg').forEach(d => d.remove()); const st = WFP.Scanner.zustand(), s = st.seiten[0]; s.ocr.zeilen.push({ text: 'Unsicher', conf: 40, box: [0.2, 0.4, 0.3, 0.05], base: [0.2, 0.44, 0.5, 0.44], rh: 0.04, desc: 0.01 }); st.vergleich = 'neben'; s.ausgabe = 'kopie'; WFP.Scanner.zeichne(); }); await ruhe(p);
+    await p.click('.scan [data-tafel="kopie"] [data-zeile="1"]'); await ruhe(p);
+  });
   await schritt(p, 'Scannen: Teilen', async () => { await p.click('.scan [data-teilen]'); await p.waitForSelector('.dlg [data-dl]'); });
   await scanZu();
   // Mit Dokumenten

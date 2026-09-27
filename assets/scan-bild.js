@@ -215,11 +215,48 @@
     if (!px.length) return { grund: [255, 255, 255], schrift: [0, 0, 0] };
     px.sort((a, b) => a[0] - b[0]);
     const mittel = arr => [1, 2, 3].map(k => Math.round(arr.reduce((s, q) => s + q[k], 0) / arr.length));
-    const hellst = px.slice(Math.floor(px.length * 0.7)), dunkelst = px.slice(0, Math.max(1, Math.floor(px.length * 0.1)));
+    // Papier: das MITTLERE Hell (45.–85. Perzentil), nicht das hellste — sonst wird die Deckfläche
+    // auf einem Foto mit Schatten sichtbar heller als das Papier daneben (Klaus 2026-09-27).
+    const hellst = px.slice(Math.floor(px.length * 0.45), Math.max(Math.floor(px.length * 0.45) + 1, Math.floor(px.length * 0.85))), dunkelst = px.slice(0, Math.max(1, Math.floor(px.length * 0.1)));
     return { grund: mittel(hellst), schrift: mittel(dunkelst) };
   }
 
-  const API = { A4, LETTER, FILTER, EINIG, sortiere, ausScanic, abstand, taugt, entscheiden, seitenMass, homographie, entzerren, drehen, filtern, hintergrund, textFarben, ganz };
+  /* Lage einer erkannten Zeile auf der Seite (Klaus 2026-09-27: „die Textrahmen sind nicht
+     stimmig"). Der Rahmen einer schrägen Zeile ist höher als die Schrift — wer ihn überdeckt,
+     löscht die Nachbarzeilen mit. Gerechnet wird deshalb an der GRUNDLINIE, die Tesseract je
+     Zeile liefert (samt Neigung), und an der Schrifthöhe (rowHeight, Unterlängen).
+     Kalibriert an Arial: 40 px → rowHeight 38, 24 px → 20 (gemessen 2026-09-27). */
+  const SCHRIFT_JE_ZEILENHOEHE = 1.1;
+  function zeilenLage(z, W, H) {
+    const [bx, by, bw, bh] = z.box.map((v, i) => v * (i % 2 ? H : W));
+    let x0, y0, x1, y1, rh, tief;
+    if (z.base && z.rh) {
+      x0 = z.base[0] * W; y0 = z.base[1] * H; x1 = z.base[2] * W; y1 = z.base[3] * H;
+      rh = z.rh * H; tief = Math.max(0, (z.desc || 0) * H);
+    } else {   // ohne Grundlinie (alte Erkennung): unteres Fünftel des Rahmens, waagerecht
+      x0 = bx; x1 = bx + bw; y0 = y1 = by + bh * 0.8; rh = bh * 0.85; tief = bh * 0.2;
+    }
+    if (!(x1 > x0)) { x0 = bx; x1 = bx + bw; }
+    const winkel = Math.atan2(y1 - y0, x1 - x0), laenge = Math.hypot(x1 - x0, y1 - y0);
+    const hoch = Math.max(rh - tief, rh * 0.6);
+    return { x: x0, y: y0, winkel, laenge, hoch, tief, rh, fs: rh * SCHRIFT_JE_ZEILENHOEHE, mitte: (y0 + y1) / 2 };
+  }
+  // Schriftgröße für eine sauber gesetzte Kopie: Zeilen ähnlicher Höhe (± 30 % um den Median)
+  // bekommen dieselbe Größe — die Messung schwankt von Zeile zu Zeile, das Blatt meist nicht.
+  function kopieGroessen(lagen) {
+    const rhs = lagen.map(l => l.rh).filter(v => v > 0).sort((a, b) => a - b);
+    if (!rhs.length) return lagen.map(l => l.fs);
+    const med = rhs[Math.floor(rhs.length / 2)];
+    return lagen.map(l => Math.abs(l.rh - med) / med < 0.3 ? med * SCHRIFT_JE_ZEILENHOEHE : l.fs);
+  }
+  // Das Band, in dem die Schrift einer Zeile liegt, als Viereck (für das Überdecken)
+  function zeilenBand(l, rand) {
+    const r = rand == null ? l.rh * 0.12 : rand, c = Math.cos(l.winkel), s = Math.sin(l.winkel);
+    const vor = -r, nach = l.laenge + r, oben = -(l.hoch + r), unten = l.tief + r;
+    return [[vor, oben], [nach, oben], [nach, unten], [vor, unten]].map(([u, v]) => [l.x + u * c - v * s, l.y + u * s + v * c]);
+  }
+
+  const API = { A4, LETTER, FILTER, EINIG, sortiere, ausScanic, abstand, taugt, entscheiden, seitenMass, homographie, entzerren, drehen, filtern, hintergrund, textFarben, ganz, zeilenLage, kopieGroessen, zeilenBand, SCHRIFT_JE_ZEILENHOEHE };
   if (typeof window !== 'undefined') { window.WFP = window.WFP || {}; window.WFP.ScanBild = API; }
   if (typeof globalThis !== 'undefined') globalThis.__WFP_SCANBILD = API;
 })();

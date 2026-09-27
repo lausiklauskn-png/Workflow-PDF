@@ -66,12 +66,12 @@
     }
     s.erkennung = SB().entscheiden(ein, w, hh);
     s.erkennung.verfahren = { blatt: !!(ein.blatt && ein.blatt.sicher), klassisch: !!ein.klassisch, ml: !!ein.ml };
-    if (!s.manuell) { s.ecken = s.erkennung.ecken.map(p => p.slice()); s.ocr = null; s.aenderungen = {}; }
+    if (!s.manuell) { s.ecken = s.erkennung.ecken.map(p => p.slice()); s.ocr = null; s.aenderungen = {}; s.stil = {}; }
   }
 
   /* ---------- Seite rechnen ---------- */
   function schluessel(s, dpi, mitText) {
-    return JSON.stringify([s.ecken, s.drehung, s.filter, s.hell, s.kontrast, ST.format, dpi, mitText ? s.aenderungen : 0]);
+    return JSON.stringify([s.ecken, s.drehung, s.filter, s.hell, s.kontrast, ST.format, dpi, mitText ? [s.aenderungen, s.stil] : 0]);
   }
   // Ergebnis einer Seite als Canvas: entzerren → drehen → Filter → geänderter Text
   function seiteRechnen(s, dpi, mitText) {
@@ -89,22 +89,77 @@
     if (s._vk !== k) { s._v = seiteRechnen(s, VORSCHAU_DPI).canvas; s._vk = k; }
     return s._v;
   }
-  // Geänderte Zeilen: Papierfarbe darüber, neuer Text in Schriftfarbe an dieselbe Stelle
+  // Geänderte Zeilen: das SCHRIFTBAND der alten Zeile (an der Grundlinie, samt Neigung) in
+  // Papierfarbe überdecken, dann den neuen Text darauf. Erst ALLE Bänder, dann ALLE Texte —
+  // sonst löscht das Band der nächsten Zeile die Unterlängen der vorigen (Klaus 2026-09-27:
+  // „150 q Butter", abgeschnittene Zeilen).
+  const SCHRIFT = 'Arial, Helvetica, sans-serif';
   function textAnwenden(c, img, s) {
     const x = c.getContext('2d'); const W = c.width, H = c.height;
+    const jobs = [];
+    // gleiche Schriftgröße für Zeilen gleicher Höhe — sonst springt sie von Zeile zu Zeile
+    const alleLagen = s.ocr.zeilen.map(z => SB().zeilenLage(z, W, H)), groessen = SB().kopieGroessen(alleLagen);
     for (const [i, neu] of Object.entries(s.aenderungen || {})) {
       const z = s.ocr.zeilen[+i]; if (!z) continue;
-      const b = { x: z.box[0] * W, y: z.box[1] * H, w: z.box[2] * W, h: z.box[3] * H };
-      const f = SB().textFarben(img, b), pad = Math.max(1, b.h * 0.12);
-      x.fillStyle = `rgb(${f.grund.join(',')})`; x.fillRect(b.x - pad, b.y - pad, b.w + 2 * pad, b.h + 2 * pad);
-      if (!neu) continue;
-      let fs = b.h * 0.9; x.font = `${fs}px Arial, Helvetica, sans-serif`;
-      const breite = x.measureText(neu).width;
-      if (breite > b.w * 1.02) { fs = Math.max(b.h * 0.55, fs * b.w / breite); x.font = `${fs}px Arial, Helvetica, sans-serif`; }
-      x.fillStyle = `rgb(${f.schrift.join(',')})`; x.textBaseline = 'alphabetic';
-      x.fillText(neu, b.x, b.y + b.h * 0.82);
+      const l = Object.assign({}, alleLagen[+i], { fs: groessen[+i] }), band = SB().zeilenBand(l);
+      // Papierfarbe am Anfang und am Ende der Zeile messen und als Verlauf überdecken —
+      // ein Foto ist selten gleichmäßig hell (Klaus 2026-09-27: „die Farbanpassung stimmt nicht ganz")
+      const probe = teil => { const pts = SB().zeilenBand(Object.assign({}, l, { x: l.x + Math.cos(l.winkel) * l.laenge * teil, y: l.y + Math.sin(l.winkel) * l.laenge * teil, laenge: l.laenge * 0.25 })); const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]); return SB().textFarben(img, { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }); };
+      const fa = probe(0), fe = probe(0.75);
+      jobs.push({ i: +i, l, band, fa, fe, neu });
+    }
+    for (const j of jobs) {
+      const g = x.createLinearGradient(j.band[0][0], j.band[0][1], j.band[1][0], j.band[1][1]);
+      g.addColorStop(0, `rgb(${j.fa.grund.join(',')})`); g.addColorStop(1, `rgb(${j.fe.grund.join(',')})`);
+      x.fillStyle = g; x.beginPath(); j.band.forEach((p, k) => k ? x.lineTo(p[0], p[1]) : x.moveTo(p[0], p[1])); x.closePath(); x.fill();
+    }
+    for (const j of jobs) if (j.neu) {
+      const st = stilVon(s, j.i), l = verschoben(j.l, st, W, H), schrift = j.fa.schrift.map((v, k) => Math.round((v + j.fe.schrift[k]) / 2));
+      schreibe(x, j.neu, l, l.fs * st.gr, j.l.winkel, `rgb(${schrift.join(',')})`, st);
     }
   }
+  /* Zeilen einstellen (Klaus 2026-09-27: „linksbündig oder rechtsbündig oder kleiner, größer
+     gezogen"): je Zeile Ausrichtung, Größe und Versatz. Versatz in Anteilen der Seite,
+     damit er bei jeder Auflösung gleich liegt. */
+  const STIL0 = { ausr: 'l', gr: 1, dx: 0, dy: 0 };
+  const stilVon = (s, i) => Object.assign({}, STIL0, (s.stil || {})[i]);
+  const stilLeer = st => st.ausr === 'l' && st.gr === 1 && !st.dx && !st.dy;
+  const verschoben = (l, st, W, H) => Object.assign({}, l, { x: l.x + st.dx * W, y: l.y + st.dy * H, mitte: l.mitte + st.dy * H });
+  // Text an die Grundlinie setzen. Ohne eigene Größe: zu breit → kleiner (nie unter 60 %), nie gedehnt.
+  function schreibe(x, t, l, fs, winkel, farbe, st) {
+    st = st || STIL0;
+    x.save(); x.translate(l.x, l.y); x.rotate(winkel);
+    x.font = `${fs}px ${SCHRIFT}`; let br = x.measureText(t).width;
+    if (st.gr === 1 && br > l.laenge * 1.02) { fs = Math.max(fs * 0.5, fs * l.laenge / br); x.font = `${fs}px ${SCHRIFT}`; br = x.measureText(t).width; }
+    const ab = st.ausr === 'r' ? l.laenge - br : st.ausr === 'm' ? (l.laenge - br) / 2 : 0;
+    x.fillStyle = farbe; x.textBaseline = 'alphabetic'; x.fillText(t, ab, 0); x.restore();
+  }
+  /* Die KOPIE (Klaus 2026-09-27: „eine Kopie neu aufbauen … Original und Kopie nebeneinander,
+     und dann vergleicht man sie"): ein sauberes weißes Blatt derselben Größe, jede erkannte
+     Zeile gerade an ihre Stelle gesetzt. Bilder, Stempel und Handschrift kommen NICHT mit —
+     dafür ist das Original da. */
+  function kopieRechnen(s, dpi) {
+    const m = SB().seitenMass(s.ecken, ST.format, dpi);
+    const quer = s.drehung % 2;
+    const W = quer ? m.H : m.W, H = quer ? m.W : m.H;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
+    if (s.ocr) {
+      const lagen = s.ocr.zeilen.map(z => SB().zeilenLage(z, W, H)), fs = SB().kopieGroessen(lagen);
+      lagen.forEach((l, i) => { const t = zeilenText(s, i); if (!t) return; const st = stilVon(s, i), m = verschoben(l, st, W, H); schreibe(x, t, { x: m.x, y: m.mitte, laenge: kopieBreite(l, W) }, fs[i] * st.gr, 0, '#1a1a1a', st); });
+    }
+    const seite = quer ? [m.seite[1], m.seite[0]] : m.seite;
+    return { canvas: c, seite };
+  }
+  // In der Kopie darf eine Zeile bis zum rechten Rand laufen: die gemessene Grundlinie ist oft
+  // kürzer als der Text, und die Zeile würde sonst kleiner gesetzt als ihre Nachbarn.
+  const kopieBreite = (l, W) => Math.max(l.laenge, W * 0.97 - l.x);
+  function kopieVorschau(s) {
+    const k = schluessel(s, VORSCHAU_DPI, true) + JSON.stringify([s.ocr && s.ocr.zeilen.length, s.ocr && s.ocr.dpi]);
+    if (s._kk !== k) { s._k = kopieRechnen(s, VORSCHAU_DPI).canvas; s._kk = k; }
+    return s._k;
+  }
+  const alsKopie = s => s.ausgabe === 'kopie' && s.ocr;
 
   /* ---------- Texterkennung ---------- */
   let _ocr = null;   // { sprache, worker }
@@ -117,8 +172,9 @@
     _ocr = { sprache, worker: w };
     return w;
   }
-  async function ocrSeite(s) {
-    const r0 = seiteRechnen(s, OCR_DPI, false), c = r0.canvas;
+  async function ocrSeite(s, dpi) {
+    dpi = dpi || OCR_DPI;
+    const r0 = seiteRechnen(s, dpi, false), c = r0.canvas;
     const w = await ocrWorker(ST.sprache);
     const r = await w.recognize(c, {}, { blocks: true, text: false });
     const zeilen = [];
@@ -126,10 +182,13 @@
       const t = String(li.text || '').replace(/\s+/g, ' ').trim();
       if (!t || li.confidence < 30 || !/[\p{L}\p{N}]/u.test(t)) continue;
       const bb = li.bbox;
-      zeilen.push({ text: t, conf: Math.round(li.confidence), box: [bb.x0 / c.width, bb.y0 / c.height, (bb.x1 - bb.x0) / c.width, (bb.y1 - bb.y0) / c.height] });
+      const z = { text: t, conf: Math.round(li.confidence), box: [bb.x0 / c.width, bb.y0 / c.height, (bb.x1 - bb.x0) / c.width, (bb.y1 - bb.y0) / c.height] };
+      const bl = li.baseline, ra = li.rowAttributes;
+      if (bl && ra && ra.rowHeight > 0 && bl.x1 > bl.x0) { z.base = [bl.x0 / c.width, bl.y0 / c.height, bl.x1 / c.width, bl.y1 / c.height]; z.rh = ra.rowHeight / c.height; z.desc = (ra.descenders || 0) / c.height; }
+      zeilen.push(z);
     }
-    s.ocr = { zeilen, sprache: ST.sprache, schluessel: JSON.stringify([s.ecken, s.drehung, ST.format]) };
-    s.aenderungen = {};
+    s.ocr = { zeilen, dpi, sprache: ST.sprache, schluessel: JSON.stringify([s.ecken, s.drehung, ST.format]) };
+    s.aenderungen = {}; s.stil = {};
     return s.ocr;
   }
   const ocrGilt = s => s.ocr && s.ocr.schluessel === JSON.stringify([s.ecken, s.drehung, ST.format]);
@@ -151,21 +210,37 @@
     const seiten = ST.seiten.filter(s => s.ecken);
     if (ST.durchsuchbar) for (let i = 0; i < seiten.length; i++) if (!ocrGilt(seiten[i])) { melde && melde(i / seiten.length, 'Text erkennen · Seite ' + (i + 1) + ' von ' + seiten.length); await ocrSeite(seiten[i]); }
     const pdf = await PDFDocument.create();
-    const texte = []; if (ST.durchsuchbar) for (const s of seiten) s.ocr.zeilen.forEach((z, i) => texte.push(zeilenText(s, i)));
+    for (let i = 0; i < seiten.length; i++) if (seiten[i].ausgabe === 'kopie' && !ocrGilt(seiten[i])) { melde && melde(i / seiten.length, 'Text erkennen · Seite ' + (i + 1) + ' von ' + seiten.length); await ocrSeite(seiten[i]); }
+    const texte = []; for (const s of seiten) if ((ST.durchsuchbar || alsKopie(s)) && s.ocr) s.ocr.zeilen.forEach((z, i) => texte.push(zeilenText(s, i)));
     const font = texte.length ? await schriftFuer(pdf, texte) : null;
     for (let i = 0; i < seiten.length; i++) {
       const s = seiten[i]; melde && melde(i / seiten.length, 'Seite ' + (i + 1) + ' von ' + seiten.length + ' rechnen');
+      if (alsKopie(s)) {
+        // Kopie: weißes Blatt mit ECHTEM Text (kein Bild) — gestochen scharf, klein, durchsuchbar
+        const k = kopieRechnen(s, 72), [pw, ph] = k.seite, p = pdf.addPage([pw, ph]);
+        const lagen = s.ocr.zeilen.map(z => SB().zeilenLage(z, pw, ph)), fs = SB().kopieGroessen(lagen);
+        lagen.forEach((l, zi) => {
+          const t = zeilenText(s, zi); if (!t) return;
+          const st = stilVon(s, zi), m = verschoben(l, st, pw, ph);
+          const w1 = font.widthOfTextAtSize(t, 1) || 1; let size = fs[zi] * st.gr;
+          const breit = kopieBreite(l, pw);
+          if (st.gr === 1 && w1 * size > breit * 1.02) size = Math.max(size * 0.5, breit / w1);
+          const ab = st.ausr === 'r' ? breit - w1 * size : st.ausr === 'm' ? (breit - w1 * size) / 2 : 0;
+          try { p.drawText(t, { x: m.x + ab, y: ph - m.mitte, size, font, color: PDFLib.rgb(0.1, 0.1, 0.1) }); } catch (_) {}
+        });
+        continue;
+      }
       const r = seiteRechnen(s, Q.dpi, true);
       const img = await pdf.embedJpg(await jpeg(r.canvas, Q.q));
       const [pw, ph] = r.seite, p = pdf.addPage([pw, ph]);
       p.drawImage(img, { x: 0, y: 0, width: pw, height: ph });
       if (ST.durchsuchbar && s.ocr) {
-        // unsichtbare Textebene: markieren, kopieren, durchsuchen — gezeichnet wird nichts
+        // unsichtbare Textebene an der Grundlinie: markieren, kopieren, durchsuchen — gezeichnet wird nichts
         s.ocr.zeilen.forEach((z, zi) => {
           const t = zeilenText(s, zi); if (!t) return;
-          const bw = z.box[2] * pw, bh = z.box[3] * ph; const w1 = font.widthOfTextAtSize(t, 1) || 1;
-          const size = Math.max(1, Math.min(bh * 0.95, bw / w1));
-          try { p.drawText(t, { x: z.box[0] * pw, y: ph - (z.box[1] + z.box[3]) * ph + bh * 0.18, size, font, opacity: 0 }); } catch (_) {}
+          const l = SB().zeilenLage(z, pw, ph), w1 = font.widthOfTextAtSize(t, 1) || 1;
+          const size = Math.max(1, Math.min(l.fs, l.laenge / w1));
+          try { p.drawText(t, { x: l.x, y: ph - l.y, size, font, opacity: 0, rotate: PDFLib.degrees(-l.winkel * 180 / Math.PI) }); } catch (_) {}
         });
       }
     }
@@ -180,7 +255,7 @@
     if (ST) schliessen();
     opt = opt || {};
     const sprache0 = merk.sprache || ({ de: 'deu', en: 'eng', ru: 'rus' }[(WFP.Sprache && WFP.Sprache.lang) || 'de'] || 'deu');
-    ST = { opt, seiten: [], akt: -1, ansicht: 'zuschnitt', textModus: false, format: merk.format, qualitaet: merk.qualitaet, durchsuchbar: merk.durchsuchbar, sprache: sprache0, name: opt.name || ('Scan ' + new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })), el: null };
+    ST = { opt, seiten: [], akt: -1, ansicht: 'zuschnitt', textModus: false, vergleich: 'original', ersetze: null, format: merk.format, qualitaet: merk.qualitaet, durchsuchbar: merk.durchsuchbar, sprache: sprache0, name: opt.name || ('Scan ' + new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })), el: null };
     const el = document.createElement('div'); el.className = 'scan'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
     el.innerHTML = `
       <div class="scan-kopf">
@@ -197,7 +272,7 @@
       <input type="file" accept="image/*" multiple data-in-galerie hidden>`;
     document.body.appendChild(el); ST.el = el; document.body.classList.add('scan-offen');
     $q('[data-schliessen]').onclick = async () => { if (!ST.seiten.length || await opt.frage('Scan verwerfen?', '<p>Die aufgenommenen Seiten werden nicht gespeichert.</p>', 'Verwerfen')) schliessen(); };
-    $q('[data-in-kamera]').onchange = e => { const f = [...(e.target.files || [])]; e.target.value = ''; hinzu(f); };
+    $q('[data-in-kamera]').onchange = e => { const f = [...(e.target.files || [])]; e.target.value = ''; if (!f.length) ST.ersetze = null; hinzu(f); };
     $q('[data-in-galerie]').onchange = e => { const f = [...(e.target.files || [])]; e.target.value = ''; hinzu(f); };
     zeichne();
     if (opt.dateien && opt.dateien.length) hinzu(opt.dateien);
@@ -217,8 +292,11 @@
     for (const f of bilder) {
       if (!ST) return;
       let foto; try { foto = await fotoLesen(f); } catch (e) { ST.opt.toast('⚠️ ' + (e.message || e)); continue; }
-      const s = { id: Math.random().toString(36).slice(2), name: f.name, foto, erkennung: null, ecken: null, manuell: false, drehung: 0, filter: merk.filter, hell: 0, kontrast: 0, ocr: null, aenderungen: {} };
-      ST.seiten.push(s); ST.akt = ST.seiten.length - 1; ST.ansicht = 'zuschnitt'; ST.textModus = false;
+      const alt = ST.ersetze ? ST.seiten.findIndex(o => o.id === ST.ersetze) : -1; ST.ersetze = null;
+      const s = { id: Math.random().toString(36).slice(2), name: f.name, foto, erkennung: null, ecken: null, manuell: false, drehung: 0, filter: merk.filter, hell: 0, kontrast: 0, ocr: null, aenderungen: {}, ausgabe: 'original' };
+      if (alt >= 0) { const o = ST.seiten[alt]; Object.assign(s, { drehung: o.drehung, filter: o.filter, hell: o.hell, kontrast: o.kontrast }); ST.seiten[alt] = s; ST.akt = alt; ST.opt.toast('📷 Seite ' + (alt + 1) + ' ersetzt'); }
+      else { ST.seiten.push(s); ST.akt = ST.seiten.length - 1; }
+      ST.ansicht = 'zuschnitt'; ST.textModus = false; ST.vergleich = 'original';
       zeichne();
       await erkennen(s);
       if (!ST) return;
@@ -228,7 +306,7 @@
   }
   function melden() {
     if (!ST) return;
-    window.__wfpdfScan = { seiten: ST.seiten.map(s => ({ name: s.name, ecken: s.ecken, erkennung: s.erkennung && { quelle: s.erkennung.quelle, sicher: s.erkennung.sicher, grund: s.erkennung.grund, verfahren: s.erkennung.verfahren }, manuell: s.manuell, drehung: s.drehung, filter: s.filter, hell: s.hell, kontrast: s.kontrast, foto: [s.foto.width, s.foto.height], ocr: s.ocr ? s.ocr.zeilen.length : null, aenderungen: Object.assign({}, s.aenderungen) })), akt: ST.akt, format: ST.format, qualitaet: ST.qualitaet, durchsuchbar: ST.durchsuchbar, mlFehler: _mlFehler };
+    window.__wfpdfScan = { seiten: ST.seiten.map(s => ({ name: s.name, ecken: s.ecken, erkennung: s.erkennung && { quelle: s.erkennung.quelle, sicher: s.erkennung.sicher, grund: s.erkennung.grund, verfahren: s.erkennung.verfahren }, manuell: s.manuell, drehung: s.drehung, filter: s.filter, hell: s.hell, kontrast: s.kontrast, foto: [s.foto.width, s.foto.height], ocr: s.ocr ? s.ocr.zeilen.length : null, ocrDpi: s.ocr ? s.ocr.dpi : null, ausgabe: s.ausgabe || 'original', aenderungen: Object.assign({}, s.aenderungen), stil: JSON.parse(JSON.stringify(s.stil || {})) })), akt: ST.akt, vergleich: ST.vergleich, format: ST.format, qualitaet: ST.qualitaet, durchsuchbar: ST.durchsuchbar, mlFehler: _mlFehler };
   }
   const akt = () => ST && ST.seiten[ST.akt];
 
@@ -283,38 +361,80 @@
         };
         bewege(e);
         g.onpointermove = bewege;
-        g.onpointerup = g.onpointercancel = () => { g.onpointermove = null; lupe.hidden = true; s.ocr = null; s.aenderungen = {}; zeichneLeiste(); zeichneWerkzeug(); melden(); };
+        g.onpointerup = g.onpointercancel = () => { g.onpointermove = null; lupe.hidden = true; s.ocr = null; s.aenderungen = {}; s.stil = {}; zeichneLeiste(); zeichneWerkzeug(); melden(); };
       };
     });
   }
-  /* Ergebnis: die fertige Seite; im Text-Modus liegen die erkannten Zeilen als Kästen darüber */
+  /* Ergebnis: die fertige Seite. Nach der Texterkennung auf Wunsch Original und Kopie
+     nebeneinander — eine Zeile antippen ändert sie, dieselbe Zeile leuchtet in beiden. */
   function zeichneErgebnis(b, s) {
-    const c = vorschau(s);
-    b.innerHTML = '<div class="scan-bild" data-rahmen><img data-ergebnis alt=""><div class="scan-zeilen" data-zeilen></div></div>';
-    const img = b.querySelector('[data-ergebnis]'), rahmen = b.querySelector('[data-rahmen]');
-    const maxW = Math.max(200, b.clientWidth - 8), maxH = Math.max(200, b.clientHeight - 8);
-    const f = Math.min(maxW / c.width, maxH / c.height);
-    rahmen.style.width = Math.round(c.width * f) + 'px'; rahmen.style.height = Math.round(c.height * f) + 'px';
-    img.src = c.toDataURL('image/jpeg', 0.85);
-    if (ST.textModus && s.ocr) {
-      const z = b.querySelector('[data-zeilen]');
-      z.innerHTML = s.ocr.zeilen.map((zl, i) => `<button data-kein-ue class="scan-zeile${Object.prototype.hasOwnProperty.call(s.aenderungen, i) ? ' geaendert' : ''}" data-zeile="${i}" style="left:${zl.box[0] * 100}%;top:${zl.box[1] * 100}%;width:${zl.box[2] * 100}%;height:${zl.box[3] * 100}%" title="${h(zeilenText(s, i))}"></button>`).join('');
-      z.querySelectorAll('[data-zeile]').forEach(k => k.onclick = () => zeileAendern(s, +k.dataset.zeile));
-    }
-  }
-  function zeileAendern(s, i) {
-    const alt = s.ocr.zeilen[i].text, jetzt = zeilenText(s, i);
-    ST.opt.dialog(`<h2>✎ Text ändern</h2><p class="hinweis">Erkannt (Sicherheit ${s.ocr.zeilen[i].conf} %): <span data-kein-ue>${h(alt)}</span></p>
-      <textarea data-t rows="3" data-kein-ue>${h(jetzt)}</textarea>
-      <p class="hinweis">Die alte Zeile wird mit der Papierfarbe überdeckt und der neue Text in der Schriftfarbe an dieselbe Stelle geschrieben. Leer lassen entfernt die Zeile.</p>
-      <div class="zeile"><button class="knopf" data-n>Abbrechen</button><button class="knopf" data-r>↺ Wie erkannt</button><button class="knopf rot" data-j>Übernehmen</button></div>`, (d, zu) => {
-      const t = d.querySelector('[data-t]'); t.focus(); t.select();
-      d.querySelector('[data-n]').onclick = zu;
-      d.querySelector('[data-r]').onclick = () => { delete s.aenderungen[i]; zu(); zeichne(); };
-      d.querySelector('[data-j]').onclick = () => { const v = t.value.replace(/\s+/g, ' ').trim(); if (v === alt) delete s.aenderungen[i]; else s.aenderungen[i] = v; zu(); zeichne(); };
+    const v = s.ocr ? (ST.vergleich || 'original') : 'original';
+    const tafeln = v === 'neben' ? ['original', 'kopie'] : [v];
+    b.innerHTML = `<div class="scan-vergleich${tafeln.length > 1 ? ' zwei' : ''}" data-vergleich="${v}">${tafeln.map(t => `<figure class="scan-tafel" data-tafel="${t}">${tafeln.length > 1 || t === 'kopie' ? `<figcaption>${t === 'kopie' ? '📄 Kopie — neu gesetzt aus dem erkannten Text' : '📷 Original'}</figcaption>` : ''}<div class="scan-bild" data-rahmen><img data-ergebnis${t === 'kopie' ? '-kopie' : ''} alt=""><div class="scan-zeilen" data-zeilen></div></div></figure>`).join('')}</div>`;
+    const kopf = tafeln.length > 1 || v === 'kopie' ? 26 : 0;
+    const maxW = Math.max(160, (b.clientWidth - 8 - (tafeln.length - 1) * 12) / tafeln.length), maxH = Math.max(200, b.clientHeight - 8 - kopf);
+    tafeln.forEach(t => {
+      const fig = b.querySelector(`[data-tafel="${t}"]`), c = t === 'kopie' ? kopieVorschau(s) : vorschau(s);
+      const f = Math.min(maxW / c.width, maxH / c.height), rahmen = fig.querySelector('[data-rahmen]');
+      rahmen.style.width = Math.round(c.width * f) + 'px'; rahmen.style.height = Math.round(c.height * f) + 'px';
+      fig.querySelector('img').src = c.toDataURL(t === 'kopie' ? 'image/png' : 'image/jpeg', 0.85);
+      if (!s.ocr || (!ST.textModus && t === 'original' && tafeln.length === 1)) return;
+      const z = fig.querySelector('[data-zeilen]');
+      const lagen = t === 'kopie' ? s.ocr.zeilen.map(zl => SB().zeilenLage(zl, c.width, c.height)) : null;
+      z.innerHTML = s.ocr.zeilen.map((zl, i) => {
+        let st;
+        if (t === 'kopie') { const l = lagen[i], fs = SB().kopieGroessen(lagen)[i]; st = `left:${l.x / c.width * 100}%;top:${(l.mitte - fs * 0.85) / c.height * 100}%;width:${l.laenge / c.width * 100}%;height:${fs * 1.1 / c.height * 100}%`; }
+        else { const bd = SB().zeilenBand(SB().zeilenLage(zl, c.width, c.height)), xs = bd.map(p => p[0]), ys = bd.map(p => p[1]); st = `left:${Math.min(...xs) / c.width * 100}%;top:${Math.min(...ys) / c.height * 100}%;width:${(Math.max(...xs) - Math.min(...xs)) / c.width * 100}%;height:${(Math.max(...ys) - Math.min(...ys)) / c.height * 100}%`; }
+        const kl = (Object.prototype.hasOwnProperty.call(s.aenderungen, i) ? ' geaendert' : '') + (zl.conf < 70 ? ' unsicher' : '');
+        return `<button data-kein-ue class="scan-zeile${kl}" data-zeile="${i}" style="${st}" title="${h(zeilenText(s, i))}${zl.conf < 70 ? ' — unsicher erkannt (' + zl.conf + ' %), bitte prüfen' : ''}"></button>`;
+      }).join('');
+    });
+    b.querySelectorAll('[data-zeile]').forEach(k => {
+      const alle = () => b.querySelectorAll(`[data-zeile="${k.dataset.zeile}"]`);
+      k.onpointerenter = () => alle().forEach(e => e.classList.add('hell'));
+      k.onpointerleave = () => alle().forEach(e => e.classList.remove('hell'));
+      const i = +k.dataset.zeile, inKopie = !!k.closest('[data-tafel="kopie"]');
+      if (!inKopie) { k.onclick = () => zeileAendern(s, i); return; }
+      // In der Kopie: kurz tippen ändert, ziehen verschiebt
+      k.onpointerdown = e => {
+        const r = k.closest('[data-rahmen]').getBoundingClientRect(), x0 = e.clientX, y0 = e.clientY, st = stilVon(s, i);
+        const l0 = parseFloat(k.style.left), t0 = parseFloat(k.style.top); let gezogen = false;
+        k.setPointerCapture(e.pointerId);
+        k.onpointermove = ev => { const dx = ev.clientX - x0, dy = ev.clientY - y0; if (!gezogen && Math.hypot(dx, dy) < 6) return; gezogen = true; k.style.left = (l0 + dx / r.width * 100) + '%'; k.style.top = (t0 + dy / r.height * 100) + '%'; };
+        k.onpointerup = ev => {
+          k.onpointermove = k.onpointerup = null;
+          if (!gezogen) { zeileAendern(s, i); return; }
+          st.dx += (ev.clientX - x0) / r.width; st.dy += (ev.clientY - y0) / r.height;
+          s.stil = s.stil || {}; s.stil[i] = st; s.aenderungen[i] = zeilenText(s, i); zeichne();
+        };
+      };
     });
   }
-
+  function zeileAendern(s, i) {
+    const alt = s.ocr.zeilen[i].text, jetzt = zeilenText(s, i), st = stilVon(s, i);
+    const chip = (k, n) => `<button class="chip${st.ausr === k ? ' on' : ''}" data-ausr="${k}">${n}</button>`;
+    ST.opt.dialog(`<h2>✎ Zeile ändern</h2><p class="hinweis">Erkannt (Sicherheit ${s.ocr.zeilen[i].conf} %): <span data-kein-ue>${h(alt)}</span></p>
+      <textarea data-t rows="3" data-kein-ue>${h(jetzt)}</textarea>
+      <div class="scan-stil"><span>Ausrichtung</span><div class="scan-chips">${chip('l', '⇤ Links')}${chip('m', '↔ Mitte')}${chip('r', '⇥ Rechts')}</div></div>
+      <div class="scan-stil"><span>Größe</span><div class="scan-chips"><button class="chip" data-gr="-1" title="Kleiner">A−</button><output data-grw>${Math.round(st.gr * 100)} %</output><button class="chip" data-gr="1" title="Größer">A+</button></div></div>
+      ${alsKopie(s) || ST.vergleich !== 'original' ? '<p class="hinweis">In der Kopie lässt sich die Zeile auch mit dem Finger verschieben.</p>' : ''}
+      <p class="hinweis">${alsKopie(s) ? 'Die Kopie wird mit dem neuen Text neu gesetzt.' : 'Im Original wird die alte Zeile an ihrer Schriftlinie mit der Papierfarbe überdeckt und der neue Text an dieselbe Stelle geschrieben.'}</p>
+      <p class="hinweis">Leer lassen entfernt die Zeile.</p>
+      <div class="zeile"><button class="knopf" data-n>Abbrechen</button><button class="knopf" data-r>↺ Wie erkannt</button><button class="knopf rot" data-j>Übernehmen</button></div>`, (d, zu) => {
+      const t = d.querySelector('[data-t]'); t.focus(); t.select();
+      d.querySelectorAll('[data-ausr]').forEach(k => k.onclick = () => { st.ausr = k.dataset.ausr; d.querySelectorAll('[data-ausr]').forEach(e => e.classList.toggle('on', e === k)); });
+      d.querySelectorAll('[data-gr]').forEach(k => k.onclick = () => { st.gr = Math.round(Math.max(0.4, Math.min(3, st.gr + (+k.dataset.gr) * 0.1)) * 10) / 10; d.querySelector('[data-grw]').textContent = Math.round(st.gr * 100) + ' %'; });
+      d.querySelector('[data-n]').onclick = zu;
+      d.querySelector('[data-r]').onclick = () => { delete s.aenderungen[i]; if (s.stil) delete s.stil[i]; zu(); zeichne(); };
+      d.querySelector('[data-j]').onclick = () => {
+        const v = t.value.replace(/\s+/g, ' ').trim();
+        s.stil = s.stil || {}; if (stilLeer(st)) delete s.stil[i]; else s.stil[i] = st;
+        // Eine nur verschobene oder vergrößerte Zeile muss im Original neu geschrieben werden
+        if (v === alt && stilLeer(st)) delete s.aenderungen[i]; else s.aenderungen[i] = v;
+        zu(); zeichne();
+      };
+    });
+  }
   function zeichneWerkzeug() {
     const w = $q('[data-werkzeug]'), s = akt();
     if (!s || !s.ecken) { w.innerHTML = ''; return; }
@@ -333,19 +453,30 @@
         <div class="scan-knoepfe"><button class="knopf" data-dreh="-1" title="Nach links drehen">⟲ Links</button><button class="knopf" data-dreh="1" title="Nach rechts drehen">⟳ Rechts</button><button class="knopf" data-alle>Auf alle Seiten anwenden</button></div>
         <div class="scan-gruppe"><b>Text</b>
           <div class="scan-knoepfe"><select data-sprache title="Sprache der Texterkennung">${Object.entries(SPRACHEN).map(([k, v]) => `<option value="${k}"${ST.sprache === k ? ' selected' : ''}>${h(v)}</option>`).join('')}</select>
-          <button class="knopf" data-ocr>🔤 Text erkennen</button>${s.ocr ? `<button class="knopf${ST.textModus ? ' an' : ''}" data-textmodus>✎ Text ändern</button>` : ''}</div>
-          <p class="hinweis" data-ocrstand>${s.ocr ? s.ocr.zeilen.length + ' Zeilen erkannt' + (Object.keys(s.aenderungen).length ? ' · ' + Object.keys(s.aenderungen).length + ' geändert' : '') + (ST.textModus ? ' — eine Zeile antippen, um sie zu ändern.' : '') : 'Erkennt den Text auf dem Gerät. Danach lassen sich Zeilen ändern, und das PDF wird durchsuchbar.'}</p></div>
+          ${s.ocr ? `<button class="knopf${ST.textModus ? ' an' : ''}" data-textmodus>✎ Text ändern</button>` : '<button class="knopf" data-ocr>🔤 Text erkennen</button>'}
+          <button class="knopf${ST.vergleich === 'neben' && s.ocr ? ' an' : ''}" data-kopie>📄 Kopie neben Original</button></div>
+          <div class="scan-stand" data-ocrstand>${s.ocr ? [
+            `<p class="hinweis">${s.ocr.zeilen.length} Zeilen erkannt (${s.ocr.dpi || OCR_DPI} dpi)</p>`,
+            s.ocr.zeilen.some(z => z.conf < 70) ? `<p class="hinweis">${s.ocr.zeilen.filter(z => z.conf < 70).length} davon unsicher (gelb) — bitte prüfen</p>` : '',
+            Object.keys(s.aenderungen).length ? `<p class="hinweis">${Object.keys(s.aenderungen).length} geändert</p>` : '',
+            ST.textModus || ST.vergleich !== 'original' ? '<p class="hinweis">Eine Zeile antippen, um sie zu ändern.</p>' : ''].join('') : '<p class="hinweis">Erkennt den Text auf dem Gerät. Danach lassen sich Zeilen ändern, und das PDF wird durchsuchbar.</p>'}</div>
+          ${s.ocr ? `<div class="scan-chips" data-ansichten>${[['original', '📷 Original'], ['neben', '◧ Nebeneinander'], ['kopie', '📄 Kopie']].map(([k, n]) => `<button class="chip${(ST.vergleich || 'original') === k ? ' on' : ''}" data-vgl="${k}">${n}</button>`).join('')}</div>
+          <p class="hinweis"><b>Ins PDF kommt:</b></p>
+          <div class="scan-chips" data-ausgaben><button class="chip${!alsKopie(s) ? ' on' : ''}" data-ausgabe="original">Original (Foto)</button><button class="chip${alsKopie(s) ? ' on' : ''}" data-ausgabe="kopie">Kopie (sauberer Text)</button></div>
+          <p class="hinweis">${alsKopie(s) ? 'Die Kopie trägt nur den erkannten Text — Bilder, Stempel und Handschrift fehlen. Vorher mit dem Original vergleichen.' : 'Das Foto bleibt, wie es ist. Die Kopie ist ein sauber neu gesetztes Blatt aus dem erkannten Text.'}</p>
+          <p class="hinweis"><b>Kopie stimmt nicht?</b></p>
+          <div class="scan-knoepfe"><button class="knopf" data-genauer${(s.ocr.dpi || OCR_DPI) >= 300 ? ' disabled' : ''}>🔍 Genauer erkennen (300 dpi)</button><button class="knopf" data-neufoto>📷 Seite neu fotografieren</button></div>` : ''}</div>
         <button class="knopf gefahr" data-weg>🗑 Seite entfernen</button>`;
     }
     w.innerHTML = tabs + inhalt;
-    w.querySelectorAll('[data-ansicht]').forEach(k => k.onclick = () => { ST.ansicht = k.dataset.ansicht; ST.textModus = false; zeichne(); });
+    w.querySelectorAll('[data-ansicht]').forEach(k => k.onclick = () => { ST.ansicht = k.dataset.ansicht; ST.textModus = false; ST.vergleich = 'original'; zeichne(); });
     const q = sel => w.querySelector(sel);
-    if (q('[data-auto]')) q('[data-auto]').onclick = () => { s.manuell = false; s.ecken = s.erkennung.ecken.map(p => p.slice()); s.ocr = null; s.aenderungen = {}; zeichne(); };
-    if (q('[data-ganz]')) q('[data-ganz]').onclick = () => { s.manuell = true; s.ecken = SB().ganz(s.foto.width, s.foto.height); s.ocr = null; s.aenderungen = {}; zeichne(); };
+    if (q('[data-auto]')) q('[data-auto]').onclick = () => { s.manuell = false; s.ecken = s.erkennung.ecken.map(p => p.slice()); s.ocr = null; s.aenderungen = {}; s.stil = {}; zeichne(); };
+    if (q('[data-ganz]')) q('[data-ganz]').onclick = () => { s.manuell = true; s.ecken = SB().ganz(s.foto.width, s.foto.height); s.ocr = null; s.aenderungen = {}; s.stil = {}; zeichne(); };
     w.querySelectorAll('[data-filter]').forEach(k => k.onclick = () => { s.filter = k.dataset.filter; merk.filter = s.filter; merken(); zeichne(); });
     const regler = (sel, feld) => { const r = q(sel); if (!r) return; r.oninput = () => { r.nextElementSibling.textContent = r.value; }; r.onchange = () => { s[feld] = +r.value; zeichneBuehne(); zeichneLeiste(); melden(); }; };
     regler('[data-hell]', 'hell'); regler('[data-kontrast]', 'kontrast');
-    w.querySelectorAll('[data-dreh]').forEach(k => k.onclick = () => { s.drehung = (s.drehung + (+k.dataset.dreh) + 4) % 4; s.ocr = null; s.aenderungen = {}; ST.textModus = false; zeichne(); });
+    w.querySelectorAll('[data-dreh]').forEach(k => k.onclick = () => { s.drehung = (s.drehung + (+k.dataset.dreh) + 4) % 4; s.ocr = null; s.aenderungen = {}; s.stil = {}; ST.textModus = false; zeichne(); });
     if (q('[data-alle]')) q('[data-alle]').onclick = () => { for (const o of ST.seiten) { o.filter = s.filter; o.hell = s.hell; o.kontrast = s.kontrast; } ST.opt.toast('Filter, Helligkeit und Kontrast gelten jetzt für alle ' + ST.seiten.length + ' Seiten'); zeichne(); };
     if (q('[data-sprache]')) q('[data-sprache]').onchange = e => { ST.sprache = e.target.value; merk.sprache = ST.sprache; merken(); };
     if (q('[data-ocr]')) q('[data-ocr]').onclick = async () => {
@@ -355,6 +486,19 @@
       zeichne();
     };
     if (q('[data-textmodus]')) q('[data-textmodus]').onclick = () => { ST.textModus = !ST.textModus; zeichne(); };
+    if (q('[data-kopie]')) q('[data-kopie]').onclick = async () => {
+      if (!s.ocr) { const k = q('[data-kopie]'); k.disabled = true; k.textContent = '📄 Text wird erkannt …'; try { await ocrSeite(s); } catch (e) { ST.opt.toast('⚠️ ' + (e.message || e)); zeichne(); return; } }
+      ST.vergleich = 'neben'; zeichne();
+    };
+    w.querySelectorAll('[data-vgl]').forEach(k => k.onclick = () => { ST.vergleich = k.dataset.vgl; zeichne(); });
+    w.querySelectorAll('[data-ausgabe]').forEach(k => k.onclick = () => { s.ausgabe = k.dataset.ausgabe; zeichne(); });
+    if (q('[data-genauer]')) q('[data-genauer]').onclick = async () => {
+      if (Object.keys(s.aenderungen).length && !await ST.opt.frage('Neu erkennen?', '<p>Die Seite wird mit 300 dpi neu gelesen. Ihre ' + Object.keys(s.aenderungen).length + ' Änderung(en) an Zeilen gehen dabei verloren.</p>', 'Neu erkennen')) return;
+      const k = q('[data-genauer]'); k.disabled = true; k.textContent = '🔍 Wird genauer erkannt …';
+      try { await ocrSeite(s, 300); ST.opt.toast('🔍 ' + s.ocr.zeilen.length + ' Zeilen mit 300 dpi erkannt'); } catch (e) { ST.opt.toast('⚠️ ' + (e.message || e)); }
+      zeichne();
+    };
+    if (q('[data-neufoto]')) q('[data-neufoto]').onclick = () => { ST.ersetze = s.id; $q('[data-in-kamera]').click(); };
     if (q('[data-weg]')) q('[data-weg]').onclick = () => { ST.seiten.splice(ST.akt, 1); ST.akt = Math.min(ST.akt, ST.seiten.length - 1); ST.ansicht = 'zuschnitt'; zeichne(); };
   }
 
@@ -417,7 +561,7 @@
       const fb = ST.opt.fortschritt('Bilder werden gebaut'); const Q = QUALI[ST.qualitaet] || QUALI.normal;
       try {
         const eintraege = [];
-        for (let i = 0; i < ST.seiten.length; i++) { fb.setze(i / ST.seiten.length, 'Seite ' + (i + 1)); eintraege.push({ name: datei() + ' - Seite ' + String(i + 1).padStart(2, '0') + '.jpg', bytes: await jpeg(seiteRechnen(ST.seiten[i], Q.dpi, true).canvas, Q.q) }); }
+        for (let i = 0; i < ST.seiten.length; i++) { fb.setze(i / ST.seiten.length, 'Seite ' + (i + 1)); eintraege.push({ name: datei() + ' - Seite ' + String(i + 1).padStart(2, '0') + '.jpg', bytes: await jpeg(alsKopie(ST.seiten[i]) ? kopieRechnen(ST.seiten[i], Q.dpi).canvas : seiteRechnen(ST.seiten[i], Q.dpi, true).canvas, Q.q) }); }
         const z = WFP.Zip.zip(eintraege); fb.zu(); ST.opt.laden(datei() + '.zip', z, 'application/zip'); ST.opt.toast('🖼 ' + eintraege.length + ' Bilder als ZIP');
       } catch (e) { fb.zu(); ST.opt.toast('⚠️ ' + (e.message || e)); }
     };
@@ -431,5 +575,5 @@
   const groesse = n => n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
 
   window.WFP = window.WFP || {};
-  window.WFP.Scanner = { oeffnen, schliessen, hinzu, zustand: () => ST, pdfBauen, seiteRechnen, ocrSeite, erkennen, zeichne };
+  window.WFP.Scanner = { oeffnen, schliessen, hinzu, zustand: () => ST, pdfBauen, seiteRechnen, kopieRechnen, ocrSeite, erkennen, zeichne };
 })();

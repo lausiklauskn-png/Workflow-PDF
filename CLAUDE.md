@@ -79,15 +79,40 @@ fotografieren" (an ein Dokument anhängen). Der alte Aufnahme-Dialog ist weg.
   (`textFarben`). Die Textebene des durchsuchbaren PDFs trägt den geänderten Text
   (unsichtbar, Noto ganz eingebettet, falls nötig). Ecken, Drehen oder Format ändern
   verwirft die Erkennung.
+- **Zeilen an der Grundlinie, nicht am Rahmen** (Klaus 2026-09-27, Bienenstich-Foto: „150 q
+  Butter", abgeschnittene Zeilen, „die Textrahmen sind nicht stimmig"). Bei einem schrägen Foto
+  ist der Rahmen einer Zeile höher als ihre Schrift; wer ihn überdeckt, löscht die Nachbarzeile.
+  Gespeichert wird je Zeile `base` (Grundlinie samt Neigung) und `rh`/`desc` (Tesseract
+  `rowAttributes`); `zeilenLage`/`zeilenBand` in scan-bild.js rechnen daraus das Schriftband.
+  **Erst alle Deckflächen, dann alle Texte** — sonst frisst das Band der nächsten Zeile die
+  Unterlängen. Deckfarbe als Verlauf, links und rechts an der Zeile gemessen; Papier = 45.–85.
+  Perzentil, nicht das hellste. Schrift 1,1 × rowHeight (kalibriert an Arial: 40 px → 38),
+  Zeilen ±30 % um den Median bekommen dieselbe Größe.
+- **Kopie neben Original** (Klaus 2026-09-27: „eine Kopie neu aufbauen … zwei nebeneinander
+  … vergleichen"): „📄 Kopie neben Original" setzt die erkannten Zeilen gerade auf ein weißes
+  Blatt; Ansicht Original · Nebeneinander · Kopie; dieselbe Zeile leuchtet in beiden; unsichere
+  Zeilen (< 70 %) gelb. „Ins PDF kommt: Original (Foto) / Kopie (sauberer Text)" je Seite
+  (`s.ausgabe`) — die Kopie geht als ECHTER Text ins PDF, ohne Bild. Stimmt sie nicht: „🔍 Genauer
+  erkennen (300 dpi)" oder „📷 Seite neu fotografieren" (ersetzt DIESE Seite, `ST.ersetze`).
+  Bilder, Stempel und Handschrift kommen nicht in die Kopie — das steht in der App.
+- **Zeilen einstellen** (Klaus: „linksbündig oder rechtsbündig oder kleiner, größer gezogen"):
+  im Zeilen-Dialog Ausrichtung und Größe (40–300 %), in der Kopie ziehen = verschieben
+  (`s.stil[i] = {ausr, gr, dx, dy}`, Versatz in Anteilen der Seite). Mit eigener Größe wird nicht
+  mehr automatisch verkleinert.
 - Fotos werden auf ≤ 2400 px lange Kante verkleinert, nie abgewiesen. Einstellungen
   (Filter, Format, Qualität, durchsuchbar, Sprache) in `localStorage` `wfpdf_scan_v1`.
 - Proben: `tests/scan.mjs` (in `npm test`, A Rechnung · B 17 Fotos · C ganzer Weg mit echtem
-  Tesseract) · `node tests/gegenprobe_scan.mjs` (22 Fälle, Wegwerf-Kopie; `NUR_ANKER=1`).
+  Tesseract) · `node tests/gegenprobe_scan.mjs` (30 Fälle, Wegwerf-Kopie; `NUR_ANKER=1`).
   Gemessen am 2026-09-26: `scan.mjs` 58 grün · Gegenprobe erst **20 gefangen · 1 blind ·
   1 aus falschem Grund**. Blind war „Umordnen": die zweite Seite erbte den gemerkten Filter,
   also sahen beide Seiten gleich aus — gemessen wird jetzt der Dateiname je Seite. Falsch war
   eine Sabotage (`a || (b) ? c : d` bindet anders als gedacht). Beide danach nachgefahren:
   gefangen, jede rote Zeile mit ihrem Namen.
+  **Nach „Kopie neben Original" (2026-09-26):** `scan.mjs` 70 grün (D: Kopie, Grundlinie,
+  Unterlängen, Ausrichtung, Ziehen, PDF aus der Kopie, neu fotografieren) · Gegenprobe 30 Fälle:
+  erst **28 gefangen · 2 aus falschem Grund** — die Probe WARTETE auf das, was die Sabotage wegnahm
+  (Kopie-Tafel 180 s, „Neu.png an Stelle 1" 60 s), und starb am Zeitablauf. Jetzt wird erst auf
+  die Erkennung gewartet und das Fehlende gemeldet; beide Fälle nachgefahren: gefangen.
 - ⚠ **Nicht gemessen:** echte Handy-Kamera, Modell auf dem Tablet (Zeit, Speicher),
   Qualität der Texterkennung auf echten Briefen. Die Bildschirmfotos im Handbuch zeigen noch
   den alten Aufnahme-Dialog (`node tools/handbuch-bauen.mjs` baut sie neu).
