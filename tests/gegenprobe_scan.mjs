@@ -57,7 +57,14 @@ const FAELLE = [
   { name: "BILD: Sprachwahl wird nicht gemerkt", datei: "assets/scanner.js", anker: "onchange = e => { merk.bildNach = e.target.value; merken(); };", ersatz: "onchange = e => {};", trifft: /gewählte Sprache \(Russisch\)/ },
   { name: "BILD: ohne Teilen passiert nichts", datei: "assets/scanner.js", anker: "window.open('https://chatgpt.com/', '_blank', 'noopener');", ersatz: "", trifft: /Ohne Teilen/ },
   { name: "BILD: zurückgeholtes Bild wird zugeschnitten und gefiltert", datei: "assets/scanner.js", anker: "if (o.bildKi) Object.assign(s, { filter: 'original',", ersatz: "if (false) Object.assign(s, { filter: 'original',", trifft: /IST die Seite/ },
-  { name: "BILD: Ergebnis landet am Ende statt dahinter", datei: "assets/scanner.js", anker: "else if (hinter >= 0) { ST.seiten.splice(hinter + 1, 0, s);", ersatz: "else if (false) { ST.seiten.splice(hinter + 1, 0, s);", trifft: /Seite dahinter/ }
+  { name: "BILD: Ergebnis landet am Ende statt dahinter", datei: "assets/scanner.js", anker: "else if (hinter >= 0) { ST.seiten.splice(hinter + 1, 0, s);", ersatz: "else if (false) { ST.seiten.splice(hinter + 1, 0, s);", trifft: /Seite dahinter/ },
+  // Lupe und Handy-Platz (Klaus 2026-09-27). Die Größe halten ZWEI Riegel (Inline-Maß UND die CSS-Regel mit
+  // höherem Vorrang als `.scan-bild canvas{width:100%}`) — der Fall nimmt beide, sonst misst er nichts.
+  { name: "LUPE: wieder so groß wie das ganze Bild", datei: "assets/scanner.js", anker: "lupe.style.width = lupe.style.height = d + 'px';", ersatz: "", extra: { datei: "assets/style.css", anker: ".scan-bild canvas.scan-lupe{", ersatz: ".scan-lupe{" }, trifft: /Lupe ist klein/ },
+  { name: "LUPE: feste 120 px statt nach dem Bild", datei: "assets/scanner.js", anker: "return Math.max(56, Math.min(84, Math.round(Math.min(W, H) / 5)));", ersatz: "return 120;", trifft: /Lupe ist klein|≤ 64 px/ },
+  { name: "LUPE: liegt über dem Punkt", datei: "assets/scanner.js", anker: "lx = Math.max(0, Math.min(W - d, lx)); ly = Math.max(0, Math.min(H - d, ly));", ersatz: "lx = x - d / 2; ly = y - d / 2;", trifft: /NICHT über dem Punkt|deckt den Punkt nicht/ },
+  { name: "HANDY: Foto bekommt wieder nur einen Streifen", datei: "assets/style.css", anker: ".scan-buehne{flex:none;height:52vh;height:52dvh}", ersatz: ".scan-buehne{flex:none;height:20vh;height:20dvh}", trifft: /ein Drittel der Höhe/ },
+  { name: "HANDY: Bild ragt über die Bühne, Ecken nicht greifbar", datei: "assets/scanner.js", anker: "const maxW = Math.max(60, b.clientWidth - 40), maxH = Math.max(60, b.clientHeight - 40);", ersatz: "const maxW = Math.max(60, b.clientWidth + 120), maxH = Math.max(60, b.clientHeight + 120);", trifft: /alle vier Ecken sind zu greifen/ }
 ];
 
 const NUR = process.env.NUR_FALL; if (NUR) FAELLE.splice(0, FAELLE.length, ...FAELLE.filter(f => f.name.includes(NUR)));

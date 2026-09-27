@@ -121,6 +121,17 @@ Datei (`assets/wfpdf/…`, `werkzeug.js`), wird er beim Abarbeiten auch in Mein-
   in Weiß auf hellem Glas-Knopf, kaum zu erkennen.
   ![Übersetzen-Knopf nicht lesbar](todo-belege/2026-09-27_tomy-uebersetzen-knopf.jpg)
 
+- [ ] 2026-09-27 · Tomys WorkFloh + Mein-WorkFloh · **Dieselbe Maschine wie Workflow PDF: Scannen und PDF bearbeiten.**
+  Klaus: „alle Funktionen … PDF bearbeiten und PDF scannen, Foto PDF scannen und PDF oder Bild aus Ordner
+  einfügen … die ganze Maschinerie dahinter … soll nicht genauso aufgebaut sein, aber dieselbe Technik
+  haben. Es sollen zu denselben Ergebnissen führen."
+  Auftrag mit Befund (Prüfsummen) und Weg: `docs/sessions/BRIEF_workflohs-dieselbe-maschine.md`.
+
 ## Erledigt
 
-_(noch leer)_
+- [x] 2026-09-27 · Workflow-PDF · **Lupe beim Zuschneiden zu groß.**
+  Klaus: „Der Vergrößerungsausschnitt beim Ziehen des Punktes für die Positionierung der Polygone zum
+  Zuschneiden der PDF muss kleiner sein … Auf dem kleinen Handy ist das ziemlich schwierig."
+  Ursache: `.scan-bild canvas{width:100%}` schlug `.scan-lupe{width:120px}` — die Lupe war so groß wie
+  das ganze Bild (gemessen 431×574). Jetzt 56–84 px, neben dem Punkt. Dabei am Handy gefunden: das Foto
+  bekam nur 156 px, die oberen Ecken lagen unter der Kopfleiste — mit behoben. PR in diesem Durchgang.
