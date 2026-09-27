@@ -74,6 +74,15 @@ Datei, wird er hier behoben und dann in die WorkFlohs kopiert.
   Beleg (Klaus' Bildschirmfoto 2026-09-27, nur Suchfeld): links 🔎 im Platzhalter, rechts 🎤 und noch einmal 🔎.
   ![Zwei Lupen](todo-belege/2026-09-27_zwei-lupen.png)
 
+## Offen · Tomys WorkFloh (`Tomys-Hub/workfloh/`)
+
+**Angelegt 2026-09-27 auf Klaus' Wort:** „Ich sage dir der Reihe nach, was zu machen ist an
+Tommys Hub Workflow." Eigener Abschnitt, damit Tomys Punkte beim Abarbeiten nicht zwischen den
+geteilten untergehen — die Liste bleibt trotzdem **eine** Datei. Betrifft ein Punkt eine geteilte
+Datei (`assets/wfpdf/…`, `werkzeug.js`), wird er beim Abarbeiten auch in Mein-WorkFloh geprüft.
+
+_(noch keine Punkte — Klaus diktiert sie der Reihe nach)_
+
 ## Erledigt
 
 _(noch leer)_
