@@ -12,15 +12,6 @@ import { fileURLToPath } from 'node:url';
 const WURZEL = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const A = 'assets/app.js', C = 'assets/style.css', H = 'index.html';
 const FAELLE = [
-  // 1 · Schiebe-Griff
-  { name: 'kein Griff unter der Ordner-Leiste (Spur fehlt im Markup)', datei: H, anker: '<div class="schiebe-spur" id="ordnerGriff" hidden title="Ordner hin und her schieben"><div class="schiebe-griff"></div></div>', ersatz: '', trifft: /steht ein Schiebe-Griff/ },
-  { name: 'der Griff ist so schmal wie die Browser-Leiste', datei: A, anker: 'gb = Math.max(48, Math.round(', ersatz: 'gb = Math.max(4, Math.round(', trifft: /mindestens 48 px breit/ },
-  { name: 'Ziehen am Griff schiebt die Leiste nicht', datei: A, anker: 'ol.scrollLeft = anteil * (ol.scrollWidth - ol.clientWidth); griffZeichnen();', ersatz: 'griffZeichnen();', trifft: /schiebt die Ordner-Leiste mit/ },
-  { name: 'der Griff folgt der Leiste nicht, wenn sie selbst gerollt wird', datei: A, anker: "ol.addEventListener('scroll', griffZeichnen, { passive: true });", ersatz: ';', trifft: /folgt der Griff/ },
-  { name: 'der Griff steht auch da, wenn alles hineinpasst', datei: A, anker: 'spur.hidden = !(zuViel > 2);', ersatz: 'spur.hidden = false;', trifft: /steht kein Griff da/ },
-  { name: 'Fenstergröße ändern rechnet den Griff nicht neu', datei: A, anker: "window.addEventListener('resize', griffZeichnen);", ersatz: ';', trifft: /Griff wird breiter/ },
-  { name: 'der Bedeutungs-Knopf macht die Seite bei 320 px wieder breiter (328 px, wie auf main)', datei: C, anker: '.bedeutung-leiste .knopf{white-space:normal;text-align:left;max-width:100%}', ersatz: '', trifft: /320 px: die Seite ist nicht breiter/ },
-  { name: 'die dünne Browser-Leiste bleibt zusätzlich stehen', datei: C, anker: '.ordner-leiste{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px;scrollbar-width:none}', ersatz: '.ordner-leiste{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px}', trifft: /keine zwei Leisten/ },
   // 2 · Pfeil nach oben
   // Nicht einfach wegnehmen: dann wirft die Bindung (querySelector(...).onclick = …) und die ganze
   // Bibliothek bricht — gefangen aus falschem Grund. Ein leeres Element behält die Bindung.
@@ -30,6 +21,7 @@ const FAELLE = [
   { name: 'der Pfeil steht auch ganz oben', datei: C, anker: 'box-shadow:0 1px 4px rgba(0,0,0,.3);display:none}', ersatz: 'box-shadow:0 1px 4px rgba(0,0,0,.3);display:block}', trifft: /ganz oben steht er nicht/ },
   { name: 'der Pfeil sitzt auf dem Auswahl-Punkt', datei: C, anker: '.dok-hoch{position:absolute;right:40px;', ersatz: '.dok-hoch{position:absolute;right:6px;', trifft: /links neben dem Auswahl-Punkt/ },
   // 3 · Kopfleiste
+  { name: 'der Bedeutungs-Knopf macht die Seite bei 320 px wieder breiter (328 px, wie auf main)', datei: C, anker: '.bedeutung-leiste .knopf{white-space:normal;text-align:left;max-width:100%}', ersatz: '', trifft: /320 px: die Seite ist nicht breiter/ },
   { name: 'Kopfleiste am Handy ohne Verkleinerung', datei: C, anker: '@media (max-width:480px){.kopf{gap:6px;', ersatz: '@media (max-width:1px){.kopf{gap:6px;', trifft: /überlagern den Schriftzug nicht|nicht abgeschnitten/ },
   { name: 'der Schriftzug darf nicht umbrechen (schmalste Breite)', datei: C, anker: '.marke-name{font-size:1.08rem;white-space:normal;line-height:1.05}', ersatz: '.marke-name{font-size:1.08rem}', trifft: /überlagern den Schriftzug nicht|nicht abgeschnitten/ },
   { name: 'die Knöpfe werden zu klein zum Treffen', datei: C, anker: '.ikon{width:31px;height:31px;', ersatz: '.ikon{width:22px;height:22px;', trifft: /treffbar/ },

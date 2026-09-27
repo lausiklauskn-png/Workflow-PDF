@@ -26,7 +26,8 @@ Datei, wird er hier behoben und dann in die WorkFlohs kopiert.
 
 ## Offen
 
-- [ ] 2026-09-27 · Workflow-PDF (in den WorkFlohs mitprüfen) · **Schieberegler bei den Ordner-Knöpfen kaum greifbar.**
+- [x] 2026-09-27 · Workflow-PDF (in den WorkFlohs mitprüfen) · **Schieberegler bei den Ordner-Knöpfen kaum greifbar.**
+  ✅ Erledigt mit dem Schieberegler unter der Feldarten-Leiste (dieselbe Bauweise, `assets/schieber.js`). Die WorkFlohs haben keine Ordner-Knopfleiste.
   Klaus: „Wenn die App auf kleinen Handys ist oder schmal gezogen wird und die Ordner über den Rand
   ragen, entsteht ein Schieberegler. Also bei den Ordner-Buttons. Der Schieberegler ist aber ganz
   schlecht anzufassen. Das heißt, es müsste da ein Griff sein oder ein kleines Viereck, wo man
@@ -73,6 +74,52 @@ Datei, wird er hier behoben und dann in die WorkFlohs kopiert.
   hieß es „Suche ist okay"; beim Abarbeiten beide zusammen entscheiden.)
   Beleg (Klaus' Bildschirmfoto 2026-09-27, nur Suchfeld): links 🔎 im Platzhalter, rechts 🎤 und noch einmal 🔎.
   ![Zwei Lupen](todo-belege/2026-09-27_zwei-lupen.png)
+
+## Offen · Tomys WorkFloh (`Tomys-Hub/workfloh/`)
+
+**Angelegt 2026-09-27 auf Klaus' Wort:** „Ich sage dir der Reihe nach, was zu machen ist an
+Tommys Hub Workflow." Eigener Abschnitt, damit Tomys Punkte beim Abarbeiten nicht zwischen den
+geteilten untergehen — die Liste bleibt trotzdem **eine** Datei. Betrifft ein Punkt eine geteilte
+Datei (`assets/wfpdf/…`, `werkzeug.js`), wird er beim Abarbeiten auch in Mein-WorkFloh geprüft.
+
+- [ ] 2026-09-27 · Tomys WorkFloh, danach Mein-WorkFloh · **„PDF bearbeiten" wie in Workflow PDF aufbauen, eigene Knöpfe behalten.**
+  Klaus: „Mache bitte Tommys Workflow PDF bearbeiten in der Ansicht … genauso wie Workflow PDF.
+  Aufbau, Button, Anordnung, Funktionen sind gleich. Die gleichen Zuordnungskategorien unten. Nur
+  die Farbe und das UI und die Art, wie es aufgebaut ist, also die Button, wie sie aufgebaut sind,
+  die Farbe und die Art, wie sie wackeln und was sie alles können, das soll gleich bleiben in
+  Tommys Workflow. Der Rest soll in der Art, wie es angerichtet ist, gleich sein von Workflow PDF.
+  Und das ziehst du dann bitte auch bei meinem Workflow nach. Das soll genauso aufgebaut sein. Nur
+  die eigenen Buttonform und Button von meinem Workflow sollen bleiben."
+  (Also: **von Workflow PDF übernehmen** — Aufbau und Anordnung des Bearbeiten-Fensters: Kopfzeile
+  mit Speichern · Teilen · Zurück · Name · PDF, die Umschalter bearbeiten/Ausfüllen/erkennen,
+  − / +, „Im Dokument suchen" mit ▲▼, die Seite groß darunter, die Feldarten-Leiste unten mit
+  denselben Kategorien und dem Hinweis. **Bleibt WorkFloh-eigen** — Knopfform, Farbe, das Wackeln
+  und was die Knöpfe können. Erst Tomys WorkFloh, dann Mein-WorkFloh gleich nachziehen.)
+  Beleg (Klaus' Bildschirmfoto 2026-09-27, zwei App-Fenster ausgeschnitten): links Tomys WorkFloh
+  „Felder erkennen / Verankern", Seite 1 · 2, Vorschläge-Kasten, Feld setzen mit Glas-Knöpfen —
+  rechts Workflow PDF im Modus „bearbeiten".
+  ![Tomys PDF bearbeiten gegen Workflow PDF](todo-belege/2026-09-27_tomy-pdf-bearbeiten-vs-workflow-pdf.jpg)
+- [x] 2026-09-27 · alle drei (Workflow PDF zuerst als Vorlage, dann Tomys WorkFloh und Mein-WorkFloh) · **Sichtbarer Schieberegler unter der Feldarten-Leiste.**
+  ✅ Erledigt: `assets/schieber.js` (Workflow-PDF), byte-1:1 in beide WorkFlohs. Dort ist „Feld setzen" am Handy jetzt EINE Reihe wie in Workflow PDF. Proben grün, Gegenprobe 10/10.
+  Klaus: „In allen drei Workflows machst du unten genau in derselben Ansicht, wo Texte, Datum,
+  Kästchen, E-Mail und so eingestellt werden können, noch einen Schieberegler. Und zwar so, dass man
+  ihn anfassen kann mit einem Viereck oder wie auch immer, sodass man sieht, dass da ein
+  Schieberegler ist. Bei kleineren Handys ist sonst nicht zu erkennen, dass da noch mehr folgt.
+  Vorlagen, wie gesagt, Workflow PDF. Für beide. Für Tommy und für meinen Workflow."
+  (Gemeint ist die untere Leiste im Bearbeiten-Fenster: Text · Datum · Kästchen · E-Mail · … — auf dem
+  Bildschirmfoto zu Punkt 1 ist sie rechts abgeschnitten, und man sieht nicht, dass noch Knöpfe
+  folgen. Derselbe Wunsch wie beim Ordner-Schieberegler weiter oben — beim Abarbeiten EINE Bauweise
+  für beide Leisten nehmen.)
+- [x] 2026-09-27 · Tomys WorkFloh · **„Übersetzen"-Knopf nicht lesbar: weiße Schrift auf hellem Grund.**
+  ✅ Erledigt (Tomys-Hub #207, Mein-WorkFloh #228): drei Knöpfe in `werkzeug.js` hatten nur `class="btn"`, gemessener Kontrast 1,15. Jetzt `btn pri`, mit Kontrast-Wächter.
+  Klaus: „In Tommys Workflow ist bei PDF übersetzen oder Fragebogen jeweils PDF übersetzen, der
+  Übersetzen-Button weiße Schrift auf weißem, hellem Untergrund, nicht zu lesen."
+  (Der Knopf, der die Übersetzung startet, im Dialog „🌐 PDF übersetzen" — sowohl in der Akte als
+  auch beim Originaldokument/Fragebogen. Beim Abarbeiten in Mein-WorkFloh mitprüfen:
+  `werkzeug.js` ist in beiden WorkFlohs identisch, der Unterschied kann aber im Stil der App liegen.)
+  Beleg (Klaus' Bildschirmfoto 2026-09-27, nur der Dialog ausgeschnitten): unten rechts „🌐 Übersetzen"
+  in Weiß auf hellem Glas-Knopf, kaum zu erkennen.
+  ![Übersetzen-Knopf nicht lesbar](todo-belege/2026-09-27_tomy-uebersetzen-knopf.jpg)
 
 ## Erledigt
 

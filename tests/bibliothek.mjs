@@ -1,7 +1,7 @@
 /* Workfloh PDF — Bibliothek am schmalen Handy (Klaus' To-Do-Liste 2026-09-27, Punkte 1–4 und 7).
    Im echten Browser. Gemessen wird, was man SIEHT und TRIFFT:
-   1 · Schiebe-Griff unter der Ordner-Leiste: da, wenn die Ordner überstehen, breit genug zum Anfassen,
-       und Ziehen am Griff schiebt die Leiste wirklich (und umgekehrt).
+   1 · (Schiebe-Griff: gemessen in tests/schieber.mjs — assets/schieber.js aus der Parallel-Sitzung #67
+       ist die EINE Bauweise für Feldarten- und Ordner-Leiste; der eigene Griff ist beim Zusammenführen raus.)
    2 · Pfeil nach oben neben dem Auswahl-Punkt: erst nach dem Herunterrollen, ein Tipp → ganz oben.
    3 · Kopfleiste: bei 320 · 360 · 390 · 412 · 480 px überlagern die Knöpfe den Schriftzug nicht,
        der Schriftzug ist nicht abgeschnitten, und die Seite ist nicht breiter als das Fenster.
@@ -77,9 +77,6 @@ try {
   }
   await page.setViewportSize({ width: 360, height: 740 });
 
-  // ohne Ordner passt alles hinein → kein Griff
-  let g0 = await page.evaluate(() => { const ol = document.getElementById('ordnerLeiste'), sp = document.getElementById('ordnerGriff'); return { ueber: ol.scrollWidth - ol.clientWidth, sichtbar: !!sp && !sp.hidden && sp.checkVisibility(), da: !!sp }; });
-  ok('1 · passen alle Ordner-Knöpfe hinein, steht kein Griff da', g0.da && g0.ueber <= 2 && !g0.sichtbar, g0);
 
   // Dokumente in neun Ordnern
   await page.evaluate(async ([list, ordner]) => {
@@ -95,9 +92,9 @@ try {
   await page.evaluate(() => { const w = window.__wfpdf; w.S.aktOrdner = 'alle'; w.suche.zeichneBibliothek(); });
   await page.waitForTimeout(150);
 
-  // 2 · Pfeil nach oben — VOR dem Griff gemessen: im Headless-Chromium geht nach einem Finger-Zug
-  // über eine Fläche mit touch-action:none der NÄCHSTE Tipp verloren (an einer leeren Testseite
-  // gleich nachgestellt, also keine Eigenheit des Griffs). Ob das am Tablet auch so ist: ungemessen.
+  // 2 · Pfeil nach oben. (Im Headless-Chromium geht nach einem Finger-Zug über eine Fläche mit
+  // touch-action:none der NÄCHSTE Tipp verloren — an einer leeren Testseite nachgestellt. Deshalb
+  // steht hier vor dem Tipp kein Finger-Zug. Ob das am Tablet auch so ist: ungemessen.)
   const hoch = () => page.evaluate(() => { const b = [...document.querySelectorAll('#dokGitter .dok [data-hoch]')]; const sich = b.filter(x => x.checkVisibility());
     const h0 = sich[0] && sich[0].getBoundingClientRect(), dot = sich[0] && sich[0].parentElement.querySelector('[data-haken]').getBoundingClientRect();
     return { knoepfe: b.length, sichtbar: sich.length, y: scrollY, nebenPunkt: h0 && dot ? Math.abs(h0.top - dot.top) < 3 && h0.right <= dot.left + 1 && dot.left - h0.right < 16 : false, groesse: h0 ? Math.min(h0.width, h0.height) : 0 }; });
@@ -117,70 +114,6 @@ try {
   ok('2 · … und oben stehen wieder Suchfeld und Ordner-Knöpfe', await page.evaluate(() => { const r = document.getElementById('bibSuche').getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; }));
   ok('2 · der Pfeil öffnet das Dokument nicht und wählt es nicht aus', await page.evaluate(() => document.querySelector('#sc-bib.on') && !document.querySelector('.dok.gewaehlt')));
 
-  // 1 · Schiebe-Griff
-  const griff = () => page.evaluate(() => {
-    const ol = document.getElementById('ordnerLeiste'), sp = document.getElementById('ordnerGriff'), g = sp && sp.firstElementChild;
-    const gr = g && g.getBoundingClientRect(), sr = sp && sp.getBoundingClientRect();
-    return { da: !!sp, sichtbar: !!sp && !sp.hidden && sp.checkVisibility(), ueber: ol.scrollWidth - ol.clientWidth, links: ol.scrollLeft,
-      gb: gr ? gr.width : 0, gh: gr ? gr.height : 0, gx: gr ? gr.left - sr.left : 0, sb: sr ? sr.width : 0, sx: sr ? sr.left : 0, sy: sr ? sr.top + sr.height / 2 : 0,
-      nativ: getComputedStyle(ol).scrollbarWidth };
-  });
-  let g = await griff();
-  if (process.env.BILD) { await page.locator('.ordner-leiste').screenshot({ path: process.env.BILD + '/griff-leiste.png' }); await page.screenshot({ path: process.env.BILD + '/oben.png' }); }
-  ok('1 · die Ordner stehen am Handy über den Rand (Ausgangslage)', g.ueber > 100, g);
-  ok('1 · darunter steht ein Schiebe-Griff', g.sichtbar, g);
-  ok('1 · der Griff ist gut anzufassen (mind. 48 px breit, 16 px hoch)', g.gb >= 48 && g.gh >= 16, g);
-  ok('1 · … und kleiner als die Spur (man sieht, dass er sich bewegen lässt)', g.gb < g.sb - 20, g);
-  // ziehen mit dem Finger (Zeiger-Ereignisse vom Typ touch über CDP)
-  const cdp = await ctx.newCDPSession(page);
-  const tp = async (type, x, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
-  const start = g.sx + g.gx + g.gb / 2;
-  await tp('touchStart', start, g.sy);
-  for (let i = 1; i <= 8; i++) { await tp('touchMove', start + i * 25, g.sy); await page.waitForTimeout(20); }
-  await tp('touchEnd'); await page.waitForTimeout(100);
-  let g2 = await griff();
-  ok('1 · den Griff nach rechts ziehen schiebt die Ordner-Leiste mit', g2.links > 60, { vorher: g.links, nachher: g2.links });
-  ok('1 · … und der Griff wandert mit', g2.gx > g.gx + 60, { vorher: g.gx, nachher: g2.gx });
-  // bis ans Ende: der letzte Ordner kommt in Sicht
-  await tp('touchStart', g2.sx + g2.gx + g2.gb / 2, g2.sy); await tp('touchMove', g2.sx + g2.sb + 60, g2.sy); await tp('touchEnd'); await page.waitForTimeout(100);
-  const ende = await page.evaluate(() => { const ol = document.getElementById('ordnerLeiste'); const last = ol.lastElementChild.getBoundingClientRect(), r = ol.getBoundingClientRect(); return { rechts: last.right, leiste: r.right, links: ol.scrollLeft, max: ol.scrollWidth - ol.clientWidth }; });
-  ok('1 · ganz nach rechts gezogen: „＋ Ordner" am Ende ist zu sehen', ende.links >= ende.max - 2 && ende.rechts <= ende.leiste + 1, ende);
-  // umgekehrt: die Leiste selbst rollen → der Griff folgt
-  await page.evaluate(() => { document.getElementById('ordnerLeiste').scrollLeft = 0; }); await page.waitForTimeout(100);
-  g2 = await griff();
-  ok('1 · wird die Leiste selbst gerollt, folgt der Griff (zurück an den Anfang)', g2.gx <= 1, g2);
-  // Tipp auf die Spur rechts springt dorthin
-  await page.evaluate(([x, y]) => { const sp = document.getElementById('ordnerGriff'); const o = { bubbles: true, clientX: x, clientY: y, pointerId: 7, pointerType: 'mouse' }; sp.dispatchEvent(new PointerEvent('pointerdown', o)); sp.dispatchEvent(new PointerEvent('pointerup', o)); }, [g.sx + g.sb - 10, g.sy]);
-  await page.waitForTimeout(80);
-  g2 = await griff();
-  ok('1 · ein Tipp rechts auf die Spur springt ans Ende', g2.links >= g2.ueber - 2, g2);
-  ok('1 · die dünne Browser-Leiste ist dafür weg (keine zwei Leisten)', g2.nativ === 'none', g2);
-  // wird das Fenster breiter, rechnet der Griff neu (er wird breiter, weil mehr zu sehen ist).
-  // Erst zurück an den Anfang: stünde die Leiste am Ende, zöge das Breiterwerden sie zurück — das
-  // feuert ein scroll-Ereignis, und der Griff würde über DAS neu gerechnet, nicht über resize
-  // (die Gegenprobe hat es gezeigt: ohne resize-Zuhörer blieb dieser Wächter grün).
-  await page.evaluate(() => { document.getElementById('ordnerLeiste').scrollLeft = 0; }); await page.waitForTimeout(100);
-  g2 = await griff();
-  await page.setViewportSize({ width: 700, height: 740 }); await page.waitForTimeout(150);
-  const g3 = await griff();
-  ok('1 · breiteres Fenster: der Griff wird breiter (mehr Ordner in Sicht)', g3.sichtbar && g3.gb > g2.gb + 20, { schmal: g2.gb, breit: g3.gb });
-  await page.setViewportSize({ width: 360, height: 740 }); await page.waitForTimeout(150);
-
-  // Viele Ordner: dann wäre der Griff nach dem Anteil schmaler als ein Finger. Die 48 px sind eine
-  // Untergrenze — bei neun Ordnern greift sie gar nicht (gemessen ~70 px), deshalb hier 40 Ordner,
-  // nur im Speicher (nichts wird abgelegt).
-  const viele = await page.evaluate(async () => {
-    const w = window.__wfpdf, alt = w.S.ordner.slice();
-    for (let i = 0; i < 31; i++) w.S.ordner.push({ id: 'gp-viel-' + i, name: 'Ordner mit langem Namen ' + (i + 1) });
-    w.suche.zeichneBibliothek(); await new Promise(r => setTimeout(r, 120));
-    const ol = document.getElementById('ordnerLeiste'), sp = document.getElementById('ordnerGriff'), gr = sp.firstElementChild.getBoundingClientRect();
-    const anteil = Math.round(sp.clientWidth * ol.clientWidth / ol.scrollWidth);
-    const m = { anteil, gb: gr.width, ordner: w.S.ordner.length };
-    w.S.ordner.length = 0; w.S.ordner.push(...alt); w.suche.zeichneBibliothek();
-    return m;
-  });
-  ok('1 · (Vorbedingung) bei 40 Ordnern wäre der Griff nach dem Anteil schmaler als 48 px', viele.anteil < 48, viele);
-  ok('1 · … er bleibt trotzdem mindestens 48 px breit (mit dem Finger zu treffen)', viele.gb >= 48, viele);
 
   // 4 · Erstellungsdatum: je drei Dokumente an drei Tagen
   await page.evaluate(() => {

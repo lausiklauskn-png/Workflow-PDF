@@ -419,9 +419,9 @@ steht schon beim Sprechen im Feld; gesucht wird am Ende (nach 2,6 s Pause von se
 
 ## 📋 Aus der To-Do-Liste vom 2026-09-27 (docs/TODO.md, alle 7 erledigt)
 
-- **Schiebe-Griff** unter der Ordner-Leiste (`#ordnerGriff`, `griffZeichnen`/`griffBinden`): eigene Spur mit
-  breitem Griff (≥ 48 px, Rillen), ziehen oder auf die Spur tippen; nur da, wenn die Ordner überstehen.
-  Die dünne Browser-Leiste ist aus (`scrollbar-width:none`) — sonst zwei Leisten.
+- **Schiebe-Griff:** zweimal gebaut, einmal behalten. Eine Parallel-Sitzung hat am selben Tag
+  `assets/schieber.js` für Feldarten- UND Ordner-Leiste gemergt (#67, Abschnitt unten); der eigene Griff
+  (`#ordnerGriff`) ist beim Zusammenführen wieder raus — die To-Do-Liste verlangt EINE Bauweise für beide.
 - **↑ an jeder Karte** links neben dem Auswahl-Punkt (`.dok-hoch`, `ganzNachOben`), erst wenn die Seite
   gerollt ist (`html.gerollt`, scrollY > 160). Ein langer Druck darauf startet kein Ziehen.
 - **Kopfleiste schmal:** ≤ 480 px und ≤ 370 px kleinere Knöpfe/Floh, der Schriftzug darf umbrechen
@@ -438,6 +438,22 @@ steht schon beim Sprechen im Feld; gesucht wird am Ende (nach 2,6 s Pause von se
   `gegenprobe_sprechen.mjs` (25). ⚠ Im Headless-Chromium geht nach einem Finger-Zug über eine Fläche mit
   `touch-action:none` der NÄCHSTE Tipp verloren (an einer leeren Testseite nachgestellt, keine Eigenheit
   des Griffs) — die Probe misst den ↑ deshalb VOR dem Griff. Am Tablet ungemessen.
+
+## 🎚 Sichtbarer Schieberegler (Klaus 2026-09-27)
+
+„Dass man ihn anfassen kann mit einem Viereck … Bei kleineren Handys ist sonst nicht zu erkennen, dass
+da noch mehr folgt." Unter der Feldarten-Leiste (Fuß des Editors) und den Ordner-Knöpfen steht eine
+Schiene mit Griff (drei Rillen, mindestens 44 px breit). Griff ziehen oder auf die Schiene tippen rollt
+die Leiste, Wischen in der Leiste lässt den Griff mitlaufen. Passt alles hinein, ist die Schiene weg.
+
+- `assets/schieber.js` ist **host-neutral** und wird byte-1:1 in die WorkFlohs kopiert
+  (`assets/wfpdf/schieber.js`, in Mein-WorkFloh per SHA gepinnt). Nur hier ändern, dann dort neu kopieren.
+- Die Schiene steht als Geschwister NACH der Leiste. Im Flex-Fuß braucht sie `flex:0 0 100%`, sonst
+  schrumpft sie auf **0 px** (Befund beim Bau, eigener Gegenprobe-Fall).
+- Nebenbei behoben: ein Größenwechsel und Zurück zur Bibliothek innerhalb von 250 ms warf
+  (`zeichneSeiten` mit `S.doc = null`).
+- Proben: `tests/schieber.mjs` (in `npm test`, Handy 380 px mit Touch) ·
+  `node tests/gegenprobe_schieber.mjs` (10 Fälle; `NUR_ANKER=1`, `NUR_FALL="…"`).
 
 ## 🗂 Sortieren und Ordner ausgeben (Klaus 2026-09-26)
 
@@ -480,12 +496,15 @@ und ziehen" auf einen Ordner.
 - **Ziehen** — die Technik aus Mein Rezeptbuch: nach dem langen Druck folgt ein Schattenbild dem Finger,
   gesucht wird per `elementFromPoint` (Schatten kurz ausgeblendet), überstrichene Karten kommen in die
   Auswahl, loslassen auf einem Ordner-Chip verschiebt alle gewählten (`inOrdner`), „＋ Ordner" legt erst
-  einen an, „Alle" ist kein Ziel. Mit der Maus beginnt das Ziehen nach 10 px Weg; mit dem Finger heißt
+  einen an, „Alle" ist kein Ziel. **Eine überstrichene Karte kommt erst nach 250 ms Verweilen dazu**
+  (`VERWEIL_MS`, wie in den WorkFlohs, 2026-09-27) — wer zum Ordner oben gleitet, nimmt die Karten auf dem Weg
+  nicht mit. Die alte Uhr wird gestoppt UND prüft beim Feuern, ob der Zeiger noch dort ist (zwei Riegel, ein
+  Gegenprobe-Fall nimmt beide). 250 ms sind gewählt, nicht am Tablet gemessen. Mit der Maus beginnt das Ziehen nach 10 px Weg; mit dem Finger heißt
   sofortiges Bewegen Rollen. `touchmove` ist nicht passiv und wird nur beim Ziehen abgefangen; der Klick
   nach dem Ziehen/langen Druck wird geschluckt (`klickSperre`). `verschieben(id|ids)` nimmt beides.
 - ⚠ **Nicht gemessen:** echtes Teilen am Tablet (headless ist `navigator.share` gestellt) und das Ziehen
   mit echtem Finger auf Android/DeX (gemessen mit CDP-Touch-Ereignissen).
-- Proben: `tests/teilen.mjs` (in `npm test`) · `node tests/gegenprobe_teilen.mjs` (18 Fälle,
+- Proben: `tests/teilen.mjs` (in `npm test`, 47 grün) · `node tests/gegenprobe_teilen.mjs` (20 Fälle, zuletzt 2026-09-27: 20 gefangen · 0 blind · 0 falsch · 0 tote Anker,
   Wegwerf-Kopie; `NUR_ANKER=1`, `NUR_FALL="…"`).
 
 ## 🔗 Links im Feld (Klaus 2026-09-26)

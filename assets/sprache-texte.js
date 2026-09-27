@@ -4,6 +4,7 @@
    (fail-soft). Geprüft von tests/sprache.mjs. */
 (function(){ (window.WFP=window.WFP||{}).SPRACH_TEXTE = {
  "en": {
+  "Leiste verschieben — es folgen weitere Knöpfe": "Move the bar — more buttons follow",
   "Teilen mit … (E-Mail, Messenger …)": "Share with … (email, messenger …)",
   "Teilen": "Share",
   "📤<span> Teilen</span>": "📤<span> Share</span>",
@@ -199,7 +200,6 @@
   "🎤 Ich höre zu …": "🎤 Listening …",
   "■ Stopp": "■ Stop",
   "Ganz nach oben": "Back to the top",
-  "Ordner hin und her schieben": "Slide the folders left and right",
   "Erstellungsdatum": "Date created",
   "📅 Erstellt am:": "📅 Created on:",
   "✕ jedes Datum": "✕ any date",
@@ -811,6 +811,7 @@
   "Zurück und prüfen": "Go back and check"
  },
  "ru": {
+  "Leiste verschieben — es folgen weitere Knöpfe": "Прокрутить панель — дальше есть ещё кнопки",
   "Teilen mit … (E-Mail, Messenger …)": "Поделиться … (почта, мессенджер …)",
   "Teilen": "Поделиться",
   "📤<span> Teilen</span>": "📤<span> Поделиться</span>",
@@ -1006,7 +1007,6 @@
   "🎤 Ich höre zu …": "🎤 Слушаю …",
   "■ Stopp": "■ Стоп",
   "Ganz nach oben": "Наверх",
-  "Ordner hin und her schieben": "Двигать папки влево и вправо",
   "Erstellungsdatum": "Дата создания",
   "📅 Erstellt am:": "📅 Создано:",
   "✕ jedes Datum": "✕ любая дата",
@@ -1618,6 +1618,7 @@
   "Zurück und prüfen": "Назад и проверить"
  },
  "ar": {
+  "Leiste verschieben — es folgen weitere Knöpfe": "حرّك الشريط — توجد أزرار أخرى",
   "Teilen mit … (E-Mail, Messenger …)": "مشاركة مع … (البريد، المراسلة …)",
   "Teilen": "مشاركة",
   "📤<span> Teilen</span>": "📤<span> مشاركة</span>",
@@ -1813,7 +1814,6 @@
   "🎤 Ich höre zu …": "🎤 أستمع …",
   "■ Stopp": "■ إيقاف",
   "Ganz nach oben": "إلى الأعلى",
-  "Ordner hin und her schieben": "حرّك المجلدات يمينًا ويسارًا",
   "Erstellungsdatum": "تاريخ الإنشاء",
   "📅 Erstellt am:": "📅 أُنشئ في:",
   "✕ jedes Datum": "✕ أي تاريخ",

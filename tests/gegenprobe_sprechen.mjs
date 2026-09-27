@@ -34,7 +34,7 @@ const FAELLE = [
   // Bisherige" und „steht schon am Ende" dasselbe Stück längst fangen. Ein Riegel, den keine Probe von
   // seinem Fehlen unterscheiden kann, ist eine Behauptung. Gemessen wird stattdessen der Riegel, der trägt:
   { name: 'ein Stück, das schon am Ende steht, wird noch einmal angehängt', datei: S, anker: "if (o && o.endsWith(' ' + n)) continue;", ersatz: ";", trifft: /EINMAL|einmal/ },
-  { name: 'ein Stück mit allem Bisherigen wird angehängt statt ersetzt', datei: S, anker: "if (o && (n === o || n.startsWith(o + ' '))) { aus = t; letzte = n; continue; }", ersatz: ";", trifft: /ersetzt es/ },
+  { name: 'ein Stück mit allem Bisherigen wird angehängt statt ersetzt', datei: S, anker: "if (o && (n === o || n.startsWith(o + ' '))) { aus = t; continue; }", ersatz: ";", trifft: /ersetzt es/ },
   { name: 'beim Neubeginn der Liste geht Gesagtes verloren (kein Archiv)', datei: S, anker: "if (jetztListe.length < vorige.length) for (const x of vorige) if (x.fertig) archiv.push(x.t);", ersatz: ";", trifft: /schon Gesagte/ },
   { name: 'Wiederholung IN einem Stück wird weggerechnet', datei: S, anker: "const t = String(roh || '').replace(/\\s+/g, ' ').trim(), n = norm(t); if (!n) continue;", ersatz: "const t = String(roh || '').replace(/\\s+/g, ' ').trim().split(' ').filter((w, i, a) => w !== a[i - 1]).join(' '), n = norm(t); if (!n) continue;", trifft: /sehr sehr/ },
   { name: 'der Stopp-Knopf heißt wieder „Fertig"', datei: S, anker: "title=\"Aufnahme beenden\">■ Stopp</button>", ersatz: "title=\"Aufnahme beenden\">Fertig</button>", trifft: /Stopp/ },

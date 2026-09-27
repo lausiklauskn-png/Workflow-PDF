@@ -175,7 +175,6 @@
     const ol = $('ordnerLeiste'); ol.innerHTML = html;
     ol.querySelectorAll('[data-o]').forEach(b => b.onclick = () => { S.aktOrdner = b.dataset.o; zeichneBibliothek(); });
     ol.querySelector('[data-neu]').onclick = neuerOrdner;
-    griffZeichnen();
 
     const akt = $('ordnerAktionen'); const o = S.ordner.find(x => x.id === S.aktOrdner);
     // Ist ein Ordner gewählt, zeigt die Suche NUR ihn (Klaus 2026-09-26) — ein Knopf hebt das auf.
@@ -243,41 +242,6 @@
   function ganzNachOben() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
   const gerolltPruefen = () => document.documentElement.classList.toggle('gerollt', window.scrollY > 160);
   window.addEventListener('scroll', gerolltPruefen, { passive: true });
-  /* Schiebe-Griff für die Ordner-Leiste (Klaus 2026-09-27: „Der Schieberegler ist aber ganz schlecht
-     anzufassen … es müsste da ein Griff sein"). Die Leiste des Browsers ist am Tablet ein dünner
-     Strich, der nach dem Rollen verschwindet. Darunter steht deshalb eine eigene Spur mit einem
-     breiten Griff (mind. 48 px, mit Rillen), den man mit Finger oder Maus zieht; ein Tipp auf die
-     Spur springt dorthin. Sie steht nur da, wenn die Ordner wirklich über den Rand ragen. */
-  function griffZeichnen() {
-    const ol = $('ordnerLeiste'), spur = $('ordnerGriff'); if (!ol || !spur) return;
-    const griff = spur.firstElementChild, zuViel = ol.scrollWidth - ol.clientWidth;
-    spur.hidden = !(zuViel > 2);
-    if (spur.hidden) return;
-    const breite = spur.clientWidth, gb = Math.max(48, Math.round(breite * ol.clientWidth / ol.scrollWidth));
-    griff.style.width = gb + 'px';
-    griff.style.transform = 'translateX(' + Math.round((breite - gb) * (ol.scrollLeft / zuViel)) + 'px)';
-  }
-  function griffBinden() {
-    const ol = $('ordnerLeiste'), spur = $('ordnerGriff'); if (!ol || !spur) return;
-    const griff = spur.firstElementChild;
-    ol.addEventListener('scroll', griffZeichnen, { passive: true });
-    window.addEventListener('resize', griffZeichnen);
-    let zieht = null;
-    const setze = x => {   // x = Mitte des Griffs in der Spur → scrollLeft
-      const r = spur.getBoundingClientRect(), gb = griff.offsetWidth, frei = r.width - gb;
-      const anteil = frei > 0 ? Math.min(1, Math.max(0, (x - r.left - zieht) / frei)) : 0;
-      ol.scrollLeft = anteil * (ol.scrollWidth - ol.clientWidth); griffZeichnen();
-    };
-    spur.addEventListener('pointerdown', e => {
-      const gr = griff.getBoundingClientRect();
-      zieht = e.target === griff ? e.clientX - gr.left : griff.offsetWidth / 2;   // am Griff: dort festhalten, wo er gefasst wurde
-      try { spur.setPointerCapture(e.pointerId); } catch (_) {}   // ein Zeiger ohne Kennung (Probe, alte Browser) darf das Ziehen nicht abbrechen
-      spur.classList.add('zieht'); setze(e.clientX); e.preventDefault();
-    });
-    spur.addEventListener('pointermove', e => { if (zieht !== null) setze(e.clientX); });
-    const los = () => { zieht = null; spur.classList.remove('zieht'); };
-    spur.addEventListener('pointerup', los); spur.addEventListener('pointercancel', los);
-  }
   function kartenBinden(g, FUND) {
     g.querySelectorAll('.dok').forEach(el => {
       const id = el.dataset.id;
@@ -637,6 +601,10 @@
      dem Finger, darunter wird per elementFromPoint gesucht). */
   const WAHL = new Set(); let WAHL_AN = false;
   const LANGDRUCK_MS = 450, ZIEH_PX = 10;
+  /* Überstreichen nimmt eine Karte erst nach kurzem VERWEILEN dazu (wie VERWEIL_MS in den WorkFlohs,
+     assets/wfpdf/auswahl.js). Die Ordner stehen oben: wer von einer Karte zum Ordner gleitet, fährt
+     über andere Karten — die sollen nicht mitkommen. 250 ms sind gewählt, nicht am Tablet gemessen. */
+  const VERWEIL_MS = 250;
   function wahlUmschalten(id) {
     if (WAHL.has(id)) WAHL.delete(id); else WAHL.add(id);
     if (!WAHL.size) WAHL_AN = false;
@@ -708,7 +676,13 @@
     if (ZG.ziel) ZG.ziel.classList.add('ziel');
     // Über eine Karte gezogen: sie kommt dazu
     const karte = el && el.closest('#dokGitter .dok[data-id]');
-    if (karte && !WAHL.has(karte.dataset.id)) { WAHL.add(karte.dataset.id); wahlMarken(); wahlLeiste(); }
+    if (karte !== ZG.kand) {
+      clearTimeout(ZG.verweil); ZG.kand = karte;
+      if (karte && !WAHL.has(karte.dataset.id)) ZG.verweil = setTimeout(() => {
+        if (!ZG || ZG.kand !== karte) return;
+        WAHL.add(karte.dataset.id); wahlMarken(); wahlLeiste(); ziehGeist();
+      }, VERWEIL_MS);
+    }
   }
   let _rollen = null;
   function ziehRollen() {
@@ -717,7 +691,7 @@
     if (v) _rollen = setInterval(() => { window.scrollBy(0, v); if (ZG) ziehZiel(); }, 30);
   }
   function ziehAus() {
-    if (!ZG) return; clearTimeout(ZG.timer); clearInterval(_rollen); _rollen = null;
+    if (!ZG) return; clearTimeout(ZG.timer); clearTimeout(ZG.verweil); clearInterval(_rollen); _rollen = null;
     if (ZG.geist) ZG.geist.remove();
     document.querySelectorAll('.ordner-chip.ziel').forEach(c => c.classList.remove('ziel'));
     document.body.classList.remove('zieht'); ZG = null;
@@ -2499,7 +2473,11 @@
       e.preventDefault(); suchen(); $('bibSuche').blur();
       const g = $('dokGitter'); if (g && g.scrollIntoView) g.scrollIntoView({ block: 'start', behavior: 'smooth' });
     };
-    spracheingabe(); griffBinden();
+    spracheingabe();
+    /* Sichtbarer Schieberegler (Klaus 2026-09-27): unter der Feldarten-Leiste und den Ordner-Knöpfen,
+       damit man auf kleinen Handys sieht, dass noch mehr folgt. Baustein: assets/schieber.js
+       (byte-1:1 auch in den WorkFlohs). Er erscheint nur, wenn die Leiste wirklich überläuft. */
+    if (window.WFSchieber) { WFSchieber.an($('ordnerLeiste')); WFSchieber.beobachte($('edFuss'), '.werkzeug'); }
     // Im Dokument: beim Tippen suchen (kurz verzögert, ein langes PDF kostet Zeit), Lupe/▼ = nächster Treffer
     let _eds = null, _edq = '';
     $('edSuche').oninput = () => { clearTimeout(_eds); _eds = setTimeout(() => { _edq = $('edSuche').value; imDokSuchen(_edq); }, 250); };
@@ -2552,7 +2530,7 @@
     let _rz = null;
     window.addEventListener('resize', () => {
       if (!S.doc) return; clearTimeout(_rz);
-      _rz = setTimeout(() => { const b = seitenBreite(); if (b === _rzBreite) return; _rzBreite = b; zeichneSeiten(); }, 250);
+      _rz = setTimeout(() => { if (!S.doc) return; const b = seitenBreite(); if (b === _rzBreite) return; _rzBreite = b; zeichneSeiten(); }, 250);
     });
     document.addEventListener('keydown', e => {
       if (!S.doc || S.modus !== 'bearbeiten' || $('modals').children.length) return;
