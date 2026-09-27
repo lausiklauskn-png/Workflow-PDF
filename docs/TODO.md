@@ -71,6 +71,8 @@ Datei, wird er hier behoben und dann in die WorkFlohs kopiert.
   (Zwei Wege, Klaus lässt die Wahl: die Lupe links im Platzhalter weglassen — ODER den Such-Knopf
   rechts zum Pfeil machen, wie der Senden-Pfeil in der Claude-App. Hängt mit Punkt 6 zusammen: dort
   hieß es „Suche ist okay"; beim Abarbeiten beide zusammen entscheiden.)
+  Beleg (Klaus' Bildschirmfoto 2026-09-27, nur Suchfeld): links 🔎 im Platzhalter, rechts 🎤 und noch einmal 🔎.
+  ![Zwei Lupen](todo-belege/2026-09-27_zwei-lupen.png)
 
 ## Erledigt
 
