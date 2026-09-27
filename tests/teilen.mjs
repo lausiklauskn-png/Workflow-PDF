@@ -245,6 +245,22 @@ try {
   const [tcx, tcy] = await m2(karte(p2, 'Musterbrief C').locator('.dok-bild'));
   await touch('touchStart', tcx, tcy); for (let i = 1; i <= 6; i++) await touch('touchMove', tcx, tcy - i * 15); await p2.waitForTimeout(600); await touch('touchEnd');
   ok('Finger sofort bewegt (rollen): keine Auswahl, kein Ziehen', await p2.evaluate(() => document.getElementById('wahlLeiste').hidden && !document.getElementById('ziehGeist')));
+  // C — 🗑 Löschen in der Auswahl-Leiste (Klaus 2026-09-27: „Löschen ist auch eine Option")
+  await p2.evaluate(() => { const w = window.__wfpdf; w.S.aktOrdner = 'alle'; w.suche.zeichneBibliothek(); window.scrollTo(0, 0); });
+  await karte(p2, 'Musterbrief A').locator('[data-haken]').click();
+  await karte(p2, 'Musterbrief B').locator('.dok-bild').click();
+  ok('Auswahl-Leiste trägt „🗑 Löschen"', await p2.evaluate(() => { const b = document.querySelector('[data-wahl-loeschen]'); return !!b && !b.disabled && getComputedStyle(b).display !== 'none'; }));
+  await p2.click('[data-wahl-loeschen]');
+  const dlgL = await p2.waitForSelector('.dlg [data-j]', { timeout: 8000 }).then(() => true, () => false);
+  ok('… fragt erst nach, mit der Zahl und den Namen', dlgL && await p2.evaluate(() => { const t = document.querySelector('.dlg').textContent; return /2/.test(t) && t.includes('Musterbrief A') && t.includes('Musterbrief B'); }));
+  if (dlgL) await p2.click('.dlg [data-n]');
+  ok('„Abbrechen" löscht nichts', await p2.evaluate(async () => (await WFP.DB.all('docs')).length === 3 && window.__wfpdf.S.docs.length === 3));
+  await p2.click('[data-wahl-loeschen]');
+  if (await p2.waitForSelector('.dlg [data-j]', { timeout: 8000 }).then(() => true, () => false)) await p2.click('.dlg [data-j]');
+  await p2.waitForFunction(() => window.__wfpdf.S.docs.length === 1, null, { timeout: 8000 }).catch(() => {});
+  ok('„Löschen" entfernt genau die gewählten, der Rest bleibt', await p2.evaluate(async () => { const d = await WFP.DB.all('docs'); return d.length === 1 && d[0].name === 'Musterbrief C' && window.__wfpdf.S.docs.length === 1; }));
+  ok('… auch die Datei im Speicher', await p2.evaluate(async () => { const ids = (await WFP.DB.all('docs')).map(d => d.id); return (await WFP.DB.all('files')).every(f => ids.includes(f.id)); }));
+  ok('… und die Auswahl ist danach aufgehoben', await p2.evaluate(() => document.getElementById('wahlLeiste').hidden && !document.querySelector('#dokGitter .dok.gewaehlt')));
   ok('B: kein Seitenfehler', !f2.length, f2);
   await ctx2.close();
 } catch (e) { ok('Probe lief ohne Absturz', false, String(e && e.stack || e)); }
