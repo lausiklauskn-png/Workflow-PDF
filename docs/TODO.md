@@ -37,6 +37,10 @@ Datei, wird er hier behoben und dann in die WorkFlohs kopiert.
   ist ein Punkt, wo ich den markieren kann. Und der Pfeil nach oben sollte komplett einmal bis nach
   oben scrollen. Sonst muss ich die ganzen Dokumente wieder nach oben scrollen, um an die
   Bedienelemente heranzukommen."
+- [ ] 2026-09-27 · Workflow-PDF · **Kopfleisten-Knöpfe überlagern den Schriftzug.**
+  Klaus: „Die Button oben in Workflow PDF, Deutsch, also DE, Aktualisieren, Fragezeichen und
+  Zahnrädchen werden bei einer schmalen Handyansicht zu groß und gehen auf Workflow PDF Schrifttext,
+  überlagern ihn."
 
 ## Erledigt
 
