@@ -114,6 +114,9 @@ Datei (`assets/wfpdf/…`, `werkzeug.js`), wird er beim Abarbeiten auch in Mein-
   (Der Knopf, der die Übersetzung startet, im Dialog „🌐 PDF übersetzen" — sowohl in der Akte als
   auch beim Originaldokument/Fragebogen. Beim Abarbeiten in Mein-WorkFloh mitprüfen:
   `werkzeug.js` ist in beiden WorkFlohs identisch, der Unterschied kann aber im Stil der App liegen.)
+  Beleg (Klaus' Bildschirmfoto 2026-09-27, nur der Dialog ausgeschnitten): unten rechts „🌐 Übersetzen"
+  in Weiß auf hellem Glas-Knopf, kaum zu erkennen.
+  ![Übersetzen-Knopf nicht lesbar](todo-belege/2026-09-27_tomy-uebersetzen-knopf.jpg)
 
 ## Erledigt
 
