@@ -26,7 +26,11 @@ Datei, wird er hier behoben und dann in die WorkFlohs kopiert.
 
 ## Offen
 
-_(noch leer — Klaus prüft gerade)_
+- [ ] 2026-09-27 · Workflow-PDF (in den WorkFlohs mitprüfen) · **Schieberegler bei den Ordner-Knöpfen kaum greifbar.**
+  Klaus: „Wenn die App auf kleinen Handys ist oder schmal gezogen wird und die Ordner über den Rand
+  ragen, entsteht ein Schieberegler. Also bei den Ordner-Buttons. Der Schieberegler ist aber ganz
+  schlecht anzufassen. Das heißt, es müsste da ein Griff sein oder ein kleines Viereck, wo man
+  erkennt: ah, das ist ein Schieberegler, mit dem kann man es hin und her schieben."
 
 ## Erledigt
 
