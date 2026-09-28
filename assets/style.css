@@ -202,6 +202,8 @@ button{cursor:pointer}
    unter die Knöpfe laufen (.marke schneidet notfalls ab statt zu überlappen). */
 @media (max-width:480px){.kopf{gap:6px;padding:4px 8px 4px 4px}.floh-knopf,.floh{width:42px;height:42px}.kopf-rechts{gap:4px}.ikon{width:34px;height:34px;font-size:.9rem}.marke-name{font-size:1.08rem;white-space:normal;line-height:1.05}.ikon.sprache-k{font-size:.72rem}}
 @media (max-width:370px){.floh-knopf,.floh{width:36px;height:36px}.kopf-rechts{gap:3px}.ikon{width:31px;height:31px;font-size:.82rem;border-width:1.5px}.marke-name{font-size:.98rem}}
+/* 🎬 in der Kopfleiste (Klaus 2026-09-28): sechs Knöpfe samt Installieren passen bei 320 px nur so neben „Workfloh PDF“ */
+@media (max-width:370px){.kopf{padding-right:4px}.kopf-rechts{gap:2px}#btnInstall{width:31px;height:31px;min-height:31px;min-width:31px;padding:0;border-radius:50%}.marke-name{font-size:.86rem}}
 .bib-suchform.wfs-an .bib-knopf{top:22px}
 @media print{.kopf,.ed-leiste,.ed-fuss,.vorschlag-band{display:none}}
 /* Ausfüllen: Finger darf über Feldern scrollen (touch-action:none gilt nur fürs Ziehen) */

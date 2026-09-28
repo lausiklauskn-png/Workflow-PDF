@@ -2525,7 +2525,7 @@
     $('btnUebersetzen').onclick = uebersetzenStart;
     $('inUeOrdner').onchange = e => { const fs = Array.from(e.target.files || []); const n = fs[0] && fs[0].webkitRelativePath ? fs[0].webkitRelativePath.split('/')[0] : null; ueEinlesen(fs, n); e.target.value = ''; };
     $('inUeDateien').onchange = e => { ueEinlesen(e.target.files, null); e.target.value = ''; };
-    $('btnEinst').onclick = einstellungen; $('btnHilfe').onclick = hilfe;
+    $('btnEinst').onclick = einstellungen; $('btnHilfe').onclick = hilfe; $('btnVideo').onclick = erklaervideo;
     // Suche: beim Tippen UND beim Absenden. Die Lupe der Bildschirmtastatur sendet das Formular ab
     // (vorher war das Feld ohne Formular — die Lupe tat nichts). Absenden schließt die Tastatur,
     // damit die Treffer zu sehen sind; compositionend fängt Tastaturen, die ein Wort erst am Ende
