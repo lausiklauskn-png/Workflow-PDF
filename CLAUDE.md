@@ -577,6 +577,20 @@ mit derselben Nummer (`nummerOeffnen`); eine Kundenverwaltung/Warenwirtschaft h�
 `window.WF_KUNDE_OEFFNEN(nr)` / `window.WF_ARTIKEL_OEFFNEN(nr)` ein. Die Bibliothek hat ein Suchfeld,
 das auch in den Feldinhalten sucht. Nummern werden beim Übersetzen nicht übersetzt.
 
+## 🎬 Erklärvideo aus der Hilfe (Klaus 2026-09-28)
+
+„Ja, mach das so, 1 und 2 zusammen": in der Hilfe **🎬 Erklärvideo** (`erklaervideo()` in app.js) und ein Link
+„Alle Kapitel und die Kurzfassung auf der Webseite". Das Video liegt auf **Workfloh-PDF-Page** (gleiche Adresse
+lausiklauskn-png.github.io), `assets/workfloh-pdf-quer{,-en,-ru}.mp4` samt `poster-{de,en,ru}.jpg` —
+**keine Kopie hier**. Sprache aus `WFP.Sprache.lang`; Arabisch gibt es nicht → Englisch, und der Dialog sagt das.
+- Geladen wird erst auf Tipp (`preload="metadata"`). **Nicht im Offline-Vorrat:** `sw.js` lässt jeden Abruf unter
+  `/Workfloh-PDF-Page/` durch, bevor der Vorrat greift (große Datei, Range-Antworten 206). Offline oder wenn die
+  Webseite nicht antwortet: kein Video, sondern der Satz, dass es Internet braucht.
+- **Wer ein Video auf der Webseite umbenennt, bricht diesen Knopf** — dort steht der Hinweis darauf.
+- Probe: `tests/video.mjs` (in `npm test`, Webseite gestellt, WebM als Stellvertreter). ⚠ Benannte Grenze: ein
+  Lauf MIT Worker misst hier nichts (127.0.0.1 ist ein anderer Ursprung als github.io) — gemessen wird die
+  Sperrzeile im Quelltext. Ob das echte MP4 am Tablet aus der App heraus spielt, ist nicht gemessen.
+
 ## ⚖️ Impressum & Datenschutz (Klaus 2026-09-27)
 
 Unter der Bibliothek steht „Impressum & Datenschutz" (`#rechtFuss`, öffnet `impressum.html`). Der Datenschutz dort
