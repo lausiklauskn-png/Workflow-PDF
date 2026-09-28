@@ -20,7 +20,7 @@ let STELLV = null;
 try {
   const FF = process.env.FFMPEG || execFileSync('python3', ['-c', 'import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())']).toString().trim();
   STELLV = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'video-')), 'stellv.webm');
-  execFileSync(FF, ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=black:s=64x36:r=1:d=5', '-c:v', 'libvpx-vp9', '-b:v', '20k', STELLV]);
+  execFileSync(FF, ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=black:s=64x36:r=1:d=60', '-c:v', 'libvpx-vp9', '-b:v', '20k', STELLV]);
 } catch { STELLV = null; }
 
 const srv = await new Promise(res => {
@@ -43,7 +43,11 @@ async function oeffne(lang, opt = {}) {
   await ctx.route(SEITE + '**', r => {
     abrufe.push(r.request().url());
     if (opt.kaputt || !STELLV || !r.request().url().endsWith('.mp4')) return r.fulfill({ status: 404, body: '' });
-    return r.fulfill({ status: 200, contentType: 'video/webm', body: fs.readFileSync(STELLV) });
+    // mit Range-Antworten (206) — ohne sie ist das Video nicht springbar, und „an derselben Stelle" wäre nicht messbar
+    const buf = fs.readFileSync(STELLV), m = /bytes=(\d*)-(\d*)/.exec(r.request().headers()['range'] || '');
+    if (!m) return r.fulfill({ status: 200, contentType: 'video/webm', headers: { 'Accept-Ranges': 'bytes' }, body: buf });
+    const von = m[1] ? +m[1] : 0, bis = m[2] ? +m[2] : buf.length - 1;
+    return r.fulfill({ status: 206, contentType: 'video/webm', headers: { 'Accept-Ranges': 'bytes', 'Content-Range': `bytes ${von}-${bis}/${buf.length}` }, body: buf.subarray(von, bis + 1) });
   });
   const p = await ctx.newPage();
   await p.goto(URL0);
@@ -109,26 +113,34 @@ try {
     ok(`${lang}: Hinweis auf die Ersatzsprache ${lang === 'ar' ? 'steht da' : 'fehlt zu Recht'}`, ersatz === (lang === 'ar'));
     await ctx.close();
   }
-  // 3b · Hochkant (Klaus 2026-09-28): die Kurzfassung, von selbst nach der Lage; beim Drehen wird getauscht
-  for (const [lang, hoch, quer, bild] of [['de', 'workfloh-pdf-hoch.mp4', 'workfloh-pdf-quer.mp4', 'poster-hoch-de.jpg'], ['ru', 'workfloh-pdf-hoch-ru.mp4', 'workfloh-pdf-quer-ru.mp4', 'poster-hoch-ru.jpg']]) {
+  // 3b · Hochkant (Klaus 2026-09-28): dasselbe GANZE Video hochkant; gedreht geht es an derselben Stelle weiter
+  for (const [lang, hoch, quer, bild] of [['de', 'workfloh-pdf-hochvoll.mp4', 'workfloh-pdf-quer.mp4', 'poster-hochvoll-de.jpg'], ['ru', 'workfloh-pdf-hochvoll-ru.mp4', 'workfloh-pdf-quer-ru.mp4', 'poster-hochvoll-ru.jpg']]) {
     const { ctx, p } = await oeffne(lang);
     await p.setViewportSize({ width: 390, height: 800 });
     await p.evaluate(() => window.__wfpdf.dlg.erklaervideo());
-    const lese = () => p.$eval('.dlg', d => { const e = d.querySelector('video'), h = d.querySelector('[data-hochkant]'), r = e && e.getBoundingClientRect();
-      return e && { src: e.getAttribute('src'), poster: e.getAttribute('poster'), hinweis: !!h && h.checkVisibility(), w: r.width, h: r.height, drin: r.bottom <= innerHeight && r.right <= innerWidth }; }).catch(() => null);
+    const lese = () => p.$eval('.dlg', d => { const alle = [...d.querySelectorAll('video')], e = alle.find(x => !x.hidden), z = alle.find(x => x.hidden), r = e && e.getBoundingClientRect();
+      return e && { src: e.getAttribute('src'), poster: e.getAttribute('poster'), t: e.currentTime, laeuft: !e.paused, sichtbar: alle.filter(x => !x.hidden && x.getBoundingClientRect().height > 0).length,
+        zweit: z ? z.getAttribute('src') : null, stumm: z ? z.muted : null, w: r.width, h: r.height, drin: r.bottom <= innerHeight && r.right <= innerWidth }; }).catch(() => null);
     const a = await lese();
-    ok(`${lang} hochkant: die Kurzfassung ${hoch} mit ihrem Standbild`, a && a.src === SEITE + 'assets/' + hoch && a.poster === SEITE + 'assets/' + bild, a);
-    ok(`${lang} hochkant: der Hinweis zur Kurzfassung steht da`, a && a.hinweis, a);
+    ok(`${lang} hochkant: das ganze Video hochkant (${hoch}) mit seinem Standbild`, a && a.src === SEITE + 'assets/' + hoch && a.poster === SEITE + 'assets/' + bild, a);
     ok(`${lang} hochkant: das Video steht hochkant und ganz im Bild`, a && a.h > a.w && a.drin, a);
+    if (!STELLV) { console.log('  ⊘ Drehen an derselben Stelle nicht gemessen (ffmpeg fehlt)'); await ctx.close(); continue; }
+    await p.$eval('.dlg video', e => e.play());
+    await p.waitForFunction(() => document.querySelectorAll('.dlg video').length === 2, null, { timeout: 8000 }).catch(() => {});
+    const z = await lese();
+    ok(`${lang}: nach dem Start lädt das Querformat verborgen und stumm mit`, z && z.zweit === SEITE + 'assets/' + quer && z.stumm && z.sichtbar === 1, z);
+    await p.evaluate(() => { const e = [...document.querySelectorAll('.dlg video')].find(x => !x.hidden); e.currentTime = 30; });
+    await p.waitForFunction(() => { const e = [...document.querySelectorAll('.dlg video')].find(x => !x.hidden); return e.currentTime >= 30 && !e.seeking; }, null, { timeout: 5000 }).catch(() => {});
+    const vorher = (await lese()).t;
     await p.setViewportSize({ width: 800, height: 390 });
-    await p.waitForFunction(s => document.querySelector('.dlg video').getAttribute('src') === s, SEITE + 'assets/' + quer, { timeout: 3000 }).catch(() => {});
+    await p.waitForFunction(s => { const e = [...document.querySelectorAll('.dlg video')].find(x => !x.hidden); return e && e.getAttribute('src') === s; }, SEITE + 'assets/' + quer, { timeout: 3000 }).catch(() => {});
     const b = await lese();
-    ok(`${lang} gedreht auf quer: das ganze Video ${quer}`, b && b.src === SEITE + 'assets/' + quer, b);
-    ok(`${lang} quer: der Hinweis ist weg, das Video steht quer`, b && !b.hinweis && b.w > b.h, b);
+    ok(`${lang} gedreht auf quer: das Querformat, an DERSELBEN Stelle, läuft weiter`, b && b.src === SEITE + 'assets/' + quer && Math.abs(b.t - vorher) < 1.5 && b.laeuft, { vorher, b });
+    ok(`${lang} quer: nur ein Video zu sehen, es steht quer`, b && b.sichtbar === 1 && b.w > b.h, b);
     await p.setViewportSize({ width: 390, height: 800 });
-    await p.waitForFunction(s => document.querySelector('.dlg video').getAttribute('src') === s, SEITE + 'assets/' + hoch, { timeout: 3000 }).catch(() => {});
+    await p.waitForFunction(s => { const e = [...document.querySelectorAll('.dlg video')].find(x => !x.hidden); return e && e.getAttribute('src') === s; }, SEITE + 'assets/' + hoch, { timeout: 3000 }).catch(() => {});
     const c = await lese();
-    ok(`${lang} zurück hochkant: wieder die Kurzfassung`, c && c.src === SEITE + 'assets/' + hoch && c.hinweis, c);
+    ok(`${lang} zurück hochkant: wieder hochkant, an derselben Stelle`, c && c.src === SEITE + 'assets/' + hoch && Math.abs(c.t - b.t) < 1.5 && c.laeuft, { b: b && b.t, c });
     await p.keyboard.press('Escape');
     await p.setViewportSize({ width: 800, height: 390 });
     await p.waitForTimeout(200);
