@@ -133,7 +133,7 @@ kap('8  Übersetzen');
 text('Die App übersetzt Deutsch, Russisch und Englisch in jede Richtung. Jede Seite wird auf derselben Seite übersetzt: Bilder, Farben und Seitenumbrüche bleiben, nur der Text wird an seiner Stelle ersetzt. Das Ergebnis ist ein neues Dokument in einem eigenen Ordner je Sprache; das Original bleibt unberührt.');
 tabelle(['Weg', 'Kosten', 'Wohin geht der Text', 'Gegenprobe'], [['Übersetzer im Browser', 'kostenlos', 'bleibt auf dem Gerät', 'ja'], ['Mit Chrome übersetzen', 'kostenlos, ohne Kontingent', 'an Google', 'nein'], ['Mit KI (eigener Schlüssel)', 'je Seite, über den eigenen Schlüssel', 'an den gewählten Anbieter, Standard Mistral (EU)', 'ja']], [135, 110, 150, 88]);
 await bild('uebersetzen-dialog', 'Bild 13: Das Übersetzen-Fenster mit Sprachwahl und den drei Wegen.', 360, 330);
-ueber('Mit Chrome übersetzen');
+platz(130); ueber('Mit Chrome übersetzen');   // Überschrift nie allein unten: sie wandert mit ihren drei Schritten (Klaus 2026-09-28)
 schritte(['„Mit Chrome übersetzen" wählen. Unten erscheint eine gelbe Fläche mit dem Text der Seite.', 'In Chrome oben rechts auf die drei Punkte tippen, dann „Übersetzen" und die Zielsprache wählen.', 'Danach läuft es Seite für Seite von selbst.']);
 kasten('Wenn „Übersetzen" im Menü fehlt', 'Im installierten App-Fenster bietet Chrome das Übersetzen nicht an. Dann „Mit Browser öffnen zum Übersetzen" tippen und im Teilen-Fenster Chrome wählen – kein anderes Übersetzungsprogramm. Derselbe Übersetzer öffnet sich dort mit denselben Dokumenten. Zurück in der App den Kreispfeil tippen, dann liegt das Ergebnis auch hier.', '#1f4e8c', '#ffffff');
 ueber('Große Dokumente');
