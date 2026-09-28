@@ -109,6 +109,32 @@ try {
     ok(`${lang}: Hinweis auf die Ersatzsprache ${lang === 'ar' ? 'steht da' : 'fehlt zu Recht'}`, ersatz === (lang === 'ar'));
     await ctx.close();
   }
+  // 3b · Hochkant (Klaus 2026-09-28): die Kurzfassung, von selbst nach der Lage; beim Drehen wird getauscht
+  for (const [lang, hoch, quer, bild] of [['de', 'workfloh-pdf-hoch.mp4', 'workfloh-pdf-quer.mp4', 'poster-hoch-de.jpg'], ['ru', 'workfloh-pdf-hoch-ru.mp4', 'workfloh-pdf-quer-ru.mp4', 'poster-hoch-ru.jpg']]) {
+    const { ctx, p } = await oeffne(lang);
+    await p.setViewportSize({ width: 390, height: 800 });
+    await p.evaluate(() => window.__wfpdf.dlg.erklaervideo());
+    const lese = () => p.$eval('.dlg', d => { const e = d.querySelector('video'), h = d.querySelector('[data-hochkant]'), r = e && e.getBoundingClientRect();
+      return e && { src: e.getAttribute('src'), poster: e.getAttribute('poster'), hinweis: !!h && h.checkVisibility(), w: r.width, h: r.height, drin: r.bottom <= innerHeight && r.right <= innerWidth }; }).catch(() => null);
+    const a = await lese();
+    ok(`${lang} hochkant: die Kurzfassung ${hoch} mit ihrem Standbild`, a && a.src === SEITE + 'assets/' + hoch && a.poster === SEITE + 'assets/' + bild, a);
+    ok(`${lang} hochkant: der Hinweis zur Kurzfassung steht da`, a && a.hinweis, a);
+    ok(`${lang} hochkant: das Video steht hochkant und ganz im Bild`, a && a.h > a.w && a.drin, a);
+    await p.setViewportSize({ width: 800, height: 390 });
+    await p.waitForFunction(s => document.querySelector('.dlg video').getAttribute('src') === s, SEITE + 'assets/' + quer, { timeout: 3000 }).catch(() => {});
+    const b = await lese();
+    ok(`${lang} gedreht auf quer: das ganze Video ${quer}`, b && b.src === SEITE + 'assets/' + quer, b);
+    ok(`${lang} quer: der Hinweis ist weg, das Video steht quer`, b && !b.hinweis && b.w > b.h, b);
+    await p.setViewportSize({ width: 390, height: 800 });
+    await p.waitForFunction(s => document.querySelector('.dlg video').getAttribute('src') === s, SEITE + 'assets/' + hoch, { timeout: 3000 }).catch(() => {});
+    const c = await lese();
+    ok(`${lang} zurück hochkant: wieder die Kurzfassung`, c && c.src === SEITE + 'assets/' + hoch && c.hinweis, c);
+    await p.keyboard.press('Escape');
+    await p.setViewportSize({ width: 800, height: 390 });
+    await p.waitForTimeout(200);
+    ok(`${lang}: nach dem Schließen (Esc) wirft das Drehen keinen Fehler und legt kein Video an`, !(await p.$('.dlg video')));
+    await ctx.close();
+  }
   // 4 · Offline: kein totes Video, sondern ein Satz
   {
     const { ctx, p, abrufe } = await oeffne('de');

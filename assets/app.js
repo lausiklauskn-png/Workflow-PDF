@@ -2474,23 +2474,49 @@
      wird erst auf Tipp geladen und steht NICHT im Offline-Vorrat (sw.js lässt .mp4 durch).
      Offline sagt der Dialog das, statt ein leeres Video zu zeigen. Arabisch gibt es nicht → Englisch. */
   const WEBSEITE = 'https://lausiklauskn-png.github.io/Workfloh-PDF-Page/';
-  function videoFuer(lang) {
+  /* Hochkant (Klaus 2026-09-28: „es müsste erkannt werden, befinde ich mich im Hochformat oder im Querformat"):
+     hochkant läuft die Kurzfassung (~30 s, die einzige Hochkant-Fassung), quer das ganze Video. Beim Drehen wird
+     die Quelle getauscht, solange der Dialog offen ist — nicht im Vollbild (dort dreht der Browser selbst). */
+  const LAGE_HOCH = window.matchMedia ? matchMedia('(orientation: portrait)') : null;
+  const istHoch = () => !!(LAGE_HOCH && LAGE_HOCH.matches);
+  function videoFuer(lang, hoch) {
     const sp = ['de', 'en', 'ru'].includes(lang) ? lang : 'en';
-    return { sp, ersatz: sp !== lang, src: WEBSEITE + 'assets/workfloh-pdf-quer' + (sp === 'de' ? '' : '-' + sp) + '.mp4', poster: WEBSEITE + 'assets/poster-' + sp + '.jpg' };
+    const art = hoch ? 'hoch' : 'quer';
+    return { sp, hoch: !!hoch, ersatz: sp !== lang, src: WEBSEITE + 'assets/workfloh-pdf-' + art + (sp === 'de' ? '' : '-' + sp) + '.mp4',
+      poster: WEBSEITE + 'assets/poster-' + (hoch ? 'hoch-' : '') + sp + '.jpg' };
   }
   function erklaervideo() {
-    const v = videoFuer((window.WFP && WFP.Sprache && WFP.Sprache.lang) || 'de');
+    const lang = (window.WFP && WFP.Sprache && WFP.Sprache.lang) || 'de';
+    const v = videoFuer(lang, istHoch());
     const offline = navigator.onLine === false;
-    dialog(`<h2>🎬 Erklärvideo</h2>
+    const zu0 = dialog(`<h2>🎬 Erklärvideo</h2>
       ${v.ersatz ? '<p class="hinweis" data-ersatz>Das Video gibt es auf Deutsch, Englisch und Russisch — hier läuft die englische Fassung.</p>' : ''}
       <p class="hinweis" data-offline ${offline ? '' : 'hidden'}>Ohne Internet lässt sich das Video nicht laden. Es liegt auf der Webseite und wird nicht auf dem Gerät gespeichert.</p>
-      ${offline ? '' : `<video data-erklaer controls playsinline preload="metadata" poster="${v.poster}" src="${v.src}" style="width:100%;border-radius:10px;background:#000"></video>`}
+      ${offline ? '' : `<video data-erklaer controls playsinline preload="metadata" poster="${v.poster}" src="${v.src}" style="display:block;border-radius:10px;background:#000"></video>`}
+      <p class="hinweis" data-hochkant ${v.hoch && !offline ? '' : 'hidden'}>Hochkant läuft die Kurzfassung (30 Sekunden). Für das ganze Video das Gerät quer halten.</p>
       <p class="hinweis"><a href="${WEBSEITE}" target="_blank" rel="noopener">Alle Kapitel und die Kurzfassung auf der Webseite</a></p>
       <div class="zeile"><button class="knopf rot" data-x>Schließen</button></div>`, (d, zu) => {
       const vid = d.querySelector('video');
-      d.querySelector('[data-x]').onclick = () => { if (vid) { vid.pause(); vid.removeAttribute('src'); vid.load(); } zu(); };
-      if (vid) vid.addEventListener('error', () => { d.querySelector('[data-offline]').hidden = false; vid.remove(); });
+      const masse = hoch => { if (vid) vid.style.cssText = 'display:block;border-radius:10px;background:#000;margin:0 auto;' + (hoch ? 'width:auto;max-width:100%;height:min(62vh,640px);aspect-ratio:9/16' : 'width:100%'); };
+      masse(v.hoch);
+      const drehen = () => {
+        if (!vid || !vid.isConnected) { ende(); return; }   // mit Esc oder Tipp daneben geschlossen
+        if (document.fullscreenElement || document.webkitFullscreenElement) return;
+        const n = videoFuer(lang, istHoch());
+        d.querySelector('[data-hochkant]').hidden = !n.hoch;
+        masse(n.hoch);
+        if (vid.getAttribute('src') === n.src) return;
+        const lief = !vid.paused;
+        vid.poster = n.poster; vid.src = n.src;
+        if (lief) vid.play().catch(() => {});
+      };
+      if (LAGE_HOCH) LAGE_HOCH.addEventListener('change', drehen);
+      document.addEventListener('fullscreenchange', drehen);
+      const ende = () => { if (LAGE_HOCH) LAGE_HOCH.removeEventListener('change', drehen); document.removeEventListener('fullscreenchange', drehen); };
+      d.querySelector('[data-x]').onclick = () => { ende(); if (vid) { vid.pause(); vid.removeAttribute('src'); vid.load(); } zu(); };
+      if (vid) vid.addEventListener('error', () => { d.querySelector('[data-offline]').hidden = false; d.querySelector('[data-hochkant]').hidden = true; vid.remove(); ende(); });
     });
+    return zu0;
   }
   function hilfe() {
     dialog(`<h2>So geht's</h2><ol>
