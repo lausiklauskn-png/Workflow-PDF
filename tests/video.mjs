@@ -80,6 +80,25 @@ try {
     ok('Schließen nimmt den Dialog samt Video weg', !(await p.$('.dlg video')));
     await ctx.close();
   }
+  // 2b · Der Knopf 🎬 in der Kopfleiste, direkt links neben „?" (Klaus 2026-09-28) — sichtbar, treffbar, öffnet das Video
+  for (const breite of [1280, 320]) {
+    const { ctx, p, abrufe } = await oeffne('de');
+    await p.setViewportSize({ width: breite, height: 740 });
+    const k = await p.evaluate(() => {
+      const v = document.getElementById('btnVideo'), h = document.getElementById('btnHilfe');
+      if (!v) return null;
+      const a = v.getBoundingClientRect(), b = h.getBoundingClientRect(), mitte = document.elementFromPoint(a.x + a.width / 2, a.y + a.height / 2);
+      return { sichtbar: v.checkVisibility(), nachbar: v.nextElementSibling === h, links: a.right <= b.left + 1, treffbar: mitte === v || v.contains(mitte), w: a.width, h: a.height, im: a.left >= 0 && a.right <= innerWidth };
+    });
+    ok(`Kopfleiste ${breite} px: 🎬 steht sichtbar direkt links neben „?"`, !!k && k.sichtbar && k.nachbar && k.links && k.im, k);
+    ok(`Kopfleiste ${breite} px: 🎬 ist treffbar (mindestens 30 px, nichts liegt darüber)`, !!k && k.treffbar && k.w >= 30 && k.h >= 30, k);
+    await p.waitForTimeout(200);
+    ok(`Kopfleiste ${breite} px: vor dem Tipp geht nichts zur Webseite`, abrufe.length === 0, abrufe);
+    if (k) { await p.click('#btnVideo'); }
+    const v = await p.waitForSelector('.dlg video[data-erklaer]', { timeout: 5000 }).then(() => true, () => false);
+    ok(`Kopfleiste ${breite} px: ein Tipp auf 🎬 öffnet das Erklärvideo`, v);
+    await ctx.close();
+  }
   // 3 · Sprachen: EN, RU eigen; AR → Englisch, und es wird gesagt
   for (const [lang, datei, bild] of [['en', 'workfloh-pdf-quer-en.mp4', 'poster-en.jpg'], ['ru', 'workfloh-pdf-quer-ru.mp4', 'poster-ru.jpg'], ['ar', 'workfloh-pdf-quer-en.mp4', 'poster-en.jpg']]) {
     const { ctx, p } = await oeffne(lang);
