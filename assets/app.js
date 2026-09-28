@@ -2495,7 +2495,7 @@
       ${v.ersatz ? '<p class="hinweis" data-ersatz>Das Video gibt es auf Deutsch, Englisch und Russisch — hier läuft die englische Fassung.</p>' : ''}
       <p class="hinweis" data-offline ${offline ? '' : 'hidden'}>Ohne Internet lässt sich das Video nicht laden. Es liegt auf der Webseite und wird nicht auf dem Gerät gespeichert.</p>
       ${offline ? '' : `<div data-buehne><video data-erklaer controls playsinline preload="metadata" poster="${v.poster}" src="${v.src}"></video></div>`}
-      <p class="hinweis"><a href="${WEBSEITE}" target="_blank" rel="noopener">Alle Kapitel und die Kurzfassung auf der Webseite</a></p>
+      <p class="hinweis"><a href="${WEBSEITE}" target="_blank" rel="noopener">Alle Kapitel und das Video hochkant auf der Webseite</a></p>
       <div class="zeile"><button class="knopf rot" data-x>Schließen</button></div>`, (d, zu) => {
       let vid = d.querySelector('video'), zweit = null;
       const masse = (el, hoch) => { el.style.cssText = 'border-radius:10px;background:#000;margin:0 auto;' + (el.hidden ? 'display:none;' : 'display:block;') + (hoch ? 'width:auto;max-width:100%;height:min(62vh,640px);aspect-ratio:9/16' : 'width:100%'); };
@@ -2553,7 +2553,7 @@
       <div class="zeile"><button class="knopf" data-hb>📘 Handbuch öffnen</button><button class="knopf" data-bsp>📄 Beispiel-Formular</button><button class="knopf rot" data-x>Verstanden</button></div>
       <p class="hinweis">Das <b>Erklärvideo</b> liegt auf der Webseite und braucht Internet.</p>
       <div class="zeile"><button class="knopf" data-video>🎬 Erklärvideo</button></div>
-      <p class="hinweis"><a data-webseite href="${WEBSEITE}" target="_blank" rel="noopener">Alle Kapitel und die Kurzfassung auf der Webseite</a></p>`, (d, zu) => {
+      <p class="hinweis"><a data-webseite href="${WEBSEITE}" target="_blank" rel="noopener">Alle Kapitel und das Video hochkant auf der Webseite</a></p>`, (d, zu) => {
         d.querySelector('[data-x]').onclick = zu;
         d.querySelector('[data-video]').onclick = () => { zu(); erklaervideo(); };
         const oeffne = nur => async () => { zu(); const x = await beispieleLaden(nur); if (x[0]) oeffneDok(x[0].id); };
