@@ -64,7 +64,7 @@ try {
     ok('Hilfe: der Knopf „🎬 Erklärvideo" steht da', !!knopf && /Erklärvideo/.test(await knopf.textContent()));
     const link = await p.$eval('.dlg [data-webseite]', a => ({ href: a.href, ziel: a.target, rel: a.rel, text: a.textContent })).catch(() => null);
     ok('Hilfe: der Link führt zur Webseite, in neuem Tab, ohne window.opener', link && link.href === 'https://lausiklauskn-png.github.io/Workfloh-PDF-Page/' && link.ziel === '_blank' && /noopener/.test(link.rel), link);
-    ok('Hilfe: der Link nennt Kapitel und Kurzfassung', link && /Kapitel/.test(link.text) && /Kurzfassung/.test(link.text), link);
+    ok('Hilfe: der Link nennt Kapitel und das Video hochkant (die Kurzfassung ist von der Webseite genommen)', link && /Kapitel/.test(link.text) && /hochkant/.test(link.text) && !/Kurzfassung/.test(link.text), link);
     await p.waitForTimeout(300);
     ok('Hilfe: solange nicht getippt wird, geht KEIN Abruf zur Webseite', abrufe.length === 0, abrufe);
     // 2 · Tipp: Dialog mit Video, Deutsch

@@ -582,7 +582,7 @@ das auch in den Feldinhalten sucht. Nummern werden beim Übersetzen nicht übers
 ## 🎬 Erklärvideo aus der Hilfe (Klaus 2026-09-28)
 
 „Ja, mach das so, 1 und 2 zusammen": in der Hilfe **🎬 Erklärvideo** (`erklaervideo()` in app.js) und ein Link
-„Alle Kapitel und die Kurzfassung auf der Webseite". Das Video liegt auf **Workfloh-PDF-Page** (gleiche Adresse
+„Alle Kapitel und das Video hochkant auf der Webseite". Das Video liegt auf **Workfloh-PDF-Page** (gleiche Adresse
 lausiklauskn-png.github.io), `assets/workfloh-pdf-quer{,-en,-ru}.mp4` samt `poster-{de,en,ru}.jpg` —
 **keine Kopie hier**. Sprache aus `WFP.Sprache.lang`; Arabisch gibt es nicht → Englisch, und der Dialog sagt das.
 - **Auch in der Kopfleiste** (Klaus 2026-09-28: „einen Knopf in die Kopfleiste neben dem Fragezeichen"): `#btnVideo` 🎬
