@@ -557,8 +557,10 @@ und ziehen" auf einen Ordner.
   Gegenprobe-Fall nimmt beide). 250 ms sind gewählt, nicht am Tablet gemessen. Mit der Maus beginnt das Ziehen nach 10 px Weg; mit dem Finger heißt
   sofortiges Bewegen Rollen. `touchmove` ist nicht passiv und wird nur beim Ziehen abgefangen; der Klick
   nach dem Ziehen/langen Druck wird geschluckt (`klickSperre`). `verschieben(id|ids)` nimmt beides.
-- ⚠ **Nicht gemessen:** echtes Teilen am Tablet (headless ist `navigator.share` gestellt) und das Ziehen
-  mit echtem Finger auf Android/DeX (gemessen mit CDP-Touch-Ereignissen).
+- ✅ **Klaus' Sichttest 2026-09-28:** Auswahl, Ziehen mit Verweilen 250 ms und Teilen in Ordnung (seine
+  Auskunft als Ganzes). Hier stand: *„⚠ Nicht gemessen: echtes Teilen am Tablet (headless ist `navigator.share`
+  gestellt) und das Ziehen mit echtem Finger auf Android/DeX (gemessen mit CDP-Touch-Ereignissen)."* Die Proben
+  stellen `navigator.share` weiter; einzelne Wege (DeX, Teilen-Abweisung) hat er nicht getrennt benannt.
 - Proben: `tests/teilen.mjs` (in `npm test`, 47 grün) · `node tests/gegenprobe_teilen.mjs` (20 Fälle, zuletzt 2026-09-27: 20 gefangen · 0 blind · 0 falsch · 0 tote Anker,
   Wegwerf-Kopie; `NUR_ANKER=1`, `NUR_FALL="…"`).
 
