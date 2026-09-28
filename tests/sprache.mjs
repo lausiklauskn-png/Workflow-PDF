@@ -46,6 +46,8 @@ async function schritt(p, name, fn) {
 async function rundreise(p) {
   const W = '__wfpdf';
   await schritt(p, 'Hilfe', () => p.evaluate(W => window[W].dlg.hilfe(), W));
+  // Erklärvideo (2026-09-28): der Dialog MIT sichtbarem Offline-Hinweis — beide Sätze müssen übersetzt sein
+  await schritt(p, 'Erklärvideo', async () => { await p.evaluate(W => window[W].dlg.erklaervideo(), W); await p.evaluate(() => { const o = document.querySelector('.dlg [data-offline]'); if (o) o.hidden = false; }); });
   await schritt(p, 'Einstellungen', async () => { await p.evaluate(W => window[W].dlg.einstellungen(), W); await p.waitForTimeout(150); });
   await schritt(p, 'Sprache', () => p.evaluate(W => window[W].dlg.spracheWaehlen(), W));
   await schritt(p, 'Installieren', () => p.evaluate(W => window[W].dlg.installHinweis(false), W));

@@ -2470,6 +2470,28 @@
       <p class="hinweis">DeX und Tablet-Modus haben getrennte Chrome-Installationen: eine in DeX installierte App erscheint im DeX-App-Menü, nicht zwingend im Tablet-Modus.</p>
       <div class="zeile"><button class="knopf rot" data-x>OK</button></div>`, (d, zu) => d.querySelector('[data-x]').onclick = zu);
   }
+  /* 🎬 Erklärvideo (Klaus 2026-09-28): liegt auf der Webseite (Workfloh-PDF-Page, gleiche Adresse),
+     wird erst auf Tipp geladen und steht NICHT im Offline-Vorrat (sw.js lässt .mp4 durch).
+     Offline sagt der Dialog das, statt ein leeres Video zu zeigen. Arabisch gibt es nicht → Englisch. */
+  const WEBSEITE = 'https://lausiklauskn-png.github.io/Workfloh-PDF-Page/';
+  function videoFuer(lang) {
+    const sp = ['de', 'en', 'ru'].includes(lang) ? lang : 'en';
+    return { sp, ersatz: sp !== lang, src: WEBSEITE + 'assets/workfloh-pdf-quer' + (sp === 'de' ? '' : '-' + sp) + '.mp4', poster: WEBSEITE + 'assets/poster-' + sp + '.jpg' };
+  }
+  function erklaervideo() {
+    const v = videoFuer((window.WFP && WFP.Sprache && WFP.Sprache.lang) || 'de');
+    const offline = navigator.onLine === false;
+    dialog(`<h2>🎬 Erklärvideo</h2>
+      ${v.ersatz ? '<p class="hinweis" data-ersatz>Das Video gibt es auf Deutsch, Englisch und Russisch — hier läuft die englische Fassung.</p>' : ''}
+      <p class="hinweis" data-offline ${offline ? '' : 'hidden'}>Ohne Internet lässt sich das Video nicht laden. Es liegt auf der Webseite und wird nicht auf dem Gerät gespeichert.</p>
+      ${offline ? '' : `<video data-erklaer controls playsinline preload="metadata" poster="${v.poster}" src="${v.src}" style="width:100%;border-radius:10px;background:#000"></video>`}
+      <p class="hinweis"><a href="${WEBSEITE}" target="_blank" rel="noopener">Alle Kapitel und die Kurzfassung auf der Webseite</a></p>
+      <div class="zeile"><button class="knopf rot" data-x>Schließen</button></div>`, (d, zu) => {
+      const vid = d.querySelector('video');
+      d.querySelector('[data-x]').onclick = () => { if (vid) { vid.pause(); vid.removeAttribute('src'); vid.load(); } zu(); };
+      if (vid) vid.addEventListener('error', () => { d.querySelector('[data-offline]').hidden = false; vid.remove(); });
+    });
+  }
   function hilfe() {
     dialog(`<h2>So geht's</h2><ol>
       <li><b>Einlesen:</b> PDF oder Bild wählen, 📷 Scannen oder einen ganzen Ordner einlesen. Dateien lassen sich auch auf die Seite ziehen. Bei Fotos wird das Blatt gesucht und auf A4 gerade gezogen — ausgedruckt („Tatsächliche Größe / 100 %") so groß wie das Papier.</li>
@@ -2482,8 +2504,12 @@
       <li><b>Übersetzen:</b> in der Bibliothek „🌐 Übersetzen" — Deutsch, Russisch, Englisch in jede Richtung. Jede Seite wird auf <i>derselben</i> Seite übersetzt, Seitenumbrüche bleiben. Das Ergebnis liegt als neues Dokument im selben Ordner, das Original bleibt unberührt. Mit Gegenprobe (Rückübersetzung) daneben. <b>Kostenlos ohne Schlüssel:</b> „🌐 Mit Chrome übersetzen" — die App zeigt den Text unten an, du tippst in Chrome ⋮ → „Übersetzen" (der Text geht an Google). Läuft die App installiert im eigenen Fenster und fehlt dort „Übersetzen": „🌐 In Chrome öffnen" — derselbe Übersetzer öffnet sich in Chrome mit denselben Dokumenten, das Ergebnis liegt danach auch in der App.</li></ol>
       <p class="hinweis">Alles bleibt in diesem Browser (DeX-Chrome und Tablet-Chrome sind zwei getrennte Browser). Ins Netz geht nur, was du ausdrücklich an eine KI schickst.</p>
       <p>Das ausführliche <b>Benutzerhandbuch</b> und ein <b>Beispiel-Formular</b> (erfundene Daten) liegen der App bei — hier unten öffnen, oder unter „🌐 Übersetzen → 📘 Beispiele zum Ausprobieren". Sie landen im Ordner „Beispiele".</p>
-      <div class="zeile"><button class="knopf" data-hb>📘 Handbuch öffnen</button><button class="knopf" data-bsp>📄 Beispiel-Formular</button><button class="knopf rot" data-x>Verstanden</button></div>`, (d, zu) => {
+      <div class="zeile"><button class="knopf" data-hb>📘 Handbuch öffnen</button><button class="knopf" data-bsp>📄 Beispiel-Formular</button><button class="knopf rot" data-x>Verstanden</button></div>
+      <p class="hinweis">Das <b>Erklärvideo</b> liegt auf der Webseite und braucht Internet.</p>
+      <div class="zeile"><button class="knopf" data-video>🎬 Erklärvideo</button></div>
+      <p class="hinweis"><a data-webseite href="${WEBSEITE}" target="_blank" rel="noopener">Alle Kapitel und die Kurzfassung auf der Webseite</a></p>`, (d, zu) => {
         d.querySelector('[data-x]').onclick = zu;
+        d.querySelector('[data-video]').onclick = () => { zu(); erklaervideo(); };
         const oeffne = nur => async () => { zu(); const x = await beispieleLaden(nur); if (x[0]) oeffneDok(x[0].id); };
         d.querySelector('[data-hb]').onclick = oeffne(BEISPIELE[0].name);
         d.querySelector('[data-bsp]').onclick = oeffne(BEISPIELE[1].name);
@@ -2593,7 +2619,7 @@
     ladeBibliothek().then(() => { if (EINST.bedeutung) bedeutungStarten(); }).then(chromeTabRueckweg).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
     window.__wfpdf = { beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner,
       // für tests/sprache.mjs: jeden Dialog einmal öffnen und seine Texte nachschlagen
-      dlg: { neuerOrdner, verschieben, teilenDocs, wahlEnde, WAHL, wahlUmschalten, loeschen, speichernDialog, scanStarten, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe, bedeutungDialog } };   // für die Probe
+      dlg: { neuerOrdner, verschieben, teilenDocs, wahlEnde, WAHL, wahlUmschalten, loeschen, speichernDialog, scanStarten, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, erklaervideo, videoFuer, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe, bedeutungDialog } };   // für die Probe
   }
   start();
 })();
