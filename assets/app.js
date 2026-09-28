@@ -2474,16 +2474,18 @@
      wird erst auf Tipp geladen und steht NICHT im Offline-Vorrat (sw.js lässt .mp4 durch).
      Offline sagt der Dialog das, statt ein leeres Video zu zeigen. Arabisch gibt es nicht → Englisch. */
   const WEBSEITE = 'https://lausiklauskn-png.github.io/Workfloh-PDF-Page/';
-  /* Hochkant (Klaus 2026-09-28: „es müsste erkannt werden, befinde ich mich im Hochformat oder im Querformat"):
-     hochkant läuft die Kurzfassung (~30 s, die einzige Hochkant-Fassung), quer das ganze Video. Beim Drehen wird
-     die Quelle getauscht, solange der Dialog offen ist — nicht im Vollbild (dort dreht der Browser selbst). */
+  /* Hochkant (Klaus 2026-09-28: „wenn es hochkant geht, dann da weitermachen, wo das Querformat aufgehört hat,
+     ohne Verzögerung"): hochkant läuft dasselbe GANZE Video hochkant (workfloh-pdf-hochvoll*.mp4). Jede Szene
+     ist dort auf die Länge des Querformats gebracht — gleiche Sekunden, gleiche Musik. Nach dem Start lädt die
+     andere Lage verborgen und stumm mit; gedreht wird nur umgeschaltet (Zeit übernehmen, zeigen, weiter).
+     Nicht im Vollbild (dort dreht der Browser selbst). */
   const LAGE_HOCH = window.matchMedia ? matchMedia('(orientation: portrait)') : null;
   const istHoch = () => !!(LAGE_HOCH && LAGE_HOCH.matches);
   function videoFuer(lang, hoch) {
     const sp = ['de', 'en', 'ru'].includes(lang) ? lang : 'en';
-    const art = hoch ? 'hoch' : 'quer';
+    const art = hoch ? 'hochvoll' : 'quer';
     return { sp, hoch: !!hoch, ersatz: sp !== lang, src: WEBSEITE + 'assets/workfloh-pdf-' + art + (sp === 'de' ? '' : '-' + sp) + '.mp4',
-      poster: WEBSEITE + 'assets/poster-' + (hoch ? 'hoch-' : '') + sp + '.jpg' };
+      poster: WEBSEITE + 'assets/poster-' + (hoch ? 'hochvoll-' : '') + sp + '.jpg' };
   }
   function erklaervideo() {
     const lang = (window.WFP && WFP.Sprache && WFP.Sprache.lang) || 'de';
@@ -2492,29 +2494,47 @@
     const zu0 = dialog(`<h2>🎬 Erklärvideo</h2>
       ${v.ersatz ? '<p class="hinweis" data-ersatz>Das Video gibt es auf Deutsch, Englisch und Russisch — hier läuft die englische Fassung.</p>' : ''}
       <p class="hinweis" data-offline ${offline ? '' : 'hidden'}>Ohne Internet lässt sich das Video nicht laden. Es liegt auf der Webseite und wird nicht auf dem Gerät gespeichert.</p>
-      ${offline ? '' : `<video data-erklaer controls playsinline preload="metadata" poster="${v.poster}" src="${v.src}" style="display:block;border-radius:10px;background:#000"></video>`}
-      <p class="hinweis" data-hochkant ${v.hoch && !offline ? '' : 'hidden'}>Hochkant läuft die Kurzfassung (30 Sekunden). Für das ganze Video das Gerät quer halten.</p>
+      ${offline ? '' : `<div data-buehne><video data-erklaer controls playsinline preload="metadata" poster="${v.poster}" src="${v.src}"></video></div>`}
       <p class="hinweis"><a href="${WEBSEITE}" target="_blank" rel="noopener">Alle Kapitel und die Kurzfassung auf der Webseite</a></p>
       <div class="zeile"><button class="knopf rot" data-x>Schließen</button></div>`, (d, zu) => {
-      const vid = d.querySelector('video');
-      const masse = hoch => { if (vid) vid.style.cssText = 'display:block;border-radius:10px;background:#000;margin:0 auto;' + (hoch ? 'width:auto;max-width:100%;height:min(62vh,640px);aspect-ratio:9/16' : 'width:100%'); };
-      masse(v.hoch);
+      let vid = d.querySelector('video'), zweit = null;
+      const masse = (el, hoch) => { el.style.cssText = 'border-radius:10px;background:#000;margin:0 auto;' + (el.hidden ? 'display:none;' : 'display:block;') + (hoch ? 'width:auto;max-width:100%;height:min(62vh,640px);aspect-ratio:9/16' : 'width:100%'); };
+      if (vid) masse(vid, v.hoch);
+      const vorbereiten = () => {   // die andere Lage lädt still mit
+        if (zweit || !vid || !vid.isConnected) return;
+        const n = videoFuer(lang, !istHoch());
+        zweit = document.createElement('video');
+        zweit.playsInline = true; zweit.controls = true; zweit.preload = 'auto'; zweit.muted = true; zweit.hidden = true; zweit.src = n.src;
+        zweit.setAttribute('data-erklaer', ''); masse(zweit, n.hoch);
+        vid.after(zweit);
+      };
+      if (vid) vid.addEventListener('playing', vorbereiten, { once: true });
       const drehen = () => {
         if (!vid || !vid.isConnected) { ende(); return; }   // mit Esc oder Tipp daneben geschlossen
         if (document.fullscreenElement || document.webkitFullscreenElement) return;
         const n = videoFuer(lang, istHoch());
-        d.querySelector('[data-hochkant]').hidden = !n.hoch;
-        masse(n.hoch);
-        if (vid.getAttribute('src') === n.src) return;
-        const lief = !vid.paused;
-        vid.poster = n.poster; vid.src = n.src;
-        if (lief) vid.play().catch(() => {});
+        if (vid.getAttribute('src') === n.src) { masse(vid, n.hoch); return; }
+        const t = vid.currentTime, lief = !vid.paused;
+        if (zweit && zweit.getAttribute('src') === n.src) {
+          const alt = vid, neu = zweit;
+          neu.muted = alt.muted; neu.volume = alt.volume;
+          const zeigen = () => {
+            neu.hidden = false; masse(neu, n.hoch); alt.pause(); alt.muted = true; alt.hidden = true; masse(alt, !n.hoch);
+            vid = neu; zweit = alt;
+            if (lief) vid.play().catch(() => {});
+          };
+          const setzen = () => { if (Math.abs(neu.currentTime - t) < 0.05) zeigen(); else { neu.addEventListener('seeked', zeigen, { once: true }); neu.currentTime = t; } };
+          if (neu.readyState >= 1) setzen(); else neu.addEventListener('loadedmetadata', setzen, { once: true });
+          return;
+        }
+        masse(vid, n.hoch); vid.poster = n.poster; vid.src = n.src;   // noch nichts vorgeladen: Quelle tauschen, Stelle übernehmen
+        vid.addEventListener('loadedmetadata', () => { vid.currentTime = t; if (lief) vid.play().catch(() => {}); }, { once: true });
       };
       if (LAGE_HOCH) LAGE_HOCH.addEventListener('change', drehen);
       document.addEventListener('fullscreenchange', drehen);
       const ende = () => { if (LAGE_HOCH) LAGE_HOCH.removeEventListener('change', drehen); document.removeEventListener('fullscreenchange', drehen); };
-      d.querySelector('[data-x]').onclick = () => { ende(); if (vid) { vid.pause(); vid.removeAttribute('src'); vid.load(); } zu(); };
-      if (vid) vid.addEventListener('error', () => { d.querySelector('[data-offline]').hidden = false; d.querySelector('[data-hochkant]').hidden = true; vid.remove(); ende(); });
+      d.querySelector('[data-x]').onclick = () => { ende(); d.querySelectorAll('video').forEach(e => { e.pause(); e.removeAttribute('src'); e.load(); }); zu(); };
+      if (vid) vid.addEventListener('error', () => { d.querySelector('[data-offline]').hidden = false; d.querySelectorAll('video').forEach(e => e.remove()); ende(); });
     });
     return zu0;
   }

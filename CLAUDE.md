@@ -590,10 +590,12 @@ lausiklauskn-png.github.io), `assets/workfloh-pdf-quer{,-en,-ru}.mp4` samt `post
 - Geladen wird erst auf Tipp (`preload="metadata"`). **Nicht im Offline-Vorrat:** `sw.js` lässt jeden Abruf unter
   `/Workfloh-PDF-Page/` durch, bevor der Vorrat greift (große Datei, Range-Antworten 206). Offline oder wenn die
   Webseite nicht antwortet: kein Video, sondern der Satz, dass es Internet braucht.
-- **Hochkant läuft die Kurzfassung** (Klaus 2026-09-28): `videoFuer(lang, hoch)` wählt nach
-  `matchMedia('(orientation: portrait)')` `workfloh-pdf-hoch*.mp4` + `poster-hoch-*.jpg`, sonst das ganze Video.
-  Solange der Dialog offen ist, tauscht Drehen die Quelle (nicht im Vollbild); der Zuhörer geht beim Schließen weg,
-  auch bei Esc. Hochkant steht ein Hinweis, dass das ganze Video quer läuft. `tests/video.mjs` 3b.
+- **Hochkant läuft das GANZE Video hochkant** (Klaus 2026-09-28: „da weitermachen, wo das Querformat aufgehört hat,
+  ohne Verzögerung"): `videoFuer(lang, hoch)` wählt nach `matchMedia('(orientation: portrait)')`
+  `workfloh-pdf-hochvoll*.mp4` + `poster-hochvoll-*.jpg`. Beide Fassungen sind szenengenau gleich lang (gebaut auf
+  der Webseite). Nach dem Start lädt die andere Lage verborgen und stumm mit; Drehen übernimmt die Stelle und schaltet
+  um (nicht im Vollbild). Zuhörer gehen beim Schließen weg, auch bei Esc. `tests/video.mjs` 3b (Stellvertreter mit
+  Range-Antworten — ohne sie ist nichts springbar).
 - **Wer ein Video auf der Webseite umbenennt, bricht diesen Knopf** — dort steht der Hinweis darauf.
 - Probe: `tests/video.mjs` (in `npm test`, Webseite gestellt, WebM als Stellvertreter). ⚠ Benannte Grenze: ein
   Lauf MIT Worker misst hier nichts (127.0.0.1 ist ein anderer Ursprung als github.io) — gemessen wird die
