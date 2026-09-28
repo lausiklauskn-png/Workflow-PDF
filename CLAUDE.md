@@ -590,6 +590,10 @@ lausiklauskn-png.github.io), `assets/workfloh-pdf-quer{,-en,-ru}.mp4` samt `post
 - Geladen wird erst auf Tipp (`preload="metadata"`). **Nicht im Offline-Vorrat:** `sw.js` lässt jeden Abruf unter
   `/Workfloh-PDF-Page/` durch, bevor der Vorrat greift (große Datei, Range-Antworten 206). Offline oder wenn die
   Webseite nicht antwortet: kein Video, sondern der Satz, dass es Internet braucht.
+- **Hochkant läuft die Kurzfassung** (Klaus 2026-09-28): `videoFuer(lang, hoch)` wählt nach
+  `matchMedia('(orientation: portrait)')` `workfloh-pdf-hoch*.mp4` + `poster-hoch-*.jpg`, sonst das ganze Video.
+  Solange der Dialog offen ist, tauscht Drehen die Quelle (nicht im Vollbild); der Zuhörer geht beim Schließen weg,
+  auch bei Esc. Hochkant steht ein Hinweis, dass das ganze Video quer läuft. `tests/video.mjs` 3b.
 - **Wer ein Video auf der Webseite umbenennt, bricht diesen Knopf** — dort steht der Hinweis darauf.
 - Probe: `tests/video.mjs` (in `npm test`, Webseite gestellt, WebM als Stellvertreter). ⚠ Benannte Grenze: ein
   Lauf MIT Worker misst hier nichts (127.0.0.1 ist ein anderer Ursprung als github.io) — gemessen wird die
