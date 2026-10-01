@@ -327,6 +327,9 @@ else {
     ok('Handbuch: nach dem Neuladen geht es an derselben Stelle weiter (nur der Rest wird eingeordnet)', nach === hbN - gespeichert, { nach, rest: hbN - gespeichert });
     ok('Handbuch: am Ende sind ALLE Abschnitte da, im Speicher wie im Vorrat', await p4.evaluate(async ([id, n]) => { const k = await WFP.DB.get('vektoren', id); return k.fertig === n && window.__wfpdf.bedeutung.BED.vek.get(id).st.length === n; }, [hbId, hbN]));
     await p4.fill('#bibSuche', 'Gewährleistung');
+    // Auf die Antwort ZU DIESER Frage warten, nicht auf irgendeinen Kopf: der kann noch von der
+    // vorigen Frage dastehen. Unter Last (Prüfung beim Einlesen, Texterkennung) kommt die neue später.
+    await p4.waitForFunction(q => { const e = window.__wfpdf.bedeutung.BED.ergebnis; return e && e.frage === q; }, 'Gewährleistung', { timeout: 20000 }).catch(() => {});
     await p4.waitForSelector('[data-bed-kopf], [data-bed-nichts], [data-bed-schwach]', { timeout: 8000 }).catch(() => {});
     k = await karten(p4);
     ok('Handbuch: „Gewährleistung" findet den Satz auf der LETZTEN Seite (30)', k.some(x => /Handbuch/.test(x.name) && x.bed && x.fund.some(z => /^Nach Bedeutung, Seite 30/.test(z) && /Garantie/.test(z))), k);
@@ -335,8 +338,14 @@ else {
     await p4.setInputFiles('#inDatei', [path.join(TMP, 'Abo.pdf'), path.join(TMP, 'Miete.pdf')]);
     await p4.waitForFunction(() => window.__wfpdf.S.docs.length === 3, null, { timeout: 30000 });
     await p4.evaluate(() => { for (const g of document.querySelectorAll('.dlg-grund')) g.remove(); });
-    await p4.waitForFunction(() => window.__wfpdf.bedeutung.BED.vek.size === 3 && document.getElementById('bedeutungLeiste').dataset.bedZustand === 'bereit', null, { timeout: 30000 });
+    // Drei Einträge reichen nicht: ein neu eingelesenes Dokument steht schon in BED.vek, bevor es
+    // eingeordnet ist (st leer), und die Leiste bleibt dabei „bereit". Ohne Last war das Fenster zu
+    // kurz, um es zu sehen; mit der Prüfung beim Einlesen (Texterkennung daneben) nicht mehr.
+    await p4.waitForFunction(() => { const B = window.__wfpdf.bedeutung.BED; return B.vek.size === 3 && [...B.vek.values()].every(e => e.st.length === e.n) && document.getElementById('bedeutungLeiste').dataset.bedZustand === 'bereit'; }, null, { timeout: 60000 });
     await p4.fill('#bibSuche', 'Mietvertrag Wohnung zum Monatsende beenden bitte');
+    // Auf die Antwort ZU DIESER Frage warten, nicht auf irgendeinen Kopf: der kann noch von der
+    // vorigen Frage dastehen. Unter Last (Prüfung beim Einlesen, Texterkennung) kommt die neue später.
+    await p4.waitForFunction(q => { const e = window.__wfpdf.bedeutung.BED.ergebnis; return e && e.frage === q; }, 'Mietvertrag Wohnung zum Monatsende beenden bitte', { timeout: 20000 }).catch(() => {});
     await p4.waitForSelector('[data-bed-kopf]', { timeout: 8000 }).catch(() => {});
     k = await karten(p4);
     const erst = k.filter(x => x.bed);

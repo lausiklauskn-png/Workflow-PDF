@@ -579,6 +579,41 @@ mit derselben Nummer (`nummerOeffnen`); eine Kundenverwaltung/Warenwirtschaft h�
 `window.WF_KUNDE_OEFFNEN(nr)` / `window.WF_ARTIKEL_OEFFNEN(nr)` ein. Die Bibliothek hat ein Suchfeld,
 das auch in den Feldinhalten sucht. Nummern werden beim Übersetzen nicht übersetzt.
 
+## 🛡 Prüfung beim Einlesen — versteckte Befehle (Klaus 2026-10-01)
+
+„Wie können wir verhindern, dass ähnliche Schadtexte … beim Importieren von PDF-Dateien … Schon wenn ich
+ein Foto mache, kann das ja passieren. Oder Importdatei." Jedes eingelesene PDF, Foto und jeder Arbeitsstand
+wird im Hintergrund geprüft. Was gefunden wird, wird **markiert, nicht entfernt**, dazu der Rat: beim Absender nachfragen.
+
+- Der Prüfkern ist der des Auslieferungsprüfers. `assets/pruefer-anhang.js`, `pruefer-mail.js` und `pruefer-formate.js`
+  sind **byte-1:1** kopiert und in `tests/eingang.mjs` per SHA-256 gepinnt. Dort pflegen, hier neu kopieren.
+  `assets/eingang.js` ist der Klebstoff (`WFP.Eingang.pruefen`). Er lädt den Kern erst beim Einlesen und prüft die ORIGINALDATEI.
+- **Gemeldet** wird nur, was täuschen soll: eine Anweisung an eine KI (im Text, auf dem Scan, im Bild, auch blass),
+  unsichtbarer Text im PDF, ein Verdacht in den Bildpunkten, eine Datei im PDF, ein Programm oder eine Tarnung.
+  **Nicht gemeldet** werden Personenbezug, Metadaten, PDF-Aktionen und Kamera-Anhängsel, denn das ist in Formularen normal.
+- Am Dokument steht `d.pruefung` (`stand` warnung · sauber · ungeprueft). Die Karte trägt eine Marke (`markeErneuern`
+  erneuert nur diese eine Karte). Ein Tipp darauf zeigt Fund, Stelle (bei Bildern als markierte Kopie) und „Was jetzt tun".
+  Der Dialog öffnet sich von selbst, aber nie über einem offenen Dialog. Ein Befund aus einer fremden Arbeitsstand-Datei
+  wird nicht geglaubt (`delete d.pruefung`), die Datei wird neu geprüft. Eigene Ausgaben (Übersetzung, Teil) werden nicht geprüft.
+- ⚠ Aus `PRUEF.laufend` wird erst **nach** dem Setzen des Befunds ausgetragen. Vorher stand kurz ein „fertig" ohne Befund da
+  (gefunden unter Last in der vollen Kette; einzeln war die Probe grün).
+- **Testdateien** (Hilfe → „🛡 Versteckte Befehle erkennen"): `beispiele/Testbild-versteckte-Anweisung.png` (eine blasse Zeile,
+  gebaut mit `node tools/testbild-bauen.mjs`) und `beispiele/Testdatei-unsichtbarer-Text.pdf` (= Vorlage 0D). Dieselben
+  zwei Dateien gibt es im Auslieferungsprüfer (Foto · Datei prüfen → 🧪) und im Sende-Prüfer (⚙ → Beispiel-E-Mail mit Test-Anhängen).
+- Im Erklärvideo-Fenster steht „Neu, noch nicht im Video" (`[data-neu]`, DE/EN/RU/AR).
+- Befund am Rand: die russische Test-PDF in `tests/uebersetzung.mjs` (Schrift als Teilmenge eingebettet) meldet zu Recht
+  unsichtbaren Text, denn pdf-lib verliert dort Glyphen.
+- `tests/bedeutung.mjs` wartet jetzt, bis jeder Eintrag ganz eingeordnet ist. Vorher zählte sie halb eingeordnete Einträge mit und flatterte unter Last.
+  `tests/video.mjs` nimmt ohne `imageio_ffmpeg` das System-ffmpeg, ohne beides heißt es „nicht lauffähig" (vorher auch auf main rot).
+- Proben: `tests/eingang.mjs` (in `npm test`) · `node tests/gegenprobe_eingang.mjs` (10 Fälle, Wegwerf-Kopie; `NUR_ANKER=1`).
+  Gefahren am 2026-10-01: erst **8 gefangen · 1 durchgerutscht · 1 aus falschem Grund**. Durchgerutscht war
+  `delete d.pruefung`: mit Prüfkern überschreibt die Neuprüfung den Wert ohnehin — messbar ist der Riegel nur
+  ohne Prüfkern (eigene Lage in Block 7). Falsch war der Hilfe-Import: `waitForFunction` warf am Zeitablauf, statt
+  den fehlenden Import über seine Zeile zu melden. Danach **10 gefangen · 0 · 0 · 0**, jede rote Zeile mit ihrem Namen.
+  ⚠ Chromium stürzt ab (SIGTRAP), wenn `TMPDIR` ein langer Pfad ist — Gegenprobe ohne `TMPDIR` fahren.
+- ⚠ Nicht gemessen: Zeit und Speicher am Tablet (eine Bildprüfung dauerte im Behälter 2–3 s) und echte Dateien aus Klaus' Alltag.
+  Die Schritte 2 (Sperre vor der KI) und 3 (den Ausgang prüfen) warten auf Klaus' Rückmeldung.
+
 ## 🎬 Erklärvideo aus der Hilfe (Klaus 2026-09-28)
 
 „Ja, mach das so, 1 und 2 zusammen": in der Hilfe **🎬 Erklärvideo** (`erklaervideo()` in app.js) und ein Link
