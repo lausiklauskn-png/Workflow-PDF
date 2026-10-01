@@ -18,7 +18,7 @@ const FAELLE = [
   { name: 'unsichtbarer Text im PDF wird nicht mehr gemeldet', datei: E, anker: "'PDF-VERSTECKTER-TEXT', 'VERSTECKTER-TEXT',", ersatz: "'VERSTECKTER-TEXT',", trifft: /0D \(weißer|PDF: unsichtbarer/ },
   { name: 'die markierte Kopie fällt weg', datei: E, anker: 'markiert: m, art: r.art, zeit', ersatz: 'markiert: null, art: r.art, zeit', trifft: /markiert/ },
   { name: 'geprüft wird das daraus gebaute PDF statt des Fotos', datei: A, anker: "original ? original.bytes : bytes);", ersatz: "bytes);", trifft: /Foto|Bild/ },
-  { name: 'ein „sauber" aus einer fremden Arbeitsstand-Datei wird geglaubt', datei: A, anker: '        delete d.pruefung;                                  // ein Befund', ersatz: '        // ein Befund', trifft: /fremden Arbeitsstand/ },
+  { name: 'ein „sauber" aus einer fremden Arbeitsstand-Datei wird geglaubt', datei: A, anker: '        delete d.pruefung;                                  // ein Befund', ersatz: '        // ein Befund', trifft: /fremde[nm] Arbeitsstand/ },
   { name: 'der offene Editor bekommt den Befund nicht', datei: A, anker: 'if (S.doc && S.doc.id === id) S.doc.pruefung = r;', ersatz: ';', trifft: /Editor/ },
   { name: 'der Dialog öffnet sich nicht mehr von selbst', datei: A, anker: "if (r.stand === 'warnung' && !document.querySelector('.dlg')) pruefDialog(id);", ersatz: ';', trifft: /von selbst/ },
   { name: 'die Karte bekommt nach der Prüfung keine Marke', datei: A, anker: "      markeErneuern(id);\n      // Ein Fenster genügt", ersatz: "      // Ein Fenster genügt", trifft: /Marke/ },

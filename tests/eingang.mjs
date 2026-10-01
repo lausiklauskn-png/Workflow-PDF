@@ -178,7 +178,7 @@ try {
       await window.__wfpdf.importDateien([f], null, { still: true });
     }, DATEIEN['0D.pdf']);
     const f2 = await stand(c.page, 'Fremder Stand ohne Prüfung');
-    ok('ohne Prüfung bleibt ein fremdes „sauber" nicht stehen (es wird verworfen)', !f2 || f2.stand !== 'sauber', f2);
+    ok('ohne Prüfung bleibt ein „sauber" aus einem fremden Arbeitsstand nicht stehen (verworfen)', !f2 || f2.stand !== 'sauber', f2);
     await c.ctx.close();
   }
   /* 9 · Hilfe → Testdateien (Klaus 2026-10-01): ein Tipp liest sie ein, die Warnung erscheint */
