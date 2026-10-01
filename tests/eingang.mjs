@@ -166,6 +166,21 @@ try {
   const um = await b.page.evaluate(() => { const k = document.querySelector('[data-pruefung="ungeprueft"]'); return k ? k.textContent : null; });
   ok('… und die Karte sagt das', um && /Nicht ganz geprüft/.test(um), um);
   await b.ctx.close();
+  /* 7b · ohne eingang.js läuft gar keine Prüfung — dann darf ein „sauber" aus einer fremden
+     Arbeitsstand-Datei erst recht nicht stehen bleiben. Nur hier ist `delete d.pruefung` messbar:
+     sonst überschreibt die Neuprüfung den Wert ohnehin. */
+  {
+    const c = await neueSeite(/eingang\.js/);
+    await c.page.evaluate(async (b64) => {
+      const d = { id: 'fremd2', name: 'Fremder Stand ohne Prüfung', folderId: null, quelle: 'pdf', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), pages: [{ w: 595, h: 842 }, { w: 595, h: 842 }], fields: [],
+        pruefung: { stand: 'sauber', funde: [], hinweise: [], zeit: new Date().toISOString() } };
+      const f = new File([JSON.stringify({ format: 'workfloh-pdf-arbeitsstand', version: 1, gesichert: d.updatedAt, doc: d, pdf: b64 })], 'y.workfloh.json', { type: 'application/json' });
+      await window.__wfpdf.importDateien([f], null, { still: true });
+    }, DATEIEN['0D.pdf']);
+    const f2 = await stand(c.page, 'Fremder Stand ohne Prüfung');
+    ok('ohne Prüfung bleibt ein fremdes „sauber" nicht stehen (es wird verworfen)', !f2 || f2.stand !== 'sauber', f2);
+    await c.ctx.close();
+  }
   /* 9 · Hilfe → Testdateien (Klaus 2026-10-01): ein Tipp liest sie ein, die Warnung erscheint */
   {
     const { ctx, page, fehler } = await neueSeite();
@@ -173,14 +188,14 @@ try {
     const knoepfe = await page.evaluate(() => ({ bild: !!document.querySelector('.dlg [data-test-bild]'), pdf: !!document.querySelector('.dlg [data-test-pdf]'), laden: (document.querySelector('.dlg [data-test-laden]') || {}).getAttribute?.('href'), text: document.querySelector('.dlg').textContent }));
     ok('Hilfe: Abschnitt „Versteckte Befehle erkennen" mit zwei Testdateien und Download', knoepfe.bild && knoepfe.pdf && knoepfe.laden === 'beispiele/Testbild-versteckte-Anweisung.png' && /Versteckte Befehle erkennen/.test(knoepfe.text) && /rot markiert, nicht gelöscht/.test(knoepfe.text), knoepfe.laden);
     await page.click('.dlg [data-test-bild]');
-    await page.waitForFunction(() => window.__wfpdf.S.docs.some(d => /Testbild/.test(d.name)), null, { timeout: 30000 });
+    await page.waitForFunction(() => window.__wfpdf.S.docs.some(d => /Testbild/.test(d.name)), null, { timeout: 30000 }).catch(() => {});
     await warteFertig(page);
     const w = await page.waitForSelector('.dlg [data-pruef-funde]', { timeout: 30000 }).then(() => page.evaluate(() => ({ text: document.querySelector('.dlg').textContent, bild: !!document.querySelector('.dlg [data-pruef-markiert] img') })), () => null);
     ok('Hilfe → 🧪 Bild: eingelesen, die Warnung öffnet sich mit markierter Stelle', w && /Anweisung an eine KI im Bild/.test(w.text) && w.bild, w && w.text.slice(0, 200));
     await page.evaluate(() => document.querySelectorAll('.dlg-grund').forEach(g => g.remove()));
     await page.evaluate(() => window.__wfpdf.dlg.hilfe());
     await page.click('.dlg [data-test-pdf]');
-    await page.waitForFunction(() => window.__wfpdf.S.docs.some(d => /unsichtbarer/.test(d.name)), null, { timeout: 30000 });
+    await page.waitForFunction(() => window.__wfpdf.S.docs.some(d => /unsichtbarer/.test(d.name)), null, { timeout: 30000 }).catch(() => {});
     await warteFertig(page);
     const st = await stand(page, 'Testdatei unsichtbarer Text');
     ok('Hilfe → 🧪 PDF: unsichtbarer Text wird gemeldet', st && st.stand === 'warnung' && st.arten.includes('PDF-VERSTECKTER-TEXT'), st);
