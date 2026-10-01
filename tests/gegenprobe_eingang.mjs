@@ -48,7 +48,7 @@ if (process.env.NUR_ANKER) {
 }
 kopieren();
 const basis = lauf();
-if (basis.status !== 0) { console.log('Ausgangslage ist schon rot — Gegenprobe misst nichts.\n' + basis.stdout.slice(-1500)); process.exit(2); }
+if (basis.status !== 0) { console.log('Ausgangslage ist schon rot — Gegenprobe misst nichts. Status ' + basis.status + ', Signal ' + basis.signal + (basis.error ? ', ' + basis.error.message : '') + '\n' + (basis.stdout || '').slice(-1500) + '\n' + (basis.stderr || '').slice(-800)); process.exit(2); }
 for (const f of FAELLE) {
   if (nur && !f.name.includes(nur)) continue;
   kopieren();
