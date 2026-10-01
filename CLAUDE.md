@@ -606,6 +606,11 @@ wird im Hintergrund geprüft. Was gefunden wird, wird **markiert, nicht entfernt
 - `tests/bedeutung.mjs` wartet jetzt, bis jeder Eintrag ganz eingeordnet ist. Vorher zählte sie halb eingeordnete Einträge mit und flatterte unter Last.
   `tests/video.mjs` nimmt ohne `imageio_ffmpeg` das System-ffmpeg, ohne beides heißt es „nicht lauffähig" (vorher auch auf main rot).
 - Proben: `tests/eingang.mjs` (in `npm test`) · `node tests/gegenprobe_eingang.mjs` (10 Fälle, Wegwerf-Kopie; `NUR_ANKER=1`).
+  Gefahren am 2026-10-01: erst **8 gefangen · 1 durchgerutscht · 1 aus falschem Grund**. Durchgerutscht war
+  `delete d.pruefung`: mit Prüfkern überschreibt die Neuprüfung den Wert ohnehin — messbar ist der Riegel nur
+  ohne Prüfkern (eigene Lage in Block 7). Falsch war der Hilfe-Import: `waitForFunction` warf am Zeitablauf, statt
+  den fehlenden Import über seine Zeile zu melden. Danach **10 gefangen · 0 · 0 · 0**, jede rote Zeile mit ihrem Namen.
+  ⚠ Chromium stürzt ab (SIGTRAP), wenn `TMPDIR` ein langer Pfad ist — Gegenprobe ohne `TMPDIR` fahren.
 - ⚠ Nicht gemessen: Zeit und Speicher am Tablet (eine Bildprüfung dauerte im Behälter 2–3 s) und echte Dateien aus Klaus' Alltag.
   Die Schritte 2 (Sperre vor der KI) und 3 (den Ausgang prüfen) warten auf Klaus' Rückmeldung.
 
