@@ -18,10 +18,17 @@ const ok = (name, bed, info) => { if (bed) { gruen++; console.log('  ✓ ' + nam
 const SEITE = 'https://lausiklauskn-png.github.io/Workfloh-PDF-Page/';
 let STELLV = null;
 try {
-  const FF = process.env.FFMPEG || execFileSync('python3', ['-c', 'import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())']).toString().trim();
+  // ffmpeg: FFMPEG, sonst das Python-Paket imageio_ffmpeg, sonst das System. Nur das Python-Paket zu
+  // fragen machte die Probe auf Maschinen ohne es STUMM-ROT: ohne Stellvertreter antwortet die gestellte
+  // Webseite 404, die App nimmt das Video zu Recht weg, und die Probe wartete 30 s auf ein <video>.
+  const FF = process.env.FFMPEG || (() => {
+    try { return execFileSync('python3', ['-c', 'import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())'], { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); }
+    catch { return execFileSync('sh', ['-c', 'command -v ffmpeg']).toString().trim(); }
+  })();
   STELLV = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'video-')), 'stellv.webm');
   execFileSync(FF, ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=black:s=64x36:r=1:d=60', '-c:v', 'libvpx-vp9', '-b:v', '20k', STELLV]);
 } catch { STELLV = null; }
+if (!STELLV) { console.log('  ⊘ nicht lauffähig: kein ffmpeg für das Stellvertreter-Video (FFMPEG, imageio_ffmpeg oder ffmpeg im System) — ungeprüft, nicht grün'); console.log('\n0 grün · 0 ROT'); process.exit(0); }
 
 const srv = await new Promise(res => {
   const typ = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.ttf': 'font/ttf', '.json': 'application/json', '.webmanifest': 'application/manifest+json' };
@@ -75,6 +82,8 @@ try {
     ok('Deutsch: das passende Standbild', v.poster === SEITE + 'assets/poster-de.jpg', v);
     ok('das Video hat Bedienelemente und lädt vorab nur die Eckdaten', v.controls && v.pre === 'metadata', v);
     ok('Deutsch: kein Hinweis auf eine Ersatzsprache', !(await p.$('.dlg [data-ersatz]')));
+    const neu = await p.$eval('.dlg [data-neu]', e => ({ t: e.textContent, sicht: e.checkVisibility() })).catch(() => null);
+    ok('Deutsch: „Neu“ nennt die Prüfung beim Einlesen (Auslieferungsprüfer + Sende-Prüfer) und den Weg zum Ausprobieren', neu && neu.sicht && /Auslieferungsprüfer/.test(neu.t) && /Sende-Prüfer/.test(neu.t) && /rot markiert, nicht gelöscht/.test(neu.t) && /Versteckte Befehle erkennen/.test(neu.t), neu);
     ok('online: der Offline-Hinweis ist verborgen', !(await p.$eval('.dlg [data-offline]', e => e.checkVisibility())));
     if (STELLV) {
       const geladen = await p.waitForFunction(() => { const e = document.querySelector('.dlg video'); return e && e.readyState >= 1; }, null, { timeout: 15000 }).then(() => true, () => false);
@@ -110,6 +119,9 @@ try {
     const v = await p.$eval('.dlg video', e => ({ src: e.getAttribute('src'), poster: e.getAttribute('poster') })).catch(() => null);
     ok(`${lang}: Fassung ${datei}`, v && v.src === SEITE + 'assets/' + datei && v.poster === SEITE + 'assets/' + bild, v);
     const ersatz = !!(await p.$('.dlg [data-ersatz]'));
+    await p.waitForTimeout(300);
+    const neuT = await p.$eval('.dlg [data-neu]', e => e.textContent).catch(() => '');
+    ok(`${lang}: „Neu“ ist übersetzt`, neuT && !/Auslieferungsprüfer/.test(neuT), neuT.slice(0, 80));
     ok(`${lang}: Hinweis auf die Ersatzsprache ${lang === 'ar' ? 'steht da' : 'fehlt zu Recht'}`, ersatz === (lang === 'ar'));
     await ctx.close();
   }

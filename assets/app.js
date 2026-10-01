@@ -256,7 +256,7 @@
         <button class="dok-bild" data-auf style="background-image:url('${d.thumb || ''}')" title="Öffnen">
           <span class="marken">${v ? `<span class="marke-klein ki">🤖 ${v} zu prüfen</span>` : ''}${d.quelle === 'foto' ? '<span class="marke-klein">📷 Foto</span>' : ''}${d.uebersetzung ? `<span class="marke-klein">🌐 ${h((d.uebersetzung.von || '').toUpperCase())}→${h((d.uebersetzung.nach || '').toUpperCase())}${d.uebersetzung.gegenprobe ? ' Gegenprobe' : ''}</span>` : ''}${d.ausgefuellt ? `<span class="marke-klein">↩ ausgefüllt aus ${h((d.ausgefuellt.aus || '').toUpperCase())}</span>` : ''}</span></button>
         <div class="dok-info"><div class="dok-name" data-kein-ue title="${h(d.name)}">${nm(d.name)}</div>
-          <div class="dok-meta">${d.pages.length} Seite${d.pages.length === 1 ? '' : 'n'} · ${d.fields.length} Feld${d.fields.length === 1 ? '' : 'er'}${EINST.sortierung === 'groesse' && _groesse.has(d.id) ? ' · ' + mbText(_groesse.get(d.id)) : ''}${ord && S.aktOrdner === 'alle' ? ' · 🗂️ ' + nm(ord.name) : ''}</div>${(EINST.sortierung === 'erstellt' || S.von || S.bis) ? '<div class="dok-meta dok-erstellt" data-erstellt="' + tagVon(d.createdAt) + '">' + (d.createdAt ? h('erstellt ' + tagText(tagVon(d.createdAt))) : h('ohne Erstellungsdatum')) + '</div>' : ''}${fund ? (fund.bedeutung ? bedeutungZeile(fund) : fundZeilen(fund)) : ''}</div>
+          <div class="dok-meta">${d.pages.length} Seite${d.pages.length === 1 ? '' : 'n'} · ${d.fields.length} Feld${d.fields.length === 1 ? '' : 'er'}${EINST.sortierung === 'groesse' && _groesse.has(d.id) ? ' · ' + mbText(_groesse.get(d.id)) : ''}${ord && S.aktOrdner === 'alle' ? ' · 🗂️ ' + nm(ord.name) : ''}</div>${(EINST.sortierung === 'erstellt' || S.von || S.bis) ? '<div class="dok-meta dok-erstellt" data-erstellt="' + tagVon(d.createdAt) + '">' + (d.createdAt ? h('erstellt ' + tagText(tagVon(d.createdAt))) : h('ohne Erstellungsdatum')) + '</div>' : ''}${pruefMarke(d)}${fund ? (fund.bedeutung ? bedeutungZeile(fund) : fundZeilen(fund)) : ''}</div>
         <div class="dok-akt"><button data-auf title="Öffnen">✏️</button><button data-verschieben title="In Ordner verschieben">🗂️</button><button data-kopie title="Duplizieren (z. B. als Vorlage)">⧉</button><button data-teilen title="Teilen mit … (E-Mail, Messenger …)">📤</button><button data-loeschen title="Löschen">🗑</button></div></div>`;
   }
   /* Pfeil nach oben (Klaus 2026-09-27: „neben dem Markierenpunkt noch ein Pfeil nach oben … komplett
@@ -277,6 +277,7 @@
       const fz = el.querySelector('[data-fundzeilen]'); if (fz) fz.onclick = auf;
       el.querySelector('[data-haken]').onclick = () => { WAHL_AN = true; wahlUmschalten(id); };
       el.querySelector('[data-hoch]').onclick = ganzNachOben;
+      const pk = el.querySelector('[data-pruef]'); if (pk) pk.onclick = () => pruefDialog(id);
       const tk = el.querySelector('[data-teilen]'); if (tk) tk.onclick = () => teilenDocs([id]);   // Platzhalter, kein Ausstieg
       ziehenBinden(el, id);
       el.querySelector('[data-verschieben]').onclick = () => verschieben(id);
@@ -884,26 +885,108 @@
     }
     return out;
   }
-  async function neuesDok(name, bytes, quelle, folderId) {
+  async function neuesDok(name, bytes, quelle, folderId, original) {
     const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
     const d = { id: uid(), name, folderId: folderId || null, quelle, createdAt: jetzt(), updatedAt: jetzt(),
       pages: await seitenInfo(pdf), thumb: await vorschaubild(pdf), fields: await vorhandeneFelder(pdf) };
     const text = await seitenText(pdf);
     try { pdf.destroy(); } catch (_) {}
     await DB.putFile(d.id, bytes); await DB.put('docs', d); await textAblegen(d.id, text);
+    // Was von außen kommt (PDF, Foto), wird beim Einlesen geprüft — eigene Ausgaben (Übersetzung, Teil) nicht
+    if (EINGANG_QUELLEN.includes(quelle)) eingangPruefen(d.id, original ? original.name : name + '.pdf', original ? original.bytes : bytes);
     return d;
   }
   // Ein abgelegtes Dokument mit neuem Inhalt: Kennung, Ordner und Anlagedatum bleiben
   async function dokErsetzen(alt, name, bytes) {
     const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
-    const d = Object.assign({}, alt, { name: name || alt.name, updatedAt: jetzt(),
+    const d = Object.assign({}, alt, { name: name || alt.name, updatedAt: jetzt(), pruefung: undefined,
       pages: await seitenInfo(pdf), thumb: await vorschaubild(pdf), fields: await vorhandeneFelder(pdf) });
     const text = await seitenText(pdf);
     try { pdf.destroy(); } catch (_) {}
     await DB.putFile(d.id, bytes); await DB.put('docs', d); await textAblegen(d.id, text);
+    if (EINGANG_QUELLEN.includes(d.quelle)) eingangPruefen(d.id, d.name + '.pdf', bytes);
     return d;
   }
   let _persistGefragt = false;
+
+  /* ---------- Prüfung beim Einlesen (assets/eingang.js, Klaus 2026-10-01) ----------
+     „Schon wenn ich ein Foto mache, kann das ja passieren. Oder Importdatei." Jede PDF,
+     jedes Foto, jeder Scan und jede Arbeitsstand-Datei geht nach dem Ablegen im Hintergrund
+     durch den Prüfkern des Auslieferungsprüfers. Ein Fund wird MARKIERT, nicht entfernt:
+     das Original bleibt, wie es kam, und der Dialog sagt, was jetzt zu tun ist (beim
+     Absender nachfragen). Eine Prüfung nach der anderen — zwei Texterkennungen zugleich
+     brächten ein Tablet ins Schwitzen. */
+  const EINGANG_QUELLEN = ['pdf', 'foto'];
+  const PRUEF = { laufend: new Set(), kette: Promise.resolve(), fertig: 0 };
+  function eingangPruefen(id, name, bytes) {
+    if (!window.WFP || !WFP.Eingang) return;
+    const b = new Uint8Array(bytes).slice(0);
+    PRUEF.laufend.add(id);
+    PRUEF.kette = PRUEF.kette.then(async () => {
+      const r = await WFP.Eingang.pruefen(name, b);
+      const d = await DB.get('docs', id);
+      if (!d) { PRUEF.laufend.delete(id); PRUEF.fertig++; return; }   // inzwischen gelöscht
+      d.pruefung = r; await DB.put('docs', d);
+      // Dasselbe Objekt behalten, nur die Angabe setzen: andere Stellen (Suche, Einordnen) halten es in der Hand
+      const e = S.docs.find(x => x.id === id); if (e) e.pruefung = r;
+      if (S.doc && S.doc.id === id) S.doc.pruefung = r;  // sonst überschriebe das nächste Speichern den Befund
+      // Erst JETZT als fertig austragen: vorher stand ein „fertig" da, während der Befund noch fehlte
+      // (die Probe las unter Last null — gemessen in der vollen npm-test-Kette, 2026-10-01).
+      PRUEF.laufend.delete(id); PRUEF.fertig++;
+      markeErneuern(id);
+      // Ein Fenster genügt: kommen beim Einlesen eines Ordners mehrere Funde, trägt jede Karte ihre Marke
+      // Nie über einen offenen Dialog legen (Übersetzen, Ordner …): dort tippt gerade jemand.
+      // Der Befund bleibt an der Karte stehen („⚠ Verdächtiger Inhalt — ansehen").
+      if (r.stand === 'warnung' && !document.querySelector('.dlg')) pruefDialog(id);
+    }).catch(e => { PRUEF.laufend.delete(id); markeErneuern(id); console.error(e); });
+    markeErneuern(id);
+  }
+  /* Nur die Marke an DER einen Karte erneuern — nie die ganze Bibliothek neu zeichnen: mitten in
+     einer Suche stünde die Liste sonst halb da (gemessen: die Bedeutungs-Suche verlor einen Treffer),
+     und am Tablet spränge sie unter dem Finger. Steht die Karte (noch) nicht da, zeichnet das
+     nächste Zeichnen sie ohnehin mit der richtigen Marke. */
+  function markeErneuern(id) {
+    const k = document.querySelector(`.dok[data-id="${id}"]`), d = S.docs.find(x => x.id === id);
+    if (!k || !d) return;
+    const alt = k.querySelector('.dok-pruefung'); if (alt) alt.remove();
+    const html = pruefMarke(d); if (!html) return;
+    const metas = k.querySelectorAll(':scope .dok-meta'), nach = metas[metas.length - 1];
+    if (nach) nach.insertAdjacentHTML('afterend', html); else k.insertAdjacentHTML('beforeend', html);
+    const pk = k.querySelector('[data-pruef]'); if (pk) pk.onclick = () => pruefDialog(id);
+  }
+  function pruefMarke(d) {
+    const p = d.pruefung;
+    if (PRUEF.laufend.has(d.id)) return '<div class="dok-pruefung" data-pruefung="laeuft">⏳ Wird auf versteckte Anweisungen geprüft …</div>';
+    if (!p) return '';
+    if (p.stand === 'warnung') return '<button class="dok-pruefung warn" data-pruef data-pruefung="warnung">⚠ Verdächtiger Inhalt — ansehen</button>';
+    if (p.stand === 'ungeprueft') return '<button class="dok-pruefung" data-pruef data-pruefung="ungeprueft">? Nicht ganz geprüft</button>';
+    return '';
+  }
+  async function pruefDialog(id) {
+    const d = (S.doc && S.doc.id === id) ? S.doc : S.docs.find(x => x.id === id) || await DB.get('docs', id);
+    if (!d || !d.pruefung) return;
+    const p = d.pruefung;
+    try { await WFP.Eingang.bereit(); } catch (_) {}
+    const arten = [...new Set(p.funde.map(f => f.kennung))];
+    const tun = [];
+    for (const k of arten) for (const x of WFP.Eingang.wasTun(k)) if (!tun.includes(x)) tun.push(x);
+    const zeit = p.zeit ? new Date(p.zeit).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '';
+    const kopf = p.stand === 'warnung' ? '⚠ Verdächtiger Inhalt' : p.stand === 'ungeprueft' ? '? Nicht ganz geprüft' : '✓ Beim Einlesen nichts Verdächtiges gefunden';
+    dialog(`<h2>${h(kopf)}</h2>
+      <p class="pruef-name" data-kein-ue>${h(d.name)}</p>
+      ${p.funde.length ? `<p>Beim Einlesen geprüft. Gefunden:</p><ul class="pruef-funde" data-pruef-funde>${p.funde.map(f => `<li data-kennung="${h(f.kennung)}"><b>${h(WFP.Eingang.NAME[f.kennung] || f.kennung)}</b><br><span data-kein-ue>${h(f.satz)}</span></li>`).join('')}</ul>` : ''}
+      ${p.markiert ? `<figure class="pruef-markiert" data-pruef-markiert><img alt="Die Stelle im Bild, rot umrandet" src="${h(p.markiert)}"><figcaption>Die Stelle im Bild, rot umrandet. Das ist eine Kopie — das Original bleibt unverändert.</figcaption></figure>` : ''}
+      ${tun.length ? `<div class="pruef-tun" data-was-tun><p><b>Was jetzt tun</b></p><ol>${tun.map(x => '<li data-kein-ue>' + h(x) + '</li>').join('')}</ol></div>` : ''}
+      ${p.stand === 'warnung' ? '<p class="hinweis" data-pruef-original>Nichts wurde entfernt: das Dokument steht unverändert in der Bibliothek. Vor dem Übersetzen oder dem Erkennen mit KI: beim Absender nachfragen, was es mit dieser Stelle auf sich hat.</p>' : ''}
+      ${p.hinweise && p.hinweise.length ? `<details class="pruef-grenzen"><summary>Was geprüft wurde</summary><ul>${p.hinweise.map(x => '<li data-kein-ue>' + h(x) + '</li>').join('')}</ul></details>` : ''}
+      <p class="hinweis">Geprüft <span data-kein-ue>${h(zeit)}</span> auf diesem Gerät, ohne Netz. Die Sätze der Prüfung stehen auf Deutsch.</p>
+      <div class="zeile">${p.markiert ? '<button class="knopf" data-markiert-laden>⬇ Markierte Kopie speichern</button>' : ''}<button class="knopf rot" data-x>OK</button></div>`,
+      (dl, zu) => {
+        dl.querySelector('[data-x]').onclick = zu;
+        const ml = dl.querySelector('[data-markiert-laden]');
+        if (ml) ml.onclick = () => fetch(p.markiert).then(r => r.blob()).then(b => laden(dateiName(d.name) + '-markiert.jpg', b, 'image/jpeg'));
+      });
+  }
 
   /* ---------- Arbeitsstand: Datei zum Weiterarbeiten ----------
      Der Browserspeicher gehört zu genau EINEM Browser (DeX-Chrome und
@@ -931,7 +1014,9 @@
           hinweis = ' · im Browser lag ein neuerer Stand, deshalb als Kopie';
         } else if (vorhanden) hinweis = ' · Stand im Browser ersetzt';
         if (d.folderId && !S.ordner.some(o => o.id === d.folderId)) d.folderId = null;
+        delete d.pruefung;                                  // ein Befund aus einer fremden Datei wird nicht geglaubt
         await DB.putFile(d.id, bytes); await DB.put('docs', d);
+        eingangPruefen(d.id, d.name + '.pdf', bytes);
         neu.push({ d, hinweis });
       } catch (e) { fehler.push(f.name + ': ' + (e.message || e)); }
     }
@@ -975,10 +1060,10 @@
     for (let i = 0; i < liste.length; i++) {
       const f = liste[i]; if (fb) fb.setze(i / liste.length, f.name);
       try {
-        let bytes, quelle = 'pdf';
+        let bytes, quelle = 'pdf', original = null;
         if (istPdf(f)) bytes = new Uint8Array(await f.arrayBuffer());
-        else { const b = await bildNormalisieren(f); bytes = await EX.bilderZuPdf([b]); quelle = 'foto'; }
-        neu.push(await neuesDok(f.name.replace(/\.[^.]+$/, ''), bytes, quelle, folderId));
+        else { original = { name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) }; const b = await bildNormalisieren(f); bytes = await EX.bilderZuPdf([b]); quelle = 'foto'; }
+        neu.push(await neuesDok(f.name.replace(/\.[^.]+$/, ''), bytes, quelle, folderId, original));
       } catch (e) {
         console.error(e);
         fehler.push(f.name + ': ' + (/password/i.test(e && e.name + e.message) ? 'passwortgeschützt' : (e.message || e)));
@@ -2495,6 +2580,7 @@
       ${v.ersatz ? '<p class="hinweis" data-ersatz>Das Video gibt es auf Deutsch, Englisch und Russisch — hier läuft die englische Fassung.</p>' : ''}
       <p class="hinweis" data-offline ${offline ? '' : 'hidden'}>Ohne Internet lässt sich das Video nicht laden. Es liegt auf der Webseite und wird nicht auf dem Gerät gespeichert.</p>
       ${offline ? '' : `<div data-buehne><video data-erklaer controls playsinline preload="metadata" poster="${v.poster}" src="${v.src}"></video></div>`}
+      <div class="pruef-neu" data-neu><b>Neu, noch nicht im Video: versteckte Befehle erkennen.</b> Im Hintergrund prüft Workflow PDF jede eingelesene Datei — mit den Prüfungen aus dem Auslieferungsprüfer und dem Sende-Prüfer, auf diesem Gerät und ohne Internet. Unsichtbarer Text im PDF, blasse Schrift im Foto, Anweisungen an eine KI und Text in den Bildpunkten werden rot markiert, nicht gelöscht. Zum Ausprobieren: Hilfe (?) → „🛡 Versteckte Befehle erkennen".</div>
       <p class="hinweis"><a href="${WEBSEITE}" target="_blank" rel="noopener">Alle Kapitel und das Video hochkant auf der Webseite</a></p>
       <div class="zeile"><button class="knopf rot" data-x>Schließen</button></div>`, (d, zu) => {
       let vid = d.querySelector('video'), zweit = null;
@@ -2551,6 +2637,11 @@
       <p class="hinweis">Alles bleibt in diesem Browser (DeX-Chrome und Tablet-Chrome sind zwei getrennte Browser). Ins Netz geht nur, was du ausdrücklich an eine KI schickst.</p>
       <p>Das ausführliche <b>Benutzerhandbuch</b> und ein <b>Beispiel-Formular</b> (erfundene Daten) liegen der App bei — hier unten öffnen, oder unter „🌐 Übersetzen → 📘 Beispiele zum Ausprobieren". Sie landen im Ordner „Beispiele".</p>
       <div class="zeile"><button class="knopf" data-hb>📘 Handbuch öffnen</button><button class="knopf" data-bsp>📄 Beispiel-Formular</button><button class="knopf rot" data-x>Verstanden</button></div>
+      <h3>🛡 Versteckte Befehle erkennen</h3>
+      <p>Eine Datei kann Text tragen, den Sie nicht sehen: hellgrau auf weiß, winzig, unsichtbar im PDF oder in den Bildpunkten versteckt. Eine KI liest ihn trotzdem — und hält ihn womöglich für einen Auftrag („Ignoriere alle Anweisungen …"). <b>Workflow PDF prüft jede Datei schon beim Einlesen</b>, auf diesem Gerät und ohne Internet, mit derselben Prüfung wie der Auslieferungsprüfer und der Sende-Prüfer. Was es findet, wird <b>rot markiert, nicht gelöscht</b>: Sie sehen die Stelle und fragen beim Absender nach.</p>
+      <p class="hinweis">Zum Ausprobieren (erfundene Inhalte) — einlesen, und die Warnung erscheint:</p>
+      <div class="zeile"><button class="knopf" data-test-bild>🧪 Bild mit blasser Anweisung</button><button class="knopf" data-test-pdf>🧪 PDF mit unsichtbarem Text</button></div>
+      <p class="hinweis">Das Bild selbst herunterladen und über „Importieren" einlesen: <a data-test-laden href="beispiele/Testbild-versteckte-Anweisung.png" download>⬇ Testbild</a></p>
       <p class="hinweis">Das <b>Erklärvideo</b> liegt auf der Webseite und braucht Internet.</p>
       <div class="zeile"><button class="knopf" data-video>🎬 Erklärvideo</button></div>
       <p class="hinweis"><a data-webseite href="${WEBSEITE}" target="_blank" rel="noopener">Alle Kapitel und das Video hochkant auf der Webseite</a></p>`, (d, zu) => {
@@ -2559,6 +2650,14 @@
         const oeffne = nur => async () => { zu(); const x = await beispieleLaden(nur); if (x[0]) oeffneDok(x[0].id); };
         d.querySelector('[data-hb]').onclick = oeffne(BEISPIELE[0].name);
         d.querySelector('[data-bsp]').onclick = oeffne(BEISPIELE[1].name);
+        const test = (datei, name, typ) => async () => {
+          zu();
+          try { const r = await fetch(datei); if (!r.ok) throw new Error(r.status);
+            await importDateien([new File([await r.blob()], name, { type: typ })], 'Beispiele', { still: true });
+          } catch (e) { toast('Die Testdatei ließ sich nicht laden — beim ersten Mal braucht es Internet.'); }
+        };
+        d.querySelector('[data-test-bild]').onclick = test('beispiele/Testbild-versteckte-Anweisung.png', 'Testbild versteckte Anweisung.png', 'image/png');
+        d.querySelector('[data-test-pdf]').onclick = test('beispiele/Testdatei-unsichtbarer-Text.pdf', 'Testdatei unsichtbarer Text.pdf', 'application/pdf');
       });
   }
 
@@ -2663,7 +2762,7 @@
     if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
     bedeutungZeichnen();
     ladeBibliothek().then(() => { if (EINST.bedeutung) bedeutungStarten(); }).then(chromeTabRueckweg).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
-    window.__wfpdf = { beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner,
+    window.__wfpdf = { eingang: { PRUEF, pruefDialog, eingangPruefen }, beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner,
       // für tests/sprache.mjs: jeden Dialog einmal öffnen und seine Texte nachschlagen
       dlg: { neuerOrdner, verschieben, teilenDocs, wahlEnde, WAHL, wahlUmschalten, loeschen, speichernDialog, scanStarten, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, erklaervideo, videoFuer, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe, bedeutungDialog } };   // für die Probe
   }

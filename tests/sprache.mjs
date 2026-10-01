@@ -53,6 +53,19 @@ async function rundreise(p) {
   await schritt(p, 'Installieren', () => p.evaluate(W => window[W].dlg.installHinweis(false), W));
   await schritt(p, 'Installiert', () => p.evaluate(W => window[W].dlg.installHinweis(true), W));
   await schritt(p, 'Übersetzen-Start', () => p.evaluate(W => window[W].dlg.uebersetzenStart(), W));
+  // Prüfung beim Einlesen (2026-10-01): Marken an der Karte (wird geprüft · Warnung · nicht ganz geprüft) und der Dialog
+  await schritt(p, 'Prüfung beim Einlesen', async () => {
+    await p.evaluate(W => { const S = window[W].S, z = new Date().toISOString();
+      const mk = (id, name, pruefung) => ({ id, name, folderId: null, quelle: 'pdf', createdAt: z, updatedAt: z, pages: [{ w: 595, h: 842 }], fields: [], pruefung });
+      S.docs.push(mk('pr-w', 'Brief A', { stand: 'warnung', funde: [{ kennung: 'PDF-KI-ANWEISUNG', satz: 'x' }, { kennung: 'BILD-LSB-VERDACHT', satz: 'y' }], hinweise: ['h'], zeit: z, markiert: 'data:image/png;base64,iVBORw0KGgo=' }),
+        mk('pr-u', 'Brief B', { stand: 'ungeprueft', funde: [], hinweise: ['h'], zeit: z }), mk('pr-l', 'Brief C', null));
+      window[W].eingang.PRUEF.laufend.add('pr-l'); window[W].suche.zeichneBibliothek(); }, W);
+    await ruhe(p);
+    await p.evaluate(W => window[W].eingang.pruefDialog('pr-w'), W); await p.waitForTimeout(150); await ruhe(p);
+    await zu(p);
+    await p.evaluate(W => window[W].eingang.pruefDialog('pr-u'), W); await p.waitForTimeout(150); await ruhe(p);
+    await p.evaluate(W => { const S = window[W].S; S.docs = S.docs.filter(d => !/^pr-/.test(d.id)); window[W].eingang.PRUEF.laufend.delete('pr-l'); window[W].suche.zeichneBibliothek(); }, W);
+  });
   await schritt(p, 'Neuer Ordner', () => p.evaluate(W => { window[W].dlg.neuerOrdner(); }, W));
   await schritt(p, 'Chrome-Hinweis', () => p.evaluate(W => window[W].dlg.chromeHinweis('http://x/', true), W));
   await schritt(p, 'Chrome-Hinweis ohne Kopie', () => p.evaluate(W => window[W].dlg.chromeHinweis('http://x/', false), W));
