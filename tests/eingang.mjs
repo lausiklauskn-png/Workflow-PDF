@@ -26,7 +26,7 @@ console.log('Workfloh PDF — Prüfung beim Einlesen');
 
 /* 1 · der Kern, byte-1:1 */
 const PINS = {
-  'pruefer-anhang.js': '10616efbb1a862ad989e2ac6b69c27d7d43e67ac1ae86b45e85b10097d7304d3',
+  'pruefer-anhang.js': '3f0c28f0294ff65f754702fad5f1749f244082ebebff57d31a74592da9abfc09',
   'pruefer-mail.js': '27e86606a3de4592100f20224eb955cb2f6e48339a82dc40e48fe309f8bdc989',
   'pruefer-formate.js': 'b057aa084f4b7821fce96f2b717ae51d183a0d8e3bcb67a08edc9fdfa3862a98'
 };

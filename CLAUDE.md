@@ -587,6 +587,8 @@ wird im Hintergrund geprüft. Was gefunden wird, wird **markiert, nicht entfernt
 
 - Der Prüfkern ist der des Auslieferungsprüfers. `assets/pruefer-anhang.js`, `pruefer-mail.js` und `pruefer-formate.js`
   sind **byte-1:1** kopiert und in `tests/eingang.mjs` per SHA-256 gepinnt. Dort pflegen, hier neu kopieren.
+  Zuletzt nachgezogen am 2026-10-02 (`pruefer-anhang.js` aus Auslieferung-Pruefer #37: KI-Anweisungen in Dateien,
+  ehrlicheres „ungeprüft"; Cache v72, `eingang.js?v=2`). Der Vergleich mit dem Klon daneben war bis dahin rot.
   `assets/eingang.js` ist der Klebstoff (`WFP.Eingang.pruefen`). Er lädt den Kern erst beim Einlesen und prüft die ORIGINALDATEI.
 - **Gemeldet** wird nur, was täuschen soll: eine Anweisung an eine KI (im Text, auf dem Scan, im Bild, auch blass),
   unsichtbarer Text im PDF, ein Verdacht in den Bildpunkten, eine Datei im PDF, ein Programm oder eine Tarnung.
