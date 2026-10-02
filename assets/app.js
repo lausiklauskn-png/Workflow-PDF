@@ -230,6 +230,7 @@
       await DB.del('folders', o.id); S.aktOrdner = 'alle'; ladeBibliothek();
     };
 
+    sicherungErinnerung();
     wahlLeiste();
     const g = $('dokGitter');
     const nurOrdner = such.length && S.aktOrdner !== 'alle' ? '<div class="hinweis such-ordner" data-suchordner><span>Gesucht nur in diesem Ordner.</span><button class="knopf klein" data-alleordner>In allen Ordnern suchen</button></div>' : '';
@@ -2505,6 +2506,111 @@
     if (S.doc && $('sc-ed').classList.contains('on')) { try { for (let i = 0; i < S.doc.pages.length; i++) zeichneFelder(i); zeichneFuss(); } catch (_) {} }
   });
 
+  /* 🔐 BIBLIOTHEK SICHERN UND ZURÜCKHOLEN (Klaus 2026-10-02: „Workflow soll dasselbe bekommen.
+     Dieselbe Sicherung." · „Tief im Browser-Speicher, ohne dass gelöscht wird").
+     Zwei Dinge, und beide stehen in EINEM Dialog:
+     1 · die Sicherungsdatei — alle Ordner, Dokumente und PDFs, verschlüsselt mit einem eigenen
+         Passwort (assets/sicherung.js + das Schloss assets/schluesseltresor.js, byte-1:1 aus
+         kim-hub-company). Das Passwort wird nirgends gespeichert. Zurückholen fügt hinzu,
+         überschreibt nie.
+     2 · der dauerhafte Speicher — navigator.storage.persist(). Die Zusage gibt der BROWSER, nicht
+         die App; ob er sie gegeben hat, steht da, statt still angenommen zu werden.
+     Die Erinnerung über der Liste erscheint, wenn eigene Dokumente da sind (die Beispiele zählen
+     nicht) und die letzte Sicherung fehlt oder älter als 14 Tage ist. „Später" gilt für diesen Besuch. */
+  const SICH_ZULETZT = 'wfpdf_sicherung_zuletzt', SICH_SPAETER = 'wfpdf_sicherung_spaeter';
+  const lsLies = (k, ss) => { try { return (ss ? sessionStorage : localStorage).getItem(k); } catch (_) { return null; } };
+  const lsSetz = (k, v, ss) => { try { (ss ? sessionStorage : localStorage).setItem(k, v); } catch (_) {} };
+  const BEISPIEL_NAMEN = ['Workfloh-PDF-Benutzerhandbuch', 'Beispiel-Amtsformular-Bewohnerparkausweis'];
+  const eigeneDocs = () => S.docs.filter(d => !BEISPIEL_NAMEN.includes(d.name));
+  const DAUER_TEXT = {
+    ja: '✅ Der Browser hat dauerhafte Speicherung zugesagt: er löscht diese Daten nicht von selbst, wenn Platz knapp wird. Löschen kann sie weiter, wer die Browserdaten löscht — dagegen hilft nur die Sicherungsdatei.',
+    nein: '⚠️ Dauerhafte Speicherung ist NICHT zugesagt: der Browser darf diese Daten bei Platzmangel löschen. Tippe auf „Dauerhaft speichern lassen" — manche Browser sagen erst zu, wenn die App installiert ist oder öfter benutzt wurde.',
+    unbekannt: 'Dieser Browser gibt keine Auskunft, ob er dauerhaft speichert. Die Sicherungsdatei ist der sichere Weg.'
+  };
+  async function dauerStand() { try { if (!navigator.storage || !navigator.storage.persisted) return 'unbekannt'; return (await navigator.storage.persisted()) ? 'ja' : 'nein'; } catch (_) { return 'unbekannt'; } }
+  async function dauerBitten() { try { if (!navigator.storage || !navigator.storage.persist) return 'unbekannt'; return (await navigator.storage.persist()) ? 'ja' : 'nein'; } catch (_) { return 'unbekannt'; } }
+  const SICH_FEHLER = {
+    'passwort': 'Das Passwort passt nicht zu dieser Sicherung.',
+    'fassung': 'Diese Sicherung stammt aus einer anderen Fassung der App und lässt sich hier nicht öffnen.',
+    'keine-sicherung': 'Diese Datei ist keine Sicherung von Workfloh PDF.',
+    'schloss-fehlt': 'Das Schloss (Verschlüsselung) ist nicht geladen — die Seite einmal neu laden.'
+  };
+  function sicherungErinnerung() {
+    const el = $('sicherungErinnerung'); if (!el) return;
+    const SI = WFP.Sicherung;
+    const n = eigeneDocs().length, zuletzt = lsLies(SICH_ZULETZT);
+    if (!SI || !SI.erinnernNoetig(n, zuletzt, lsLies(SICH_SPAETER, true) === '1')) { el.hidden = true; el.innerHTML = ''; return; }
+    const tage = SI.tageSeit(zuletzt);
+    el.innerHTML = `<span>🔐 ${isFinite(tage) ? 'Die letzte Sicherung ist ' + Math.floor(tage) + ' Tage alt.' : 'Für deine Dokumente gibt es noch keine Sicherung.'} Löscht jemand die Browserdaten, sind sie sonst weg.</span>`
+      + '<button class="knopf klein rot" data-sich-jetzt>Jetzt sichern</button><button class="knopf klein" data-sich-spaeter>Später</button>';
+    el.hidden = false;
+    el.querySelector('[data-sich-jetzt]').onclick = sicherungDialog;
+    el.querySelector('[data-sich-spaeter]').onclick = () => { lsSetz(SICH_SPAETER, '1', true); sicherungErinnerung(); };
+  }
+  function sicherungDialog() {
+    const SI = WFP.Sicherung;
+    const zuletzt = lsLies(SICH_ZULETZT);
+    dialog(`<h2>🔐 Bibliothek sichern</h2>
+      <p class="hinweis">Alle Ordner, Dokumente (mit Feldern und Einträgen) und PDF-Dateien in <b>eine Datei</b>, verschlüsselt mit einem eigenen Passwort. In der Datei steht kein lesbarer Text. Nicht mit dabei: KI-Schlüssel und Einstellungen.</p>
+      <p class="hinweis" data-sich-zuletzt>${zuletzt ? 'Letzte Sicherung: ' + h(new Date(zuletzt).toLocaleDateString('de-DE')) + '.' : 'Noch keine Sicherung erstellt.'}</p>
+      <h3 style="margin:12px 0 0;font-size:1rem">Sicherung erstellen</h3>
+      <label>Passwort (mindestens ${SI ? SI.MIN_PW : 8} Zeichen)</label><input type="password" id="siPw1" autocomplete="new-password">
+      <label>Passwort noch einmal</label><input type="password" id="siPw2" autocomplete="new-password">
+      <p class="hinweis">⚠️ Das Passwort wird nirgends gespeichert. Wer es vergisst, bekommt die Sicherung nicht mehr auf.</p>
+      <div class="zeile" style="justify-content:flex-start"><button class="knopf rot" id="siErstellen">⬇ Sicherung erstellen</button></div>
+      <p class="hinweis" id="siErg" data-sich-ergebnis></p>
+      <h3 style="margin:12px 0 0;font-size:1rem">Sicherung zurückholen</h3>
+      <p class="hinweis">Fügt hinzu, was fehlt. Vorhandene Dokumente bleiben, wie sie sind.</p>
+      <label>Sicherungsdatei</label><input type="file" id="siDatei" accept=".json,application/json">
+      <label>Passwort der Sicherung</label><input type="password" id="siPwZ" autocomplete="off">
+      <div class="zeile" style="justify-content:flex-start"><button class="knopf" id="siZurueck">⬆ Zurückholen</button></div>
+      <p class="hinweis" id="siZErg" data-sich-zurueck></p>
+      <h3 style="margin:12px 0 0;font-size:1rem">Speicher des Browsers</h3>
+      <p class="hinweis" id="siDauer" data-dauer="?">…</p>
+      <div class="zeile" style="justify-content:flex-start"><button class="knopf" id="siDauerKnopf">📌 Dauerhaft speichern lassen</button></div>
+      <div class="zeile"><button class="knopf" data-x>Schließen</button></div>`, (d, zu) => {
+      const q = s => d.querySelector(s);
+      const dauerZeigen = st => { const p = q('#siDauer'); p.dataset.dauer = st; p.textContent = DAUER_TEXT[st]; };
+      dauerStand().then(dauerZeigen);
+      q('#siDauerKnopf').onclick = async () => dauerZeigen(await dauerBitten());
+      q('[data-x]').onclick = zu;
+      q('#siErstellen').onclick = async () => {
+        const e = q('#siErg'), p1 = q('#siPw1').value, p2 = q('#siPw2').value;
+        if (!SI) { e.textContent = SICH_FEHLER['schloss-fehlt']; return; }
+        if (p1.length < SI.MIN_PW) { e.textContent = 'Das Passwort braucht mindestens ' + SI.MIN_PW + ' Zeichen.'; return; }
+        if (p1 !== p2) { e.textContent = 'Die beiden Passwörter sind nicht gleich.'; return; }
+        e.textContent = 'Verschlüssele … (das dauert einige Sekunden)';
+        try {
+          const r = await SI.verschliessen(p1, DB);
+          const tag = new Date().toISOString().slice(0, 10);
+          laden('Workfloh-PDF-Sicherung-' + tag + '.json', new TextEncoder().encode(JSON.stringify(r.datei)), 'application/json');
+          lsSetz(SICH_ZULETZT, r.datei.erstellt);
+          q('#siPw1').value = q('#siPw2').value = '';
+          e.textContent = `✅ Gesichert: ${r.docs} Dokument(e) in ${r.ordner} Ordner(n).` + (r.ohneDatei ? ` ${r.ohneDatei} Dokument(e) hatten keine Datei und fehlen darin.` : '') + ' Die Datei liegt im Download-Ordner — am besten zusätzlich woanders ablegen.';
+          q('[data-sich-zuletzt]').textContent = 'Letzte Sicherung: ' + new Date(r.datei.erstellt).toLocaleDateString('de-DE') + '.';
+          dauerZeigen(await dauerBitten());
+          sicherungErinnerung();
+        } catch (err) { e.textContent = '⚠️ ' + (SICH_FEHLER[err && err.message] || 'Die Sicherung ließ sich nicht erstellen: ' + (err && err.message || err)); }
+      };
+      q('#siZurueck').onclick = async () => {
+        const e = q('#siZErg'), f = q('#siDatei').files[0], pw = q('#siPwZ').value;
+        if (!SI) { e.textContent = SICH_FEHLER['schloss-fehlt']; return; }
+        if (!f) { e.textContent = 'Bitte zuerst die Sicherungsdatei wählen.'; return; }
+        if (!pw) { e.textContent = 'Bitte das Passwort der Sicherung eingeben.'; return; }
+        e.textContent = 'Entschlüssele …';
+        let datei; try { datei = JSON.parse(await f.text()); } catch (_) { e.textContent = '⚠️ ' + SICH_FEHLER['keine-sicherung']; return; }
+        try {
+          const inhalt = await SI.oeffnen(pw, datei);
+          const r = await SI.zusammenfuehren(DB, inhalt);
+          for (const x of r.neu) if (EINGANG_QUELLEN.includes(x.doc.quelle)) eingangPruefen(x.doc.id, x.doc.name + '.pdf', x.bytes);
+          q('#siPwZ').value = '';
+          e.textContent = `✅ ${r.dazu} Dokument(e) dazu, ${r.schonDa} schon da` + (r.ordnerDazu ? `, ${r.ordnerDazu} Ordner dazu` : '') + '.' + (r.ohneDatei ? ` ${r.ohneDatei} Dokument(e) ohne Datei wurden übersprungen.` : '');
+          await ladeBibliothek();
+        } catch (err) { e.textContent = '⚠️ ' + (SICH_FEHLER[err && err.message] || 'Zurückholen ging nicht: ' + (err && err.message || err)); }
+      };
+    });
+  }
+
   function einstellungen() {
     const opt = Object.entries(ER.ANBIETER).map(([k, a]) => `<option value="${k}"${k === EINST.anbieter ? ' selected' : ''}>${h(a.label)}</option>`).join('');
     dialog(`<h2>⚙️ Einstellungen</h2>
@@ -2522,6 +2628,7 @@
       <label style="font-weight:400"><input type="checkbox" id="stLin"${EINST.linien !== false ? ' checked' : ''}> Linien, Rahmen und Kästchen im Seitenbild suchen (offline)</label>
       <h3 style="margin:14px 0 0;font-size:1rem">Speicher</h3>
       <p class="hinweis" id="stSpeicher">…</p>
+      <div class="zeile" style="justify-content:flex-start"><button class="knopf" id="stSicherung">🔐 Bibliothek sichern und zurückholen …</button></div>
       <p class="hinweis"><a href="impressum.html" target="_blank" rel="noopener">Impressum &amp; Datenschutz</a></p>
       <div class="zeile"><button class="knopf" data-x>Abbrechen</button><button class="knopf rot" data-ok>Speichern</button></div>`, (d, zu) => {
       const anb = d.querySelector('#stAnb'), key = d.querySelector('#stKey'), mod = d.querySelector('#stMod'), kon = d.querySelector('#stKonsole');
@@ -2533,6 +2640,7 @@
       anb.onchange = () => { merke(); zeige(); d.querySelector('#stTestErg').textContent = ''; };
       zeige();
       d.querySelector('#stSprache').onclick = spracheWaehlen;
+      d.querySelector('#stSicherung').onclick = () => { zu(); sicherungDialog(); };
       d.querySelector('#stTest').onclick = async () => {
         merke(); const e = d.querySelector('#stTestErg'); e.textContent = 'prüfe …';
         try { const m = await ER.kiTest({ anbieter: anb.value, schluessel: tmp.schluessel[anb.value], modell: tmp.modell[anb.value] }); e.textContent = '✅ Verbindung steht (' + m + ')'; }
@@ -2764,7 +2872,7 @@
     ladeBibliothek().then(() => { if (EINST.bedeutung) bedeutungStarten(); }).then(chromeTabRueckweg).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
     window.__wfpdf = { eingang: { PRUEF, pruefDialog, eingangPruefen }, beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner,
       // für tests/sprache.mjs: jeden Dialog einmal öffnen und seine Texte nachschlagen
-      dlg: { neuerOrdner, verschieben, teilenDocs, wahlEnde, WAHL, wahlUmschalten, loeschen, speichernDialog, scanStarten, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, erklaervideo, videoFuer, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe, bedeutungDialog } };   // für die Probe
+      dlg: { neuerOrdner, verschieben, teilenDocs, wahlEnde, WAHL, wahlUmschalten, loeschen, speichernDialog, scanStarten, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, erklaervideo, videoFuer, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe, bedeutungDialog, sicherungDialog, sicherungErinnerung } };   // für die Probe
   }
   start();
 })();

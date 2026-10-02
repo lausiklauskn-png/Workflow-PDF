@@ -48,6 +48,15 @@ async function rundreise(p) {
   await schritt(p, 'Hilfe', () => p.evaluate(W => window[W].dlg.hilfe(), W));
   // Erklärvideo (2026-09-28): der Dialog MIT sichtbarem Offline-Hinweis — beide Sätze müssen übersetzt sein
   await schritt(p, 'Erklärvideo', async () => { await p.evaluate(W => window[W].dlg.erklaervideo(), W); await p.evaluate(() => { const o = document.querySelector('.dlg [data-offline]'); if (o) o.hidden = false; }); });
+  await schritt(p, 'Sicherung', () => p.evaluate(W => window[W].dlg.sicherungDialog(), W));
+  await schritt(p, 'Sicherung: Erinnerung', async () => {
+    await p.evaluate(W => { window[W].S.docs.push({ id: '__eigen', name: 'Eigenes', pages: [], fields: [] }); localStorage.removeItem('wfpdf_sicherung_zuletzt'); sessionStorage.removeItem('wfpdf_sicherung_spaeter'); }, W);
+    await p.evaluate(W => window[W].dlg.sicherungErinnerung(), W); await ruhe(p);
+    await p.evaluate(() => localStorage.setItem('wfpdf_sicherung_zuletzt', new Date(Date.now() - 20 * 86400000).toISOString()));
+    await p.evaluate(W => window[W].dlg.sicherungErinnerung(), W); await ruhe(p);
+    await p.evaluate(() => localStorage.setItem('wfpdf_sicherung_zuletzt', new Date().toISOString()));
+    await p.evaluate(W => { const w = window[W]; w.S.docs = w.S.docs.filter(d => d.id !== '__eigen'); w.dlg.sicherungErinnerung(); }, W);
+  });
   await schritt(p, 'Einstellungen', async () => { await p.evaluate(W => window[W].dlg.einstellungen(), W); await p.waitForTimeout(150); });
   await schritt(p, 'Sprache', () => p.evaluate(W => window[W].dlg.spracheWaehlen(), W));
   await schritt(p, 'Installieren', () => p.evaluate(W => window[W].dlg.installHinweis(false), W));

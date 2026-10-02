@@ -661,6 +661,35 @@ Bilder, Farbkästen, Tabellen, Zweispalter, Querformat, eine gescannte Seite ohn
   nichts doppelt). Nicht im Installations-Vorrat; der Worker legt sie beim ersten Abruf ab.
   Das Handbuch nennt diesen Weg wörtlich — `tests/beispiele.mjs` hält beide zusammen.
 
+## 🔐 Bibliothek sichern und zurückholen (Klaus 2026-10-02)
+
+„Workflow soll dasselbe bekommen. Dieselbe Sicherung." · „Ein JSON-Tresor … Tief im Browser-Speicher, ohne dass
+gelöscht wird." Dieselbe Sicherung wie im Sende-Prüfer: ⚙️ Einstellungen → „🔐 Bibliothek sichern und zurückholen …"
+(`sicherungDialog` in app.js), dazu eine Erinnerung über der Liste (`[data-sicherung-erinnerung]`).
+
+- **Sicherung erstellen:** Passwort (mindestens 8 Zeichen) zweimal → alle Ordner, Dokumente (Felder, Einträge) und
+  PDF-Dateien in EINE Datei `Workfloh-PDF-Sicherung-JJJJ-MM-TT.json` = `{art:"workfloh-pdf-sicherung", fassung:1,
+  erstellt, paket}` — **kein Klartext darin**. Das Schloss ist `assets/schluesseltresor.js`, **byte-1:1 aus
+  kim-hub-company** (über den Sende-Prüfer), SHA-gepinnt in `tests/sicherung.mjs`. Nie hier abwandeln.
+  Das Passwort wird nirgends abgelegt. Nicht mit: KI-Schlüssel, Einstellungen, Seitentext und Vektoren (rechnet die App neu).
+- **Zurückholen fügt hinzu, überschreibt nie** (gleiche Kennung bleibt). Ein Prüf-Befund aus der Datei wird nicht
+  geglaubt (neu geprüft), ein fehlender Ordner wird `null`, ein Dokument ohne Datei wird übersprungen und genannt.
+  Falsches Passwort, fremde Datei und andere Fassung haben je eine eigene Meldung.
+- **Dauerhafter Speicher:** `navigator.storage.persisted()` steht im Dialog; `persist()` wird beim Sichern und auf
+  Knopf erbeten. Die Zusage gibt der BROWSER — ob er sie gegeben hat, steht da.
+- **Erinnerung**, sobald eigene Dokumente da sind (die zwei Beispiele zählen nicht) und die letzte Sicherung
+  (`wfpdf_sicherung_zuletzt`) fehlt oder ≥ 14 Tage alt ist. „Später" gilt für diesen Besuch (sessionStorage).
+- Rechnung in `assets/sicherung.js` (Node-prüfbar, die Speicher-Naht wird hineingereicht). Cache v71.
+- Proben: `tests/sicherung.mjs` (in `npm test`; ohne Browser + ganzer Weg im Browser: sichern, leeren, falsches
+  Passwort, zurückholen, ein zweites Mal ohne Doppel) · `node tests/gegenprobe_sicherung.mjs` (16 Fälle; `NUR_ANKER=1`).
+  Gefahren am 2026-10-02: erst **14 gefangen · 1 durchgerutscht · 1 aus falschem Grund**. Durchgerutscht: der
+  Speicher-Stand wurde erst NACH dem Sichern gemessen (das Sichern setzt ihn selbst), und „…" zählte als Text — jetzt
+  beim Öffnen, `data-dauer` muss ja · nein · unbekannt sein. Falsch: die Sabotage nahm dem Knopf die Kennung, und die
+  Seite warf — jetzt wird der Knopf angetippt und das Fenster muss aufgehen. Danach beide gefangen, je eine rote Zeile;
+  `sicherung.mjs` 41 grün.
+- ⚠ Nicht gemessen: Download, Dateiwahl und Dauer der 600 000 Runden am Tablet; große Bibliotheken (die ganze
+  Sicherung liegt einmal als Text im Speicher).
+
 ## Netzweit
 
 Freibrief · frisch von `origin/main` · Ton · kein PII · Ehrlichkeit:

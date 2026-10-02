@@ -13,7 +13,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1">
 <link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png?v=1">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1">
-<link rel="stylesheet" href="assets/style.css?v=34">
+<link rel="stylesheet" href="assets/style.css?v=35">
 </head>
 <body>
 <header class="kopf">
@@ -64,6 +64,8 @@
     </form>
     <!-- Suche nach Bedeutung (Stufe 2): Knopf zum Einschalten, Ladebalken, Zustand -->
     <div class="bedeutung-leiste" id="bedeutungLeiste" data-bed-zustand="aus"></div>
+    <!-- Erinnerung an die Sicherung (Klaus 2026-10-02) — nur bei eigenen Dokumenten und alter/fehlender Sicherung -->
+    <div class="sicherung-erinnerung" id="sicherungErinnerung" data-sicherung-erinnerung hidden></div>
     <div class="ordner-aktionen" id="ordnerAktionen"></div>
     <div class="wahl-leiste" id="wahlLeiste" hidden></div>
     <div class="dok-gitter" id="dokGitter"></div>
@@ -120,11 +122,13 @@
 <script src="assets/export.js?v=7"></script>
 <script src="assets/html-export.js?v=2"></script>
 <script src="assets/uebersetzung.js?v=12"></script>
-<script src="assets/sprache-texte.js?v=32"></script>
+<script src="assets/sprache-texte.js?v=33"></script>
 <script src="assets/sprache.js?v=1"></script>
 <script src="assets/sprechen.js?v=3"></script>
 <script src="assets/schieber.js?v=1"></script>
 <script src="assets/eingang.js?v=1"></script>
-<script src="assets/app.js?v=54"></script>
+<script src="assets/schluesseltresor.js?v=1"></script>
+<script src="assets/sicherung.js?v=1"></script>
+<script src="assets/app.js?v=55"></script>
 </body>
 </html>
