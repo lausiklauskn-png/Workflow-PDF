@@ -501,3 +501,7 @@ div.dok-pruefung{cursor:default;font-weight:600;opacity:.8}
 .pruef-name{font-weight:700;word-break:break-word}
 /* Neu im Erklärvideo-Fenster (Klaus 2026-10-01) */
 .pruef-neu{margin:.6rem 0;padding:.55rem .7rem;border-left:4px solid #c62828;background:rgba(198,40,40,.07);border-radius:6px;font-size:.9rem;line-height:1.4}
+
+/* 🔐 Erinnerung an die Sicherung (Klaus 2026-10-02) */
+.sicherung-erinnerung{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0;padding:8px 12px;border:1px solid #e6b800;border-radius:10px;background:rgba(255,200,0,.12);font-size:.92rem}
+.sicherung-erinnerung span{flex:1 1 220px}
