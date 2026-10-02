@@ -682,6 +682,11 @@ gelöscht wird." Dieselbe Sicherung wie im Sende-Prüfer: ⚙️ Einstellungen �
 - Rechnung in `assets/sicherung.js` (Node-prüfbar, die Speicher-Naht wird hineingereicht). Cache v71.
 - Proben: `tests/sicherung.mjs` (in `npm test`; ohne Browser + ganzer Weg im Browser: sichern, leeren, falsches
   Passwort, zurückholen, ein zweites Mal ohne Doppel) · `node tests/gegenprobe_sicherung.mjs` (16 Fälle; `NUR_ANKER=1`).
+  Gefahren am 2026-10-02: erst **14 gefangen · 1 durchgerutscht · 1 aus falschem Grund**. Durchgerutscht: der
+  Speicher-Stand wurde erst NACH dem Sichern gemessen (das Sichern setzt ihn selbst), und „…" zählte als Text — jetzt
+  beim Öffnen, `data-dauer` muss ja · nein · unbekannt sein. Falsch: die Sabotage nahm dem Knopf die Kennung, und die
+  Seite warf — jetzt wird der Knopf angetippt und das Fenster muss aufgehen. Danach beide gefangen, je eine rote Zeile;
+  `sicherung.mjs` 41 grün.
 - ⚠ Nicht gemessen: Download, Dateiwahl und Dauer der 600 000 Runden am Tablet; große Bibliotheken (die ganze
   Sicherung liegt einmal als Text im Speicher).
 

@@ -28,8 +28,8 @@ const FAELLE = [
   { name: 'ein zu kurzes Passwort geht durch', datei: A, anker: "if (p1.length < SI.MIN_PW) { e.textContent = 'Das Passwort braucht mindestens ' + SI.MIN_PW + ' Zeichen.'; return; }", ersatz: '', trifft: /zu kurzes/ },
   { name: 'nach dem Zurückholen wird die Liste nicht neu geladen', datei: A, anker: "await ladeBibliothek();\n        } catch (err) { e.textContent = '⚠️ ' + (SICH_FEHLER[err && err.message] || 'Zurückholen", ersatz: "\n        } catch (err) { e.textContent = '⚠️ ' + (SICH_FEHLER[err && err.message] || 'Zurückholen", trifft: /in der Liste/ },
   { name: 'die Erinnerung erscheint nie', datei: A, anker: "if (!SI || !SI.erinnernNoetig(n, zuletzt, lsLies(SICH_SPAETER, true) === '1')) { el.hidden = true;", ersatz: "if (true) { el.hidden = true;", trifft: /nie gesichert|kommt die Erinnerung/ },
-  { name: 'der Speicher-Stand wird nicht genannt', datei: A, anker: 'dauerStand().then(dauerZeigen);', ersatz: ';', trifft: /Speicher-Stand|Fehler/ },
-  { name: 'die Einstellungen führen nicht hin', datei: A, anker: 'id="stSicherung"', ersatz: 'id="stSicherungWeg"', trifft: /Einstellungen/ }
+  { name: 'der Speicher-Stand wird nicht genannt', datei: A, anker: 'dauerStand().then(dauerZeigen);', ersatz: ';', trifft: /beim Öffnen genannt/ },
+  { name: 'die Einstellungen führen nicht hin', datei: A, anker: "d.querySelector('#stSicherung').onclick = () => { zu(); sicherungDialog(); };", ersatz: "d.querySelector('#stSicherung').onclick = () => { zu(); };", trifft: /öffnet die Sicherung/ }
 ];
 
 let gefangen = 0, durch = 0, falsch = 0, tot = 0;

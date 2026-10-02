@@ -127,6 +127,9 @@ try {
   // sichern über den Knopf in der Erinnerung
   await page.click('[data-sich-jetzt]');
   await page.waitForSelector('#siPw1');
+  // der Speicher-Stand steht schon beim Öffnen da — vor jedem Sichern (sonst setzt ihn erst das Sichern)
+  const dauer0 = await page.evaluate(() => new Promise(r => { const t0 = Date.now(); (function w() { const e = document.querySelector('[data-dauer]'); const d = e && e.dataset.dauer; if (d && d !== '?') return r({ d, t: e.textContent.trim() }); if (Date.now() - t0 > 5000) return r({ d: d || null, t: e && e.textContent.trim() }); setTimeout(w, 50); })(); }));
+  ok('der Speicher-Stand wird beim Öffnen genannt (ja · nein · unbekannt)', ['ja', 'nein', 'unbekannt'].includes(dauer0.d) && dauer0.t.length > 20, dauer0);
   await page.fill('#siPw1', 'kurz'); await page.fill('#siPw2', 'kurz'); await page.click('#siErstellen');
   ok('ein zu kurzes Passwort wird abgewiesen', /mindestens/.test(await page.textContent('[data-sich-ergebnis]')));
   await page.fill('#siPw1', 'Testpasswort-2026'); await page.fill('#siPw2', 'anderes-Passwort'); await page.click('#siErstellen');
@@ -184,6 +187,8 @@ try {
   // Einstellungen führen hin
   await page.evaluate(() => { document.querySelectorAll('[data-x]').forEach(b => b.click()); window.__wfpdf.dlg.einstellungen(); });
   ok('in den Einstellungen steht der Weg zur Sicherung', await page.evaluate(() => !!document.querySelector('#stSicherung')));
+  await page.click('#stSicherung');
+  ok('der Knopf in den Einstellungen öffnet die Sicherung', await page.waitForSelector('#siPw1', { timeout: 5000 }).then(() => true, () => false));
   ok('keine Fehler in der Seite', seitenFehler.length === 0, seitenFehler);
 } catch (e) {
   ok('der Lauf stolpert nicht', false, String(e && e.stack || e));
