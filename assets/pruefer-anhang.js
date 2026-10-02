@@ -400,12 +400,16 @@
   }
   /* Den gelesenen Text auf Anweisungen an eine KI prüfen — dieselbe Liste wie
      der Mail-Eingang. wo: "" beim Bild, "Seite n, " beim PDF. */
+  /* Punkt 7 (2026-10-01): auch unsichtbare Zeichen (ohne Breite, Richtungs-
+     wechsel) im gelesenen Text. Die Texterkennung liefert sie selten, aber
+     wenn, dann sind sie kein Zufall. Die Kennung bleibt die des Textes. */
+  var BILDTEXT_ARTEN = { "KI-ANWEISUNG": "BILD-KI-ANWEISUNG", "UNSICHTBARE-ZEICHEN": "UNSICHTBARE-ZEICHEN" };
   function bildtextPruefen(text, wo, melde, hinweise, boxen) {
     var PM = welt.PrueferMail;
     if (!PM) { hinweise.push("Der Text im Bild wurde gelesen, aber die Liste der KI-Anweisungen (assets/pruefer-mail.js) ist nicht geladen — auf Anweisungen an eine KI ist er ungeprüft."); return; }
     PM.pruefeMail(text).stellen.forEach(function (st) {
-      if (st.kennung !== "KI-ANWEISUNG") return;
-      melde("BILD-KI-ANWEISUNG", st.satz + " (" + wo + "Bildtext Zeile " + st.zeile + ")", boxen ? boxen[st.zeile - 1] : null);
+      var k = BILDTEXT_ARTEN[st.kennung]; if (!k) return;
+      melde(k, st.satz + " (" + wo + "Bildtext Zeile " + st.zeile + ")", boxen ? boxen[st.zeile - 1] : null);
     });
   }
   /* ══ BLASSER TEXT — Stufe 2 B (2026-09-30)
@@ -476,8 +480,8 @@
     if (!PM) { hinweise.push("Der blasse Text wurde gelesen, aber die Liste der KI-Anweisungen (assets/pruefer-mail.js) ist nicht geladen — auf Anweisungen an eine KI ist er ungeprüft."); return; }
     blass.forEach(function (z) {
       PM.pruefeMail(z).stellen.forEach(function (st) {
-        if (st.kennung !== "KI-ANWEISUNG") return;
-        melde("BILD-KI-ANWEISUNG", st.satz + " (blass, erst nach Kontrast-Spreizung lesbar: Bildtext Zeile " + (alle.indexOf(z) + 1) + ")",
+        var k = BILDTEXT_ARTEN[st.kennung]; if (!k) return;
+        melde(k, st.satz + " (blass, erst nach Kontrast-Spreizung lesbar: Bildtext Zeile " + (alle.indexOf(z) + 1) + ")",
               alleBoxen ? alleBoxen[alle.indexOf(z)] : null);
       });
     });
@@ -497,6 +501,11 @@
         var text = r.zeilen.length ? r.zeilen.join("\n") : null;
         if (r.zeilen.length) {
           hinweise.push("Text im Bild gelesen: " + r.zeilen.length + " Zeile(n)" + (r.unsicher ? ", " + r.unsicher + " unsichere verworfen" : "") + ".");
+          /* Punkt 6 b: eine verworfene Zeile ist eine NICHT geprüfte Zeile. */
+          if (r.unsicher) {
+            ungeprueft(stand, "Text im Bild teilweise ungeprüft");
+            hinweise.push(r.unsicher + " Zeile(n) im Bild waren zu unsicher gelesen (unter " + OCR_SICHER + " %) und wurden verworfen — dort ist der Text ungeprüft, nicht sauber.");
+          }
           bildtextPruefen(text, "", melde, hinweise, r.boxen);
         }
         if (r2.fehlt) hinweise.push("Blasser Text ungeprüft: der zweite Lesedurchgang mit mehr Kontrast lief nicht (" + r2.fehlt + ").");
@@ -699,6 +708,7 @@
       else r.seiten.forEach(function (x) {
         if (!x.text) return;
         PM.pruefeMail(x.text).stellen.forEach(function (st) {
+          if (st.kennung === "UNSICHTBARE-ZEICHEN") { melde(st.kennung, st.satz + " (Seite " + x.seite + ", Zeile " + st.zeile + ")"); return; }
           if (st.kennung !== "KI-ANWEISUNG") return;
           melde("PDF-KI-ANWEISUNG", st.satz + " (Seite " + x.seite + ", Zeile " + st.zeile + ")");
         });
@@ -716,6 +726,7 @@
     }, function (e) {
       var grund = /password/i.test((e && (e.name + e.message)) || "") ? "das PDF ist mit einem Passwort geschützt" : (e && e.message) || "unbekannt";
       hinweise.push("Der Seitentext des PDFs wurde NICHT gelesen (" + grund + ") — er ist ungeprüft, nicht sauber.");
+      ungeprueft(stand, "Seitentext des PDFs ungeprüft");
       return null;
     });
   }
@@ -926,6 +937,30 @@
     }, function () { return null; });
   }
 
+  /* ══ TEXT IN DATEIEN AUF ANWEISUNGEN AN EINE KI (Punkt 4, 2026-10-01)
+   * ChatGPT-Prüfbericht vom 2026-10-01: Text aus TXT, SVG, HTML und Word ging
+   * nur durch pruefeText (Schlüssel, Mailadressen, IBAN), nicht durch die
+   * Liste der KI-Anweisungen. Jetzt dieselbe Liste wie der Mail-Eingang.
+   * Übernommen werden nur KI-ANWEISUNG, UNSICHTBARE-ZEICHEN und
+   * VERSTECKTER-TEXT — der Rest gehört zu Mails (Absender, Links).
+   * ⚠ Ein "\n" davor: pruefeMail hält eine erste Zeile wie „Hinweis: …"
+   *   sonst für einen Mailkopf und verschiebt die Zeilen. Abgezogen wird 1.
+   * Fehlt pruefer-mail.js, ist der Text ungeprüft, nicht sauber. */
+  var DATEI_KI_ARTEN = ["KI-ANWEISUNG", "UNSICHTBARE-ZEICHEN", "VERSTECKTER-TEXT"];
+  function dateitextPruefen(text, melde, hinweise, stand) {
+    if (!text || !String(text).trim()) return;
+    var PM = welt.PrueferMail;
+    if (!PM) {
+      hinweise.push("Der Text der Datei wurde gelesen, aber die Liste der KI-Anweisungen (assets/pruefer-mail.js) ist nicht geladen — auf Anweisungen an eine KI ist er ungeprüft, nicht sauber.");
+      stand.bildUngeprueft = true; stand.textUngeprueft = true;
+      return;
+    }
+    PM.pruefeMail("\n" + text).stellen.forEach(function (st) {
+      if (DATEI_KI_ARTEN.indexOf(st.kennung) < 0) return;
+      melde(st.kennung, st.satz + " (Zeile " + Math.max(1, st.zeile - 1) + ")");
+    });
+  }
+
   /* ══ DIE EINE TÜR
    * @returns Promise<{art, artName, befunde:[{kennung,satz}], text:string|null,
    *                   textQuelle:"bild"|null, seiten:[{seite,text,bild?}]|null,
@@ -934,6 +969,11 @@
    * gelesen — die App darf dann nicht „kein Befund" melden.
    * text: was Modul 25 danach lesen soll (null = kein Text gelesen).
    * seiten: beim PDF der Text je Seite, damit ein Fund seine Seite nennt. */
+  /* Ungeprüft markieren — der erste Grund nennt den Satz oben (Punkt 6). */
+  function ungeprueft(stand, satz) {
+    stand.bildUngeprueft = true;
+    if (satz && !stand.satz) stand.satz = satz;
+  }
   function pruefe(name, bytes) {
     var b = alsBytes(bytes), art = artVon(b), befunde = [], hinweise = [], text = null, seiten = null, stand = { bildUngeprueft: false };
     function melde(k, satz, box) { var x = { kennung: k, satz: satz }; if (box) x.box = box; befunde.push(x); }
@@ -951,6 +991,11 @@
     if (art === "jpeg") anhaengsel(b, jpegPruefen(b, melde), melde);
     else if (art === "png") anhaengsel(b, pngPruefen(b, melde), melde);
     else if (art === "webp") anhaengsel(b, webpPruefen(b, melde), melde);
+    else if (art === "unbekannt") {
+      /* Punkt 6 c: eine Datei, deren Art der Prüfer nicht kennt, ist nicht sauber, sondern ungeprüft. */
+      hinweise.push("Die Art dieser Datei hat der Prüfer nicht erkannt — ihr Inhalt wurde NICHT geprüft, nur Name und Endung. Ungeprüft, nicht sauber.");
+      ungeprueft(stand, "Dateiart nicht erkannt — ungeprüft");
+    }
     else if (art === "gif") hinweise.push("Bei GIF wird nur der Dateikopf geprüft, nicht, was hinter dem Bild steht.");
     else if (art === "svg") text = svgPruefen(b, melde);
     else if (art === "text") text = new TextDecoder("utf-8").decode(b).replace(/^\uFEFF/, "");
@@ -960,7 +1005,7 @@
     });
     else if (art === "pdf") {
       var PF = welt.PrueferFormate;
-      if (!PF) hinweise.push("Der PDF-Prüfer (assets/pruefer-formate.js) ist nicht geladen — das PDF ist ungeprüft, nicht sauber.");
+      if (!PF) { hinweise.push("Der PDF-Prüfer (assets/pruefer-formate.js) ist nicht geladen — das PDF ist ungeprüft, nicht sauber."); ungeprueft(stand, "PDF ungeprüft"); }
       else weiter = PF.pruefePdf(b, []).then(function (r) {
         r.stellen.forEach(function (x) { melde(x.kennung, x.satz + " (" + x.stelle + ")"); });
         hinweise.push.apply(hinweise, r.hinweise);
@@ -969,13 +1014,19 @@
         if (s && s.length) { seiten = s; text = s.map(function (x) { return x.text; }).join("\n"); }
       });
     }
+    /* HTML: der Quelltext (dort stehen CSS-Verstecke und die echten Zeilen),
+       sonst der gelesene Text der Datei. */
+    var htmlRoh = art === "html" ? new TextDecoder("utf-8").decode(b).replace(/^\uFEFF/, "") : null;
+    weiter = weiter.then(function () {
+      if (/^(text|svg|html|docx|xlsx|pptx|odt|zip)$/.test(art) || htmlRoh) dateitextPruefen(htmlRoh || text, melde, hinweise, stand);
+    });
     var textQuelle = null;
     if (/^(png|jpeg|webp|gif)$/.test(art)) weiter = weiter.then(function () {
       return bildTextPruefen(b, art, melde, hinweise, stand).then(function (t) { if (t) { text = t; textQuelle = "bild"; } });
     });
     return weiter.then(function () {
       return { art: art, artName: ART_NAME[art] || art, befunde: befunde, text: text, textQuelle: textQuelle, seiten: seiten, hinweise: hinweise,
-        bildUngeprueft: stand.bildUngeprueft,
+        bildUngeprueft: stand.bildUngeprueft, textUngeprueft: !!stand.textUngeprueft, ungeprueftSatz: stand.satz || "",
         sicher: /^(png|jpeg|webp|gif|svg)$/.test(art) };
     });
   }
