@@ -183,11 +183,40 @@
   /* modus: original · farbe (Farben bleiben, Schatten weg) · grau · dokument (Graustufen,
      weißes Papier, kräftige Schrift) · sw (hart schwarz-weiß).
      opt.hell, opt.kontrast: −100 … +100. Ändert img.data und gibt img zurück. */
+  // Schwarzweiß: unter SW_VON schwarz, über SW_BIS weiß, dazwischen weich (Mitte bleibt 0,8)
+  const SW_VON = 0.74, SW_BIS = 0.86;
+  const glatt = t => t * t * (3 - 2 * t);
+  // Unscharf-Maskieren: L + a·(L − Weichzeichnung). Radius wächst mit der Bildgröße
+  // (1 px bis 1300 px Breite, sonst 2 px), damit die Wirkung bei jeder Auflösung gleich aussieht.
+  function schaerfen(L, w, h, staerke) {
+    const r = w > 1300 ? 2 : 1, a = staerke / 40, n = w * h;
+    const z = new Float32Array(n), b = new Float32Array(n);
+    for (let y = 0; y < h; y++) {          // waagerecht
+      const o = y * w; let s = 0, c = 0;
+      for (let x = -r; x <= r; x++) if (x >= 0 && x < w) { s += L[o + x]; c++; }
+      for (let x = 0; x < w; x++) { z[o + x] = s / c; const raus = x - r, rein = x + r + 1; if (raus >= 0) { s -= L[o + raus]; c--; } if (rein < w) { s += L[o + rein]; c++; } }
+    }
+    for (let x = 0; x < w; x++) {          // senkrecht
+      let s = 0, c = 0;
+      for (let y = -r; y <= r; y++) if (y >= 0 && y < h) { s += z[y * w + x]; c++; }
+      for (let y = 0; y < h; y++) { b[y * w + x] = s / c; const raus = y - r, rein = y + r + 1; if (raus >= 0) { s -= z[raus * w + x]; c--; } if (rein < h) { s += z[rein * w + x]; c++; } }
+    }
+    const out = new Float32Array(n);
+    for (let p = 0; p < n; p++) out[p] = klemm(L[p] + a * (L[p] - b[p]), 0, 255);
+    return out;
+  }
   function filtern(img, modus, opt) {
     opt = opt || {};
     const { data: d, width: w, height: h } = img, n = w * h;
+    // Schärfe (Klaus 2026-10-06: „Schärfeeinstellung … Pixelkanten glätten"): Unscharf-
+    // Maskieren auf der Helligkeit, VOR dem Filter — so bekommt die Schwelle eine klare Kante.
+    // 0 = aus; 40 ist die Vorgabe der Oberfläche. Farbige Fassungen bekommen denselben
+    // Hell-Unterschied auf alle drei Kanäle, damit die Farbe bleibt.
+    const sch = klemm(+opt.schaerfe || 0, 0, 100);
+    let L0 = null, Ls = null;
+    if (sch > 0) { L0 = helligkeit(d, n); Ls = schaerfen(L0, w, h, sch); }
     if (modus && modus !== 'original') {
-      const L = helligkeit(d, n), bg = hintergrund(L, w, h);
+      const L = Ls || helligkeit(d, n), bg = hintergrund(L, w, h);
       for (let p = 0, i = 0; p < n; p++, i += 4) {
         const g = Math.max(bg[p], 30), norm = L[p] / g;   // 1 = Papier, kleiner = Schrift
         if (modus === 'farbe') {
@@ -200,9 +229,12 @@
         } else if (modus === 'dokument') {
           const t = klemm((norm - 0.5) / (0.9 - 0.5), 0, 1), v = 255 * Math.pow(t, 1.6); d[i] = d[i + 1] = d[i + 2] = v;
         } else if (modus === 'sw') {
-          const v = norm < 0.8 ? 0 : 255; d[i] = d[i + 1] = d[i + 2] = v;
+          // weiche Schwelle statt hart bei 0,8: die Kante bekommt Zwischentöne und franst nicht aus
+          const v = 255 * glatt(klemm((norm - SW_VON) / (SW_BIS - SW_VON), 0, 1)); d[i] = d[i + 1] = d[i + 2] = v;
         }
       }
+    } else if (Ls) {
+      for (let p = 0, i = 0; p < n; p++, i += 4) { const dl = Ls[p] - L0[p]; for (let k = 0; k < 3; k++) d[i + k] = klemm(d[i + k] + dl, 0, 255); }
     }
     const hell = +opt.hell || 0, kon = +opt.kontrast || 0;
     if (hell || kon) {
@@ -272,7 +304,7 @@
     const sp = BILD_SPRACHEN[(o || {}).nach] || 'Deutsch';
     return `Extrahiere den Text aus diesem Bild, übersetze ihn auf ${sp} und füge ihn an derselben Stelle wieder in das Originalbild ein. Verbessere dabei die Bildqualität: Schrift gestochen scharf und gut lesbar, Unschärfe und Rauschen entfernt, Layout und Farben wie im Original. Gib mir das fertige Bild in möglichst hoher Auflösung zurück.`;
   }
-  const API = { A4, A5, A6, LETTER, AUTO_TOLERANZ, FILTER, EINIG, sortiere, ausScanic, abstand, taugt, entscheiden, seitenMass, homographie, entzerren, drehen, filtern, hintergrund, textFarben, ganz, zeilenLage, kopieGroessen, zeilenBand, SCHRIFT_JE_ZEILENHOEHE, BILD_SPRACHEN, bildAuftrag };
+  const API = { A4, A5, A6, LETTER, AUTO_TOLERANZ, FILTER, EINIG, sortiere, ausScanic, abstand, taugt, entscheiden, seitenMass, homographie, entzerren, drehen, filtern, schaerfen, SW_VON, SW_BIS, hintergrund, textFarben, ganz, zeilenLage, kopieGroessen, zeilenBand, SCHRIFT_JE_ZEILENHOEHE, BILD_SPRACHEN, bildAuftrag };
   if (typeof window !== 'undefined') { window.WFP = window.WFP || {}; window.WFP.ScanBild = API; }
   if (typeof globalThis !== 'undefined') globalThis.__WFP_SCANBILD = API;
 })();

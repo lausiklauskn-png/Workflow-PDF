@@ -24,7 +24,11 @@
   const QUALI = { hoch: { dpi: 200, q: 0.9, name: 'Hoch (200 dpi)' }, normal: { dpi: 150, q: 0.85, name: 'Normal (150 dpi)' }, klein: { dpi: 110, q: 0.72, name: 'Klein (110 dpi)' } };
   const FORMAT = { auto: 'Automatisch', blatt: 'Original (wie das Blatt)', a4: 'A4', a5: 'A5', a6: 'A6', letter: 'US Letter' };
   const SPRACHEN = { deu: 'Deutsch', eng: 'English', rus: 'Русский' };
-  const VORSCHAU_DPI = 80, OCR_DPI = 200, KI_DPI = 300;
+  const VORSCHAU_DPI = 80, OCR_DPI = 200, KI_DPI = 300, SCHAERFE_VORGABE = 40;
+  // Vorschau so fein wie der Schirm (Klaus 2026-10-06: Schrift in der Vorschau ausgefranst):
+  // Bildschirmpunkte ÷ 8,27 Zoll (A4-Breite), gerundet auf 10, zwischen 80 und 150 dpi.
+  function vorschauDpi() { const px = (window.innerWidth || 800) * (window.devicePixelRatio || 1); return Math.min(150, Math.max(VORSCHAU_DPI, Math.round(px / 8.27 / 10) * 10)); }
+  const schaerfeVon = s => (s.schaerfe == null ? SCHAERFE_VORGABE : s.schaerfe);
 
   let ST = null;   // Zustand des offenen Werkzeugs
 
@@ -78,22 +82,22 @@
 
   /* ---------- Seite rechnen ---------- */
   function schluessel(s, dpi, mitText) {
-    return JSON.stringify([s.ecken, s.drehung, s.filter, s.hell, s.kontrast, ST.format, dpi, mitText ? [s.aenderungen, s.stil] : 0]);
+    return JSON.stringify([s.ecken, s.drehung, s.filter, s.hell, s.kontrast, schaerfeVon(s), ST.format, dpi, mitText ? [s.aenderungen, s.stil] : 0]);
   }
   // Ergebnis einer Seite als Canvas: entzerren → drehen → Filter → geänderter Text
   function seiteRechnen(s, dpi, mitText) {
     const m = SB().seitenMass(s.ecken, ST.format, dpi);
     let img = SB().entzerren(bildDaten(s.foto), s.ecken, m.W, m.H);
     img = SB().drehen(img, s.drehung);
-    SB().filtern(img, s.filter, { hell: s.hell, kontrast: s.kontrast });
+    SB().filtern(img, s.filter, { hell: s.hell, kontrast: s.kontrast, schaerfe: schaerfeVon(s) });
     const c = zuCanvas(img);
     if (mitText !== false && s.ocr) textAnwenden(c, img, s);
     const quer = s.drehung % 2 ? !m.quer : m.quer, seite = s.drehung % 2 ? [m.seite[1], m.seite[0]] : m.seite;
     return { canvas: c, seite, quer };
   }
   function vorschau(s) {
-    const k = schluessel(s, VORSCHAU_DPI, true);
-    if (s._vk !== k) { s._v = seiteRechnen(s, VORSCHAU_DPI).canvas; s._vk = k; }
+    const vd = vorschauDpi(), k = schluessel(s, vd, true);
+    if (s._vk !== k) { s._v = seiteRechnen(s, vd).canvas; s._vk = k; }
     return s._v;
   }
   // Geänderte Zeilen: das SCHRIFTBAND der alten Zeile (an der Grundlinie, samt Neigung) in
@@ -164,8 +168,8 @@
   // kürzer als der Text, und die Zeile würde sonst kleiner gesetzt als ihre Nachbarn.
   const kopieBreite = (l, W) => Math.max(l.laenge, W * 0.97 - l.x);
   function kopieVorschau(s) {
-    const k = schluessel(s, VORSCHAU_DPI, true) + JSON.stringify([s.ocr && s.ocr.zeilen.length, s.ocr && s.ocr.dpi]);
-    if (s._kk !== k) { s._k = kopieRechnen(s, VORSCHAU_DPI).canvas; s._kk = k; }
+    const vd = vorschauDpi(), k = schluessel(s, vd, true) + JSON.stringify([s.ocr && s.ocr.zeilen.length, s.ocr && s.ocr.dpi]);
+    if (s._kk !== k) { s._k = kopieRechnen(s, vd).canvas; s._kk = k; }
     return s._k;
   }
   const alsKopie = s => s.ausgabe === 'kopie' && s.ocr;
@@ -329,10 +333,10 @@
       if (!ST) return;
       let foto; try { foto = await fotoLesen(f); } catch (e) { ST.opt.toast('⚠️ ' + (e.message || e)); continue; }
       const alt = ST.ersetze ? ST.seiten.findIndex(o => o.id === ST.ersetze) : -1; ST.ersetze = null;
-      const s = { id: Math.random().toString(36).slice(2), name: f.name, foto, erkennung: null, ecken: null, manuell: false, drehung: 0, filter: merk.filter, hell: 0, kontrast: 0, ocr: null, aenderungen: {}, ausgabe: 'original' };
+      const s = { id: Math.random().toString(36).slice(2), name: f.name, foto, erkennung: null, ecken: null, manuell: false, drehung: 0, filter: merk.filter, hell: 0, kontrast: 0, schaerfe: SCHAERFE_VORGABE, ocr: null, aenderungen: {}, ausgabe: 'original' };
       if (o.bildKi) Object.assign(s, { filter: 'original', manuell: true, ecken: SB().ganz(foto.width, foto.height), erkennung: { ecken: SB().ganz(foto.width, foto.height), quelle: 'ki-bild', sicher: true, grund: 'Bild von ChatGPT — das ganze Bild ist die Seite' }, kiBild: true });
       const hinter = o.hinter ? ST.seiten.findIndex(x => x.id === o.hinter) : -1;
-      if (alt >= 0) { const a = ST.seiten[alt]; if (!o.bildKi) Object.assign(s, { drehung: a.drehung, filter: a.filter, hell: a.hell, kontrast: a.kontrast }); ST.seiten[alt] = s; ST.akt = alt; ST.opt.toast((o.bildKi ? '🎨 ' : '📷 ') + 'Seite ' + (alt + 1) + ' ersetzt'); }
+      if (alt >= 0) { const a = ST.seiten[alt]; if (!o.bildKi) Object.assign(s, { drehung: a.drehung, filter: a.filter, hell: a.hell, kontrast: a.kontrast, schaerfe: schaerfeVon(a) }); ST.seiten[alt] = s; ST.akt = alt; ST.opt.toast((o.bildKi ? '🎨 ' : '📷 ') + 'Seite ' + (alt + 1) + ' ersetzt'); }
       else if (hinter >= 0) { ST.seiten.splice(hinter + 1, 0, s); ST.akt = hinter + 1; ST.opt.toast('🎨 Als Seite ' + (hinter + 2) + ' eingefügt — das Original bleibt davor'); }
       else { ST.seiten.push(s); ST.akt = ST.seiten.length - 1; }
       ST.ansicht = o.bildKi ? 'ergebnis' : 'zuschnitt'; ST.textModus = false; ST.vergleich = 'original';
@@ -346,7 +350,7 @@
   }
   function melden() {
     if (!ST) return;
-    window.__wfpdfScan = { seiten: ST.seiten.map(s => ({ name: s.name, ecken: s.ecken, erkennung: s.erkennung && { quelle: s.erkennung.quelle, sicher: s.erkennung.sicher, grund: s.erkennung.grund, verfahren: s.erkennung.verfahren }, manuell: s.manuell, drehung: s.drehung, filter: s.filter, hell: s.hell, kontrast: s.kontrast, foto: [s.foto.width, s.foto.height], ocr: s.ocr ? s.ocr.zeilen.length : null, ocrDpi: s.ocr ? s.ocr.dpi : null, ausgabe: s.ausgabe || 'original', kiBild: !!s.kiBild, aenderungen: Object.assign({}, s.aenderungen), stil: JSON.parse(JSON.stringify(s.stil || {})) })), akt: ST.akt, vergleich: ST.vergleich, format: ST.format, qualitaet: ST.qualitaet, durchsuchbar: ST.durchsuchbar, mlFehler: _mlFehler };
+    window.__wfpdfScan = { seiten: ST.seiten.map(s => ({ name: s.name, ecken: s.ecken, erkennung: s.erkennung && { quelle: s.erkennung.quelle, sicher: s.erkennung.sicher, grund: s.erkennung.grund, verfahren: s.erkennung.verfahren }, manuell: s.manuell, drehung: s.drehung, filter: s.filter, hell: s.hell, kontrast: s.kontrast, schaerfe: schaerfeVon(s), foto: [s.foto.width, s.foto.height], ocr: s.ocr ? s.ocr.zeilen.length : null, ocrDpi: s.ocr ? s.ocr.dpi : null, ausgabe: s.ausgabe || 'original', kiBild: !!s.kiBild, aenderungen: Object.assign({}, s.aenderungen), stil: JSON.parse(JSON.stringify(s.stil || {})) })), akt: ST.akt, vergleich: ST.vergleich, format: ST.format, qualitaet: ST.qualitaet, durchsuchbar: ST.durchsuchbar, mlFehler: _mlFehler };
   }
   const akt = () => ST && ST.seiten[ST.akt];
 
@@ -546,6 +550,7 @@
       inhalt = `<div class="scan-gruppe"><b>Filter</b><div class="scan-chips">${SB().FILTER.map(k => `<button class="chip${s.filter === k ? ' on' : ''}" data-filter="${k}">${FILTER_NAME[k]}</button>`).join('')}</div></div>
         <label class="scan-regler">☀ Helligkeit <input type="range" min="-100" max="100" step="5" value="${s.hell}" data-hell><output>${s.hell}</output></label>
         <label class="scan-regler">◐ Kontrast <input type="range" min="-100" max="100" step="5" value="${s.kontrast}" data-kontrast><output>${s.kontrast}</output></label>
+        <label class="scan-regler">🔪 Schärfe <input type="range" min="0" max="100" step="5" value="${schaerfeVon(s)}" data-schaerfe><output>${schaerfeVon(s)}</output></label>
         <div class="scan-knoepfe"><button class="knopf" data-dreh="-1" title="Nach links drehen">⟲ Links</button><button class="knopf" data-dreh="1" title="Nach rechts drehen">⟳ Rechts</button><button class="knopf" data-alle>Auf alle Seiten anwenden</button></div>
         <div class="scan-gruppe"><b>Text</b>
           <div class="scan-knoepfe"><select data-sprache title="Sprache der Texterkennung">${Object.entries(SPRACHEN).map(([k, v]) => `<option value="${k}"${ST.sprache === k ? ' selected' : ''}>${h(v)}</option>`).join('')}</select>
@@ -574,9 +579,9 @@
     if (q('[data-ganz]')) q('[data-ganz]').onclick = () => { s.manuell = true; s.ecken = SB().ganz(s.foto.width, s.foto.height); s.ocr = null; s.aenderungen = {}; s.stil = {}; zeichne(); };
     w.querySelectorAll('[data-filter]').forEach(k => k.onclick = () => { s.filter = k.dataset.filter; merk.filter = s.filter; merken(); zeichne(); });
     const regler = (sel, feld) => { const r = q(sel); if (!r) return; r.oninput = () => { r.nextElementSibling.textContent = r.value; }; r.onchange = () => { s[feld] = +r.value; zeichneBuehne(); zeichneLeiste(); melden(); }; };
-    regler('[data-hell]', 'hell'); regler('[data-kontrast]', 'kontrast');
+    regler('[data-hell]', 'hell'); regler('[data-kontrast]', 'kontrast'); regler('[data-schaerfe]', 'schaerfe');
     w.querySelectorAll('[data-dreh]').forEach(k => k.onclick = () => { s.drehung = (s.drehung + (+k.dataset.dreh) + 4) % 4; s.ocr = null; s.aenderungen = {}; s.stil = {}; ST.textModus = false; zeichne(); });
-    if (q('[data-alle]')) q('[data-alle]').onclick = () => { for (const o of ST.seiten) { o.filter = s.filter; o.hell = s.hell; o.kontrast = s.kontrast; } ST.opt.toast('Filter, Helligkeit und Kontrast gelten jetzt für alle ' + ST.seiten.length + ' Seiten'); zeichne(); };
+    if (q('[data-alle]')) q('[data-alle]').onclick = () => { for (const o of ST.seiten) { o.filter = s.filter; o.hell = s.hell; o.kontrast = s.kontrast; o.schaerfe = schaerfeVon(s); } ST.opt.toast('Filter, Helligkeit, Kontrast und Schärfe gelten jetzt für alle ' + ST.seiten.length + ' Seiten'); zeichne(); };
     if (q('[data-sprache]')) q('[data-sprache]').onchange = e => { ST.sprache = e.target.value; merk.sprache = ST.sprache; merken(); };
     if (q('[data-ocr]')) q('[data-ocr]').onclick = async () => {
       const k = q('[data-ocr]'); k.disabled = true; k.textContent = '🔤 Text wird erkannt …';
