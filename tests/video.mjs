@@ -168,10 +168,21 @@ try {
       return { src: e && e.getAttribute('src'), poster: e && e.getAttribute('poster'), laeuft: e && !e.paused, gedrueckt: k.filter(b => b.getAttribute('aria-pressed') === 'true').map(b => b.dataset.teil), knoepfe: k.map(b => b.dataset.teil + ':' + b.checkVisibility()) }; }).catch(() => null);
     const a = await sicht();
     ok(`${lang}: zwei Knöpfe (Erklärvideo · Neu), „Erklärvideo" ist gewählt`, a && a.knoepfe.join() === 'haupt:true,neu:true' && a.gedrueckt.join() === 'haupt', a);
+    ok(`${lang}: beim Erklärvideo sind die Kapitel des kurzen Films verborgen`, await p.$eval('.dlg [data-kapitel]', e => !e.checkVisibility()).catch(() => false));
     ok(`${lang}: der kurze Film wird vor dem Tipp NICHT geholt`, !abrufe.some(u => /neu-befehle/.test(u)), abrufe);
     await p.click('.dlg [data-teil="neu"]');
     const b = await sicht();
     ok(`${lang}: Knopf „Neu" → ${quer} mit seinem Standbild, „Neu" ist gewählt`, b && b.src === SEITE + 'assets/' + quer && b.poster === SEITE + 'assets/' + posterQ && b.gedrueckt.join() === 'neu', b);
+    const kap = await p.$$eval('.dlg [data-kapitel] [data-ab]', bs => bs.map(x => ({ ab: +x.dataset.ab, t: x.textContent, sicht: x.checkVisibility() })));
+    ok(`${lang}: beim kurzen Film stehen 7 Kapitel mit Zeit da`, kap.length === 7 && kap.every(k => k.sicht && /^\d:\d\d /.test(k.t)), kap);
+    if (lang === 'ru') ok('ru: Kapitel sind übersetzt', kap.some(k => /Трюк 2/.test(k.t)) && !kap.some(k => /Täter|Überblick/.test(k.t)), kap.map(k => k.t));
+    if (STELLV) {
+      await p.click('.dlg [data-ab="30"]');
+      await p.waitForFunction(() => { const e = [...document.querySelectorAll('.dlg video')].find(x => !x.hidden); return e && Math.abs(e.currentTime - 30) < 1.5 && !e.seeking && !e.paused; }, null, { timeout: 10000 }).catch(() => {});
+      const k2 = await p.evaluate(() => { const e = [...document.querySelectorAll('.dlg video')].find(x => !x.hidden); return { t: e.currentTime, src: e.getAttribute('src'), laeuft: !e.paused }; });
+      ok(`${lang}: Kapitel „Trick 2" springt im kurzen Film an 0:30 und spielt`, Math.abs(k2.t - 30) < 1.5 && k2.src === SEITE + 'assets/' + quer && k2.laeuft, k2);
+      await p.evaluate(() => [...document.querySelectorAll('.dlg video')].forEach(e => e.pause()));
+    }
     await p.setViewportSize({ width: 390, height: 800 });
     await p.waitForFunction(s => { const e = [...document.querySelectorAll('.dlg video')].find(x => !x.hidden); return e && e.getAttribute('src') === s; }, SEITE + 'assets/' + hoch, { timeout: 3000 }).catch(() => {});
     const c = await sicht();

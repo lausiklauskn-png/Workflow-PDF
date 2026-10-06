@@ -646,13 +646,15 @@ lausiklauskn-png.github.io), `assets/workfloh-pdf-quer{,-en,-ru}.mp4` samt `post
   um (nicht im Vollbild). Zuhörer gehen beim Schließen weg, auch bei Esc. `tests/video.mjs` 3b (Stellvertreter mit
   Range-Antworten — ohne sie ist nichts springbar).
 - **Wer ein Video auf der Webseite umbenennt, bricht diesen Knopf** — dort steht der Hinweis darauf.
-- **🛡 Angeheftet: der kurze Film „Versteckte Befehle erkennen"** (Klaus 2026-10-06: „ein zweites Video anheften …
-  Wow-Effekt"). 26 s Bewegungsgrafik, gebaut in Workfloh-PDF-Page (`video/neu-befehle.mjs`), dort als
-  `assets/neu-befehle-{quer,hoch}[-en|-ru].mp4`. Im Dialog stehen zwei Knöpfe (`[data-teil="haupt|neu"]`); ist das
-  Erklärvideo zu Ende, läuft der Film von selbst (nicht im Vollbild). `videoFuer(lang, hoch, teil)`; Drehen bleibt
-  beim gewählten Teil. Das Erklärvideo selbst ist unverändert. Der Satz „Neu, noch nicht im Video" heißt jetzt
-  „Neu, als kurzer Film nach dem Erklärvideo". Probe `tests/video.mjs` 3c (von Hand gegengeprüft: ohne das
-  Weiterlaufen und ohne `teil` beim Drehen je die eigene rote Zeile). Cache v78, `app.js?v=59`, `sprache-texte.js?v=38`.
+- **🛡 Angeheftet: der Film „Versteckte Befehle erkennen"** (Klaus 2026-10-06: „ein zweites Video anheften …
+  Wow-Effekt" · „welche Methoden die Gangster anwenden"). 72,5 s Bewegungsgrafik mit Musik, gebaut in Workfloh-PDF-Page
+  (`video/neu-befehle.mjs`), dort als `assets/neu-befehle-{quer,hoch}[-en|-ru].mp4`. Im Dialog stehen zwei Knöpfe
+  (`[data-teil="haupt|neu"]`) und beim Film 7 Kapitel (`KAPITEL_NEU`, `[data-ab]` — **gleiche Sekunden wie `KAPITEL` in
+  `neu-befehle.html`**, dort ändern heißt hier nachziehen). Ist das Erklärvideo zu Ende, läuft der Film von selbst
+  (nicht im Vollbild). `videoFuer(lang, hoch, teil)`; Drehen bleibt beim gewählten Teil. Das Erklärvideo selbst ist
+  unverändert. Statt „Neu, noch nicht im Video" steht jetzt „Neu, als kurzer Film nach dem Erklärvideo". Probe
+  `tests/video.mjs` 3c (von Hand gegengeprüft: ohne das Weiterlaufen und ohne `teil` beim Drehen je die eigene rote Zeile).
+  Cache v78, `app.js?v=59`, `sprache-texte.js?v=38`.
 - Probe: `tests/video.mjs` (in `npm test`, Webseite gestellt, WebM als Stellvertreter). ⚠ Benannte Grenze: ein
   Lauf MIT Worker misst hier nichts (127.0.0.1 ist ein anderer Ursprung als github.io) — gemessen wird die
   Sperrzeile im Quelltext. Ob das echte MP4 am Tablet aus der App heraus spielt, ist nicht gemessen.

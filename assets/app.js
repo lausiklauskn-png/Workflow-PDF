@@ -2726,6 +2726,9 @@
   /* Zwei Teile (Klaus 2026-10-06): das Erklärvideo und, angehängt, der kurze Film „Versteckte Befehle erkennen"
      (assets/neu-befehle-quer|hoch[-en|-ru].mp4 auf der Webseite, 26 s). Er läuft von selbst, wenn das
      Erklärvideo zu Ende ist, und hat einen eigenen Knopf. Das Erklärvideo selbst ist unverändert. */
+  /* Kapitel des kurzen Films (Klaus 2026-10-06: „zu welcher Szene man springen kann … anhalten, um sie zu studieren").
+     Gleiche Sekunden wie window.KAPITEL in Workfloh-PDF-Page/video/neu-befehle.html (dort auch assets/kapitel-neu-befehle.json). */
+  const KAPITEL_NEU = [[4.5, 'Der Täter'], [16, 'Die KI gehorcht'], [22, 'Trick 1'], [30, 'Trick 2'], [38.3, 'Trick 3'], [47.8, 'Der Schutz'], [56.1, 'Überblick']];
   function videoFuer(lang, hoch, teil) {
     const sp = ['de', 'en', 'ru'].includes(lang) ? lang : 'en', zus = sp === 'de' ? '' : '-' + sp;
     if (teil === 'neu') return { sp, hoch: !!hoch, teil, ersatz: sp !== lang, src: WEBSEITE + 'assets/neu-befehle-' + (hoch ? 'hoch' : 'quer') + zus + '.mp4',
@@ -2742,6 +2745,7 @@
       ${v.ersatz ? '<p class="hinweis" data-ersatz>Das Video gibt es auf Deutsch, Englisch und Russisch — hier läuft die englische Fassung.</p>' : ''}
       <p class="hinweis" data-offline ${offline ? '' : 'hidden'}>Ohne Internet lässt sich das Video nicht laden. Es liegt auf der Webseite und wird nicht auf dem Gerät gespeichert.</p>
       ${offline ? '' : `<div class="zeile" data-teile><button class="knopf" data-teil="haupt" aria-pressed="true">▶ Erklärvideo</button><button class="knopf" data-teil="neu" aria-pressed="false">▶ Neu: Versteckte Befehle</button></div>
+      <div class="zeile" data-kapitel hidden style="justify-content:flex-start;margin-top:4px">${KAPITEL_NEU.map(([s, n]) => `<button class="knopf" data-ab="${s}"><b>${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}</b> ${n}</button>`).join('')}</div>
       <div data-buehne><video data-erklaer controls playsinline preload="metadata" poster="${v.poster}" src="${v.src}"></video></div>`}
       <div class="pruef-neu" data-neu><b>Neu, als kurzer Film nach dem Erklärvideo: versteckte Befehle erkennen.</b> Im Hintergrund prüft Workflow PDF jede eingelesene Datei — mit den Prüfungen aus dem Auslieferungsprüfer und dem Sende-Prüfer, auf diesem Gerät und ohne Internet. Unsichtbarer Text im PDF, blasse Schrift im Foto, Anweisungen an eine KI und Text in den Bildpunkten werden rot markiert, nicht gelöscht. Zum Ausprobieren: Hilfe (?) → „🛡 Versteckte Befehle erkennen".</div>
       <p class="hinweis"><a href="${WEBSEITE}" target="_blank" rel="noopener">Alle Kapitel und das Video hochkant auf der Webseite</a></p>
@@ -2763,12 +2767,20 @@
         if (!vid || !vid.isConnected) return;
         teil = neuTeil;
         d.querySelectorAll('[data-teil]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.teil === teil)));
+        const kap = d.querySelector('[data-kapitel]'); if (kap) kap.hidden = teil !== 'neu';
         if (zweit) { zweit.pause(); zweit.removeAttribute('src'); zweit.load(); zweit.remove(); zweit = null; }
         const n = videoFuer(lang, istHoch(), teil);
         masse(vid, n.hoch); vid.poster = n.poster; vid.src = n.src;
         if (starten) vid.play().catch(() => {});
       };
       d.querySelectorAll('[data-teil]').forEach(b => b.onclick = () => { if (b.dataset.teil !== teil) teilWechseln(b.dataset.teil, true); });
+      // Kapitel: an die Stelle springen und abspielen (anhalten geht mit dem Video selbst)
+      d.querySelectorAll('[data-ab]').forEach(b => b.onclick = () => {
+        if (!vid || !vid.isConnected) return;
+        if (teil !== 'neu') teilWechseln('neu', false);
+        const ab = +b.dataset.ab, los = () => { vid.currentTime = ab; vid.play().catch(() => {}); };
+        if (vid.readyState >= 1) los(); else vid.addEventListener('loadedmetadata', los, { once: true });
+      });
       // Angeheftet: ist das Erklärvideo zu Ende, läuft der kurze Film von selbst weiter (nicht im Vollbild — dort schaltet der Nutzer)
       d.addEventListener('ended', e => { if (e.target === vid && teil === 'haupt' && !(document.fullscreenElement || document.webkitFullscreenElement)) teilWechseln('neu', true); }, true);
       const drehen = () => {
