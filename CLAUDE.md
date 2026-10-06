@@ -159,6 +159,16 @@ fotografieren" (an ein Dokument anhängen). Der alte Aufnahme-Dialog ist weg.
   kopieren und die Pins nachziehen. Dafür sind die Pfade einstellbar (`WFP.Scanner.pfade({vendor, scanic, ocr})`
   oder `opt.pfade`) und der Ablageort benennbar (`opt.ort`, `opt.ortKurz`; Vorgabe wörtlich wie vorher, damit
   die Sprach-Schlüssel gelten).
+- **🔪 Schärfe und weiche Kanten** (Klaus 2026-10-06: „die Texte müssen wenigstens lesbar sein, nicht so
+  ausgefranst wie jetzt"). Regler `data-schaerfe` (0–100, Vorgabe 40, `s.schaerfe`) im Ergebnis, in jedem Filter:
+  Unscharf-Maskieren (`schaerfen` in scan-bild.js, Radius 1, ab 1300 px Breite 2). Schwarzweiß schaltet nicht mehr
+  hart bei 0,8, sondern weich zwischen `SW_VON` 0,74 und `SW_BIS` 0,86 — die Kante bekommt einen Zwischenton statt
+  einer Treppe. Die Vorschau rechnet so fein wie der Schirm (`vorschauDpi`, 80–150 dpi statt fest 80). „Für alle
+  Seiten" nimmt die Schärfe mit. Gemessen an einem blassen Strich, Schärfe 0 / 40 / 80: Dokument Kern 90 / 52 / 22 ·
+  Schwarzweiß Rand 114 / 59 / 17 · Graustufen 177 / 162 / 147; kräftige Schrift ändert sich kaum. ⚠ Bei Schärfe 90
+  weichen nach einer geänderten OCR-Zeile wenige Pixel außerhalb des Zeilenkastens ab (die Probe misst bei 40).
+  ⚠ Am Tablet nicht gemessen, auch nicht an Klaus' echtem Formular. Gegenprobe `NUR_FALL="SCHAERFE:"` (6 Fälle).
+  Cache v77.
 - Fotos werden auf ≤ 2400 px lange Kante verkleinert, nie abgewiesen. Einstellungen
   (Filter, Format, Qualität, durchsuchbar, Sprache) in `localStorage` `wfpdf_scan_v1`.
 - Proben: `tests/scan.mjs` (in `npm test`, A Rechnung · B 17 Fotos · C ganzer Weg mit echtem

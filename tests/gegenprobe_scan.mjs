@@ -20,7 +20,7 @@ const FAELLE = [
   { name: 'quer wird nie erkannt', datei: 'assets/scan-bild.js', anker: 'const quer = br > ho;', ersatz: 'const quer = false;', trifft: /Letter quer/ },
   { name: 'drehen dreht falsch herum', datei: 'assets/scan-bild.js', anker: 'if (n === 1) { X = h - 1 - y; Y = x; }', ersatz: 'if (n === 1) { X = y; Y = w - 1 - x; }', trifft: /drehen rechts/ },
   { name: 'Hintergrund wird nicht geschätzt (Schatten bleibt)', datei: 'assets/scan-bild.js', anker: 'const g = Math.max(bg[p], 30), norm', ersatz: 'const g = 250, norm', trifft: /Schatten weg/ },
-  { name: 'Schwarzweiß-Schwelle kaputt', datei: 'assets/scan-bild.js', anker: 'const v = norm < 0.8 ? 0 : 255;', ersatz: 'const v = norm < 0.8 ? 0 : 200;', trifft: /Schwarzweiß/ },
+  { name: 'Schwarzweiß-Schwelle kaputt', datei: 'assets/scan-bild.js', anker: 'const v = 255 * glatt(', ersatz: 'const v = 200 * glatt(', trifft: /Schwarzweiß/ },
   { name: 'Kontrast wirkt verkehrt', datei: 'assets/scan-bild.js', anker: 'const k = kon >= 0 ? 1 + kon / 50 : 1 + kon / 125', ersatz: 'const k = kon >= 0 ? 1 - kon / 125 : 1 + kon / 125', trifft: /Kontrast/ },
   { name: 'Farben von Papier und Schrift vertauscht', datei: 'assets/scan-bild.js', anker: 'return { grund: mittel(hellst), schrift: mittel(dunkelst) };', ersatz: 'return { grund: mittel(dunkelst), schrift: mittel(hellst) };', trifft: /textFarben/ },
   { name: 'Modell sucht seine Dateien im Netz statt in vendor/scanic/', datei: 'assets/scanner.js', anker: "ml: { assetBaseUrl: pfad(PF.scanic) }", ersatz: 'ml: {}', trifft: /Modell \(Scanic ML\) lief|kein Aufruf ins Netz/ },
