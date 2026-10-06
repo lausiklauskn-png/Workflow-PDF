@@ -706,6 +706,10 @@ jede Seite des Dokuments als JPEG (lange Kante 2400 px) und öffnet damit den Sc
   prüft seitdem, dass kein Funktionsname in app.js zweimal steht (von Hand gegengeprüft: rot mit dem Namen).
 - An 1280 px bricht die Editor-Leiste jetzt in zwei Zeilen um (vorher füllte sie 1270 px).
 - Probe `tests/zuschneiden.mjs` (in `npm test`). Cache v75, `app.js?v=57`, `sprache-texte.js?v=35`.
+- ⚠ **Der Knopf kam zuerst nicht an** (Klaus 2026-10-06, Bild vom Tablet ohne ✂️): die Pages-Auslieferung nach dem Merge
+  scheiterte bei GitHub (`Failed to get ID Token`, Zeitüberschreitung), die Seite blieb auf v74. Neu starten durfte die
+  Sitzung den Lauf nicht (403); ausgeliefert hat ihn der nächste Commit auf `main`. **Nach einem Merge den Lauf
+  „pages build and deployment“ ansehen**, nicht nur den Merge.
 - ⚠ Am Tablet nicht gemessen; ein Dokument mit Textebene wird nach dem Zuschnitt zum Bild (der Text ist
   dann nicht mehr markierbar, die Suche liest ihn nicht mehr).
 
