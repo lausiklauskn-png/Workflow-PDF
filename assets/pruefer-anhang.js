@@ -36,7 +36,7 @@
 
   var BEFUNDE = ["ANHANG-TARNUNG", "ANHANG-PROGRAMM", "BILD-ANHAENGSEL", "BILD-METADATEN",
     "SVG-SKRIPT", "SVG-VERWEIS", "OFFICE-MAKRO", "OFFICE-VERWEIS", "OFFICE-EINBETTUNG",
-    "PDF-VERWEIS", "PDF-AKTION", "PDF-ANHANG", "PDF-METADATEN", "PDF-ALTFASSUNG", "PDF-KI-ANWEISUNG", "BILD-KI-ANWEISUNG", "PDF-VERSTECKTER-TEXT", "BILD-LSB-VERDACHT"];
+    "PDF-VERWEIS", "PDF-AKTION", "PDF-ANHANG", "PDF-METADATEN", "PDF-ALTFASSUNG", "PDF-KI-ANWEISUNG", "BILD-KI-ANWEISUNG", "PDF-VERSTECKTER-TEXT", "BILD-LSB-VERDACHT", "BILD-METADATEN-KI-ANWEISUNG"];
 
   function alsBytes(b) { return b instanceof Uint8Array ? b : new Uint8Array(b || []); }
   function latin1(b, von, bis) {
@@ -89,8 +89,9 @@
   var PROGRAMM_ENDUNG = /\.(exe|scr|com|bat|cmd|ps1|vbs|vbe|js|jse|wsf|hta|msi|lnk|jar|apk|sh|dll|cpl|reg)$/i;
 
   /* ══ BILDER */
-  function jpegPruefen(b, melde) {
+  function jpegPruefen(b, melde, texte) {
     var i = 2, ende = -1, meta = [];
+    texte = texte || [];
     while (i + 4 <= b.length) {
       if (b[i] !== 0xFF) break;
       var mk = b[i + 1];
@@ -102,9 +103,14 @@
       if (mk === 0xE1 && inhalt.indexOf("Exif\0") === 0) {
         var gps = exifHatGps(b, i + 10, Math.min(i + 2 + len, b.length));
         meta.push("EXIF (Kamera, Aufnahmezeit" + (gps ? ", Ortsangabe GPS" : "") + ")");
-      } else if (mk === 0xE1 && inhalt.indexOf("http://ns.adobe.com/xap/") === 0) meta.push("XMP");
-      else if (mk === 0xED) meta.push("IPTC/Photoshop");
-      else if (mk === 0xFE) meta.push("Kommentar");
+        exifTexte(b, i + 10, Math.min(i + 2 + len, b.length), texte);
+      } else if (mk === 0xE1 && inhalt.indexOf("http://ns.adobe.com/xap/") === 0) {
+        meta.push("XMP");
+        var xs = b.subarray(i + 4, Math.min(i + 2 + len, b.length)), xn = xs.indexOf(0);
+        xmpTexte(xs.subarray(xn < 0 ? 0 : xn + 1), texte);
+      }
+      else if (mk === 0xED) { meta.push("IPTC/Photoshop"); iptcTexte(b, i + 4, Math.min(i + 2 + len, b.length), texte); }
+      else if (mk === 0xFE) { meta.push("Kommentar"); texte.push({ feld: "Kommentar", text: utf8oderLatin1(b.subarray(i + 4, Math.min(i + 2 + len, b.length))) }); }
       if (mk === 0xDA) {                         // Bilddaten: bis zum echten Ende suchen
         var j = i + 2 + len;
         while (j + 1 < b.length) {
@@ -129,29 +135,167 @@
     for (var k = 0; k < n && ifd + 2 + k * 12 + 2 <= bis; k++) if (r16(ifd + 2 + k * 12) === 0x8825) return true;
     return false;
   }
-  function pngPruefen(b, melde) {
+  function pngPruefen(b, melde, texte) {
     var i = 8, ende = -1, meta = [];
+    texte = texte || [];
     while (i + 12 <= b.length) {
       var len = b32(b, i), typ = latin1(b, i + 4, i + 8);
       if (typ === "tEXt" || typ === "iTXt" || typ === "zTXt") {
         var schl = latin1(b, i + 8, Math.min(i + 8 + len, i + 8 + 80)).split("\0")[0];
         meta.push("Text „" + schl + "“");
-      } else if (typ === "eXIf") meta.push("EXIF");
+        pngTextLesen(typ, schl, b.subarray(i + 8, Math.min(i + 8 + len, b.length)), texte);
+      } else if (typ === "eXIf") { meta.push("EXIF"); exifTexte(b, i + 8, Math.min(i + 8 + len, b.length), texte); }
       i += 12 + len;
       if (typ === "IEND") { ende = i; break; }
     }
     if (meta.length) melde("BILD-METADATEN", "Im Bild stehen Metadaten: " + meta.join(", ") + ".");
     return ende;
   }
-  function webpPruefen(b, melde) {
+  function webpPruefen(b, melde, texte) {
     var ende = 8 + u32(b, 4), i = 12, meta = [];
+    texte = texte || [];
     while (i + 8 <= Math.min(ende, b.length)) {
-      var typ = latin1(b, i, i + 4), len = u32(b, i + 4);
-      if (typ === "EXIF") meta.push("EXIF"); else if (typ === "XMP ") meta.push("XMP");
+      var typ = latin1(b, i, i + 4), len = u32(b, i + 4), dbis = Math.min(i + 8 + len, b.length);
+      if (typ === "EXIF") { meta.push("EXIF"); exifTexte(b, latin1(b, i + 8, i + 14) === "Exif\0\0" ? i + 14 : i + 8, dbis, texte); }
+      else if (typ === "XMP ") { meta.push("XMP"); xmpTexte(b.subarray(i + 8, dbis), texte); }
       i += 8 + len + (len & 1);
     }
     if (meta.length) melde("BILD-METADATEN", "Im Bild stehen Metadaten: " + meta.join(", ") + ".");
     return ende;
+  }
+  /* ══ TEXT IN DEN METADATEN — Stufe 0 (Klaus 2026-10-05)
+   * Bisher meldeten die Metadaten nur ihre NAMEN („XMP", „Text „Comment““).
+   * Was darin STEHT, wurde nicht gelesen — ein Satz an eine KI im Feld
+   * „Ersteller" oder „Beschreibung" kam ungeprüft durch. Jetzt wird der Text
+   * dieser Felder gesammelt ({feld, text}, beim gepackten PNG-Text ein
+   * Versprechen) und mit derselben Liste wie der Mail-Eingang geprüft.
+   * Gelesen, nie ausgeführt. Je Feld höchstens META_MAX Zeichen.
+   * ⚠ BENANNTE GRENZE: GIF-Kommentare, Herstellerfelder (MakerNote) und
+   *   PDF-Metadaten fallen nicht hierunter (PDF hat seinen eigenen Weg). */
+  var META_MAX = 65536, META_ENTPACKT_MAX = 1048576;
+  function utf8oderLatin1(b) {
+    try { return new TextDecoder("utf-8", { fatal: true }).decode(b); } catch (_e) { return latin1(b, 0, b.length); }
+  }
+  function ucs2(b) { var s = ""; for (var k = 0; k + 1 < b.length; k += 2) s += String.fromCharCode(b[k] | (b[k + 1] << 8)); return s; }
+  var EXIF_FELDER = { 0x010E: "Bildbeschreibung", 0x010F: "Hersteller", 0x0110: "Modell", 0x0131: "Software", 0x013B: "Künstler",
+    0x8298: "Copyright", 0x9C9B: "Titel (Windows)", 0x9C9C: "Kommentar (Windows)", 0x9C9D: "Autor (Windows)",
+    0x9C9E: "Stichworte (Windows)", 0x9C9F: "Betreff (Windows)", 0x9286: "Benutzerkommentar" };
+  var EXIF_GROESSE = { 1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 7: 1, 9: 4, 10: 8 };
+  function exifTexte(b, t, bis, texte) {
+    if (t + 8 > bis) return;
+    var le = b[t] === 0x49, r16 = function (i) { return le ? u16(b, i) : (b[i] << 8) | b[i + 1]; },
+      r32 = function (i) { return le ? u32(b, i) : b32(b, i); };
+    function ifdLesen(ifd, tiefe) {
+      if (tiefe > 2 || ifd + 2 > bis) return;
+      var n = r16(ifd);
+      for (var k = 0; k < n && k < 512; k++) {
+        var e = ifd + 2 + k * 12; if (e + 12 > bis) break;
+        var tag = r16(e), typ = r16(e + 2), anz = r32(e + 4);
+        if (tag === 0x8769) { ifdLesen(t + r32(e + 8), tiefe + 1); continue; }
+        if (!EXIF_FELDER[tag]) continue;
+        var groesse = (EXIF_GROESSE[typ] || 1) * anz; if (groesse > META_MAX) groesse = META_MAX;
+        var von = groesse <= 4 ? e + 8 : t + r32(e + 8); if (von < t || von >= bis) continue;
+        var roh = b.subarray(von, Math.min(von + groesse, bis)), text;
+        if (tag >= 0x9C9B && tag <= 0x9C9F) text = ucs2(roh);
+        else if (tag === 0x9286) {
+          var kopf = latin1(roh, 0, 8);
+          text = /^UNICODE/.test(kopf) ? (le ? ucs2(roh.subarray(8)) : utf8oderLatin1(roh.subarray(8))) : utf8oderLatin1(roh.subarray(8));
+        } else text = utf8oderLatin1(roh);
+        text = text.replace(/\0+/g, " ").trim();
+        if (text) texte.push({ feld: "EXIF " + EXIF_FELDER[tag], text: text });
+      }
+    }
+    ifdLesen(t + r32(t + 4), 0);
+  }
+  function xmlEntity(s) {
+    return s.replace(/&#x([0-9a-f]+);/gi, function (_a, h) { return String.fromCodePoint(parseInt(h, 16)); })
+      .replace(/&#(\d+);/g, function (_a, d) { return String.fromCodePoint(+d); })
+      .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+  }
+  function xmpTexte(b, texte) {
+    var x = utf8oderLatin1(b.subarray(0, Math.min(b.length, META_MAX * 4)));
+    x = x.replace(/<\?[\s\S]*?\?>/g, " ").replace(/<!--[\s\S]*?-->/g, " ");
+    var teile = [];
+    /* Kurzform: dc:title="…" als Eigenschaft — Namensräume (xmlns) und
+       rdf-Verwaltung zählen nicht. */
+    x.replace(/\s([A-Za-z][\w.-]*:[\w.-]+)\s*=\s*"([^"]*)"/g, function (_a, n, v) {
+      if (!/^(xmlns|rdf|xml|x):/i.test(n) && v.trim()) teile.push(xmlEntity(v));
+      return _a;
+    });
+    x.replace(/>([^<]+)</g, function (_a, t) { if (t.trim()) teile.push(xmlEntity(t.trim())); return _a; });
+    var text = teile.join("\n").slice(0, META_MAX);
+    if (text.trim()) texte.push({ feld: "XMP", text: text });
+  }
+  function iptcTexte(b, von, bis, texte) {
+    var IPTC = { 5: "IPTC Titel", 25: "IPTC Stichwort", 80: "IPTC Ersteller", 105: "IPTC Überschrift", 116: "IPTC Copyright", 120: "IPTC Beschreibung" };
+    for (var i = von; i + 5 <= bis; i++) {
+      if (b[i] !== 0x1C || b[i + 1] !== 2) continue;
+      var ds = b[i + 2], n = (b[i + 3] << 8) | b[i + 4];
+      if (n & 0x8000) continue;
+      if (IPTC[ds]) { var t = utf8oderLatin1(b.subarray(i + 5, Math.min(i + 5 + n, bis))).trim(); if (t) texte.push({ feld: IPTC[ds], text: t }); }
+      i += 4 + n;
+    }
+  }
+  function entpacken(daten) {
+    if (typeof welt.DecompressionStream !== "function") return Promise.resolve(null);
+    return Promise.resolve().then(function () {
+      var ds = new welt.DecompressionStream("deflate"), w = ds.writable.getWriter();
+      w.write(daten).catch(function () {}); w.close().catch(function () {});
+      var r = ds.readable.getReader(), stuecke = [], n = 0;
+      function lies() {
+        return r.read().then(function (x) {
+          if (x.done) return;
+          stuecke.push(x.value); n += x.value.length;
+          if (n >= META_ENTPACKT_MAX) { r.cancel().catch(function () {}); return; }   // Deckel gegen Pack-Bomben
+          return lies();
+        });
+      }
+      return lies().then(function () {
+        var aus = new Uint8Array(Math.min(n, META_ENTPACKT_MAX)), p = 0;
+        for (var k = 0; k < stuecke.length && p < aus.length; k++) { var s2 = stuecke[k].subarray(0, aus.length - p); aus.set(s2, p); p += s2.length; }
+        return aus;
+      });
+    }).catch(function () { return null; });
+  }
+  function pngTextLesen(typ, schl, d, texte) {
+    var feld = "PNG-Text „" + schl + "“", z = d.indexOf(0); if (z < 0) return;
+    if (typ === "tEXt") { texte.push({ feld: feld, text: latin1(d, z + 1, Math.min(d.length, z + 1 + META_MAX)) }); return; }
+    if (typ === "zTXt") {
+      texte.push(entpacken(d.subarray(z + 2)).then(function (x) {
+        return x ? { feld: feld, text: latin1(x, 0, Math.min(x.length, META_MAX)) } : { feld: feld, text: null, nichtEntpackt: true };
+      }));
+      return;
+    }
+    var gepackt = d[z + 1] === 1, p = z + 3;                  // iTXt: Schalter, Verfahren, Sprache\0, Schlüssel übersetzt\0, Text
+    var l1 = d.indexOf(0, p); if (l1 < 0) return;
+    var l2 = d.indexOf(0, l1 + 1); if (l2 < 0) return;
+    var roh = d.subarray(l2 + 1);
+    if (!gepackt) { texte.push({ feld: feld, text: utf8oderLatin1(roh.subarray(0, META_MAX)) }); return; }
+    texte.push(entpacken(roh).then(function (x) {
+      return x ? { feld: feld, text: utf8oderLatin1(x.subarray(0, META_MAX)) } : { feld: feld, text: null, nichtEntpackt: true };
+    }));
+  }
+  function metatextPruefen(texte, melde, hinweise, stand) {
+    if (!texte.length) return Promise.resolve();
+    return Promise.all(texte).then(function (liste) {
+      var PM = welt.PrueferMail, gelesen = 0;
+      liste.forEach(function (x) {
+        if (x.nichtEntpackt) { hinweise.push("Der gepackte Text im Feld " + x.feld + " ließ sich hier nicht entpacken — ungeprüft, nicht sauber."); ungeprueft(stand, "Metadaten ungeprüft"); return; }
+        if (!x.text || !x.text.trim()) return;
+        gelesen++;
+        if (!PM) return;
+        var schon = {};
+        PM.pruefeMail("\n" + x.text).stellen.forEach(function (st) {
+          if (st.kennung !== "KI-ANWEISUNG" || schon[st.satz]) return;
+          schon[st.satz] = true;
+          melde("BILD-METADATEN-KI-ANWEISUNG", st.satz + " (Metadaten, Feld " + x.feld + ")");
+        });
+      });
+      if (gelesen && !PM) {
+        hinweise.push("Der Text in den Metadaten wurde gelesen, aber die Liste der KI-Anweisungen (assets/pruefer-mail.js) ist nicht geladen — auf Anweisungen an eine KI ist er ungeprüft, nicht sauber.");
+        stand.textUngeprueft = true; ungeprueft(stand, "Metadaten ungeprüft");
+      } else if (gelesen) hinweise.push("Text in den Metadaten gelesen: " + gelesen + " Feld(er), auf Anweisungen an eine KI geprüft.");
+    });
   }
   function anhaengsel(b, ende, melde) {
     if (ende < 0 || ende >= b.length) return;
@@ -877,6 +1021,7 @@
     "KI-ANWEISUNG": RUHE_KI,
     "PDF-KI-ANWEISUNG": RUHE_KI,
     "BILD-KI-ANWEISUNG": RUHE_KI,
+    "BILD-METADATEN-KI-ANWEISUNG": RUHE_KI.concat(["Wird das Bild gebraucht: ein Bildschirmfoto davon weitergeben statt der Datei. Ein Bildschirmfoto trägt die Metadaten nicht mit; prüfen Sie es hier noch einmal."]),
     "BILD-LSB-VERDACHT": ["Ruhig bleiben: Ansehen schadet nicht. Versteckter Text in den Bildpunkten tut von allein nichts.",
       "Das Bild nicht weitergeben und nicht an eine KI geben.",
       RUHE_ABSENDER,
@@ -946,7 +1091,7 @@
    * ⚠ Ein "\n" davor: pruefeMail hält eine erste Zeile wie „Hinweis: …"
    *   sonst für einen Mailkopf und verschiebt die Zeilen. Abgezogen wird 1.
    * Fehlt pruefer-mail.js, ist der Text ungeprüft, nicht sauber. */
-  var DATEI_KI_ARTEN = ["KI-ANWEISUNG", "UNSICHTBARE-ZEICHEN", "VERSTECKTER-TEXT"];
+  var DATEI_KI_ARTEN = ["KI-ANWEISUNG", "KI-BEGRIFF", "UNSICHTBARE-ZEICHEN", "VERSTECKTER-TEXT"];
   function dateitextPruefen(text, melde, hinweise, stand) {
     if (!text || !String(text).trim()) return;
     var PM = welt.PrueferMail;
@@ -987,10 +1132,10 @@
     else if (art === "programm" && endung && !PROGRAMM_ENDUNG.test(name)) melde("ANHANG-TARNUNG", "Die Endung „." + endung + "“ täuscht: die Datei ist in Wahrheit ein Programm.");
     else if (ENDUNGEN[art] && endung && ENDUNGEN[art].indexOf(endung) < 0)
       melde("ANHANG-TARNUNG", "Die Endung „." + endung + "“ passt nicht zum Inhalt: die Datei ist in Wahrheit ein " + ART_NAME[art] + ".");
-    var weiter = Promise.resolve();
-    if (art === "jpeg") anhaengsel(b, jpegPruefen(b, melde), melde);
-    else if (art === "png") anhaengsel(b, pngPruefen(b, melde), melde);
-    else if (art === "webp") anhaengsel(b, webpPruefen(b, melde), melde);
+    var weiter = Promise.resolve(), metatexte = [];
+    if (art === "jpeg") anhaengsel(b, jpegPruefen(b, melde, metatexte), melde);
+    else if (art === "png") anhaengsel(b, pngPruefen(b, melde, metatexte), melde);
+    else if (art === "webp") anhaengsel(b, webpPruefen(b, melde, metatexte), melde);
     else if (art === "unbekannt") {
       /* Punkt 6 c: eine Datei, deren Art der Prüfer nicht kennt, ist nicht sauber, sondern ungeprüft. */
       hinweise.push("Die Art dieser Datei hat der Prüfer nicht erkannt — ihr Inhalt wurde NICHT geprüft, nur Name und Endung. Ungeprüft, nicht sauber.");
@@ -1020,6 +1165,7 @@
     weiter = weiter.then(function () {
       if (/^(text|svg|html|docx|xlsx|pptx|odt|zip)$/.test(art) || htmlRoh) dateitextPruefen(htmlRoh || text, melde, hinweise, stand);
     });
+    weiter = weiter.then(function () { return metatextPruefen(metatexte, melde, hinweise, stand); });
     var textQuelle = null;
     if (/^(png|jpeg|webp|gif)$/.test(art)) weiter = weiter.then(function () {
       return bildTextPruefen(b, art, melde, hinweise, stand).then(function (t) { if (t) { text = t; textQuelle = "bild"; } });

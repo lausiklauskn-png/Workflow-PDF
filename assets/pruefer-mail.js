@@ -55,7 +55,7 @@
   var BEFUNDE_MAIL = [
     "LINK-TARNUNG", "ADRESS-TRICK", "KURZLINK", "ZAEHLPIXEL",
     "ANHANG-GEFAEHRLICH", "ANHANG-DOPPELENDUNG",
-    "VERSTECKTER-TEXT", "UNSICHTBARE-ZEICHEN", "KI-ANWEISUNG",
+    "VERSTECKTER-TEXT", "UNSICHTBARE-ZEICHEN", "KI-ANWEISUNG", "KI-BEGRIFF",
     "ABSENDER-TARNUNG", "PRUEFUNG-DURCHGEFALLEN",
     "KONTO-WECHSEL", "ZUGANGSDATEN", "DRUCK"
   ];
@@ -144,7 +144,12 @@
       re: /\b(?:send|forward|email|exfiltrate|post)\b[^.\n]{0,80}\bto\s+[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/i },
     { was: "eine Aufforderung, Schlüssel oder Zugangsdaten herauszugeben",
       re: /\b(?:gib|nenne|zeige|verrate|print|reveal|output|show)\b[^.\n]{0,60}\b(?:api[\s\-_]?key|schlüssel|schluessel|token|zugangsdaten|passwort|credentials|secret)\b/i },
-    { was: "„prompt injection\" im Klartext",
+    /* ⚠ EIN FACHBEGRIFF IST KEINE ANWEISUNG (Klaus 2026-10-05). Ein Text, der
+       ÜBER Angriffe auf KI-Assistenten schreibt, nennt das Wort — bis hierher
+       stand er dann als „Anweisung an eine KI" da, samt „keine Panik". Wer das
+       liest, denkt an einen Angriff. Ein Muster mit `begriff: true` meldet
+       deshalb KI-BEGRIFF, und nur, wenn in derselben Zeile KEINE Anweisung steht. */
+    { was: "das Wort „prompt injection\"", begriff: true,
       re: /\bprompt[\s\-]?injection\b/i }
   ];
 
@@ -691,7 +696,7 @@
        Muster auf einmal („ignoriere alle vorherigen Anweisungen. Du bist jetzt
        …"). Drei Karten über dieselbe Zeile lesen sich wie drei Probleme; es ist
        eines. Was gefunden wurde, steht zusammen im Satz — gekürzt wird nichts. */
-    var kiProZeile = Object.create(null), kiFolge = [];
+    var kiProZeile = Object.create(null), kiFolge = [], kiAnweisung = Object.create(null);
     for (var ki = 0; ki < KI_MUSTER.length; ki++) {
       var kre = new RegExp(KI_MUSTER[ki].re.source, KI_MUSTER[ki].re.flags.replace("g", "") + "g");
       var km, gemeldet = 0;
@@ -699,14 +704,25 @@
         var kz = zeileVon(km.index);
         if (!kiProZeile[kz]) { kiProZeile[kz] = []; kiFolge.push(kz); }
         if (kiProZeile[kz].indexOf(KI_MUSTER[ki].was) === -1) kiProZeile[kz].push(KI_MUSTER[ki].was);
+        if (!KI_MUSTER[ki].begriff) kiAnweisung[kz] = true;
         gemeldet++;
         if (km.index === kre.lastIndex) kre.lastIndex++;
       }
     }
     kiFolge.forEach(function (kz) {
+      if (!kiAnweisung[kz]) {
+        melde(kz, "KI-BEGRIFF",
+              "Im Text steht " + kiProZeile[kz].join(", ") + " — ein Fachbegriff für " +
+              "Angriffe auf KI-Assistenten. Gefunden über eine feste Wortliste. Das " +
+              "Wort allein ist keine Anweisung: ein Text ÜBER das Thema enthält es " +
+              "auch. Eine Anweisung an eine KI wurde in dieser Zeile nicht gefunden.");
+        return;
+      }
       melde(kz, "KI-ANWEISUNG",
             "Im Text steht " + kiProZeile[kz].join(", ") + " — das richtet sich " +
-            "an eine KI, die den Text liest, nicht an einen Menschen.");
+            "an eine KI, die den Text liest, nicht an einen Menschen. Gefunden " +
+            "über eine feste Liste solcher Wendungen; ein Text, der eine solche " +
+            "Wendung nur zitiert, wird ebenso gemeldet.");
     });
 
     /* ── 5 · Kopfzeilen ─────────────────────────────────────────────────── */
