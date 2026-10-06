@@ -692,6 +692,23 @@ gelöscht wird." Dieselbe Sicherung wie im Sende-Prüfer: ⚙️ Einstellungen �
 - ⚠ Nicht gemessen: Download, Dateiwahl und Dauer der 600 000 Runden am Tablet; große Bibliotheken (die ganze
   Sicherung liegt einmal als Text im Speicher).
 
+## ✂️ Zuschneiden im Editor (Klaus 2026-10-06)
+
+„Es soll nur ein Button hinzukommen, zuschneiden … Alles andere ist okay." In der Editor-Leiste steht nach
+„🤖 Felder erkennen" der Knopf **✂️ Zuschneiden** (`#edZuschneiden` → `seiteZuschneiden()` in app.js). Er zeichnet
+jede Seite des Dokuments als JPEG (lange Kante 2400 px) und öffnet damit den Scanner (`WFP.Scanner.oeffnen`,
+`ablegen: null`, Fertig heißt „Übernehmen"): Ecken ziehen, gerade ziehen, drehen, Seitengröße wählen.
+- **Übernehmen ersetzt die Datei DESSELBEN Dokuments** (`DB.putFile`, Kennung, Ordner, Anlagedatum bleiben).
+  Felder bleiben in Prozent stehen; Felder auf Seiten, die es nicht mehr gibt, fallen weg. Die Meldung bittet,
+  die Lage der Felder zu prüfen — sie verschieben sich nicht mit dem Zuschnitt. Abbrechen ändert nichts.
+- ⚠ **Name `zuschneiden(c)` ist vergeben** (Unterschrift auf ihre Striche zuschneiden). Die erste Fassung hieß
+  ebenso, die spätere Deklaration gewann, und die Unterschrift öffnete den Scanner. `tests/zuschneiden.mjs`
+  prüft seitdem, dass kein Funktionsname in app.js zweimal steht (von Hand gegengeprüft: rot mit dem Namen).
+- An 1280 px bricht die Editor-Leiste jetzt in zwei Zeilen um (vorher füllte sie 1270 px).
+- Probe `tests/zuschneiden.mjs` (in `npm test`). Cache v75, `app.js?v=57`, `sprache-texte.js?v=35`.
+- ⚠ Am Tablet nicht gemessen; ein Dokument mit Textebene wird nach dem Zuschnitt zum Bild (der Text ist
+  dann nicht mehr markierbar, die Suche liest ihn nicht mehr).
+
 ## 📲 In der Teilen-Liste und bei „Öffnen mit" (Klaus 2026-10-06)
 
 „Wenn ich eine PDF öffne, dann werden mir vom Android immer angeboten, verschiedene Öffnen mit … Workflow soll damit
