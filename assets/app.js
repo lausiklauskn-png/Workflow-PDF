@@ -1565,6 +1565,52 @@
     } catch (e) { toast('⚠️ Anhängen fehlgeschlagen: ' + (e.message || e)); }
   }
 
+  /* ---------- Zuschneiden (Klaus 2026-10-06) ----------
+     „Es soll nur ein Button hinzukommen, zuschneiden. Und dann kann man das Dokument
+     zuschneiden, ausrichten und auf die Größe anpassen, die gewünscht ist."
+     Jede Seite des offenen Dokuments wird als Bild gezeichnet und im Scanner geöffnet
+     (Ecken ziehen, drehen, Seitengröße). „Übernehmen" ersetzt die Datei DESSELBEN
+     Dokuments — Kennung, Ordner, Anlagedatum und Felder bleiben. Felder stehen in Prozent
+     der Seite; ob sie nach dem Zuschnitt noch sitzen, sagt der Hinweis danach. */
+  const ZUSCHNITT_KANTE = 2400;
+  async function seiteZuschneiden() {
+    if (!S.doc || !S.pdf) return;
+    await speichernJetzt();
+    const doc = S.doc, pdf = S.pdf;
+    const fb = fortschritt('Seiten werden vorbereitet');
+    const dateien = [];
+    try {
+      for (let n = 1; n <= pdf.numPages; n++) {
+        fb.setze((n - 1) / pdf.numPages, 'Seite ' + n + ' von ' + pdf.numPages);
+        const p = await pdf.getPage(n); const v1 = p.getViewport({ scale: 1 });
+        const vp = p.getViewport({ scale: ZUSCHNITT_KANTE / Math.max(v1.width, v1.height) });
+        const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+        const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+        await p.render({ canvasContext: g, viewport: vp }).promise;
+        const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.92));
+        dateien.push(new File([blob], doc.name + ' - Seite ' + String(n).padStart(2, '0') + '.jpg', { type: 'image/jpeg' }));
+      }
+    } catch (e) { fb.zu(); toast('⚠️ ' + (e.message || e)); return; }
+    fb.zu();
+    window.__wfpdfZuschnitt = { seiten: dateien.length };
+    return WFP.Scanner.oeffnen({ titel: 'Zuschneiden', fertigText: 'Übernehmen', dateien, name: doc.name,
+      toast, dialog, frage, fortschritt, laden, ablegen: null,
+      fertig: async bytes => {
+        if (!S.doc || S.doc.id !== doc.id) { toast('⚠️ Das Dokument ist nicht mehr offen — nichts übernommen'); return; }
+        const neuPdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
+        const info = await seitenInfo(neuPdf);
+        const vorher = (doc.fields || []).length;
+        doc.fields = (doc.fields || []).filter(f => f.page < info.length);
+        doc.pages = info; doc.updatedAt = jetzt();
+        await DB.putFile(doc.id, bytes); S.bytes = bytes;
+        if (S.pdf) { try { S.pdf.destroy(); } catch (_) {} }
+        S.pdf = neuPdf; await speichernJetzt(); zeichneSeiten();
+        window.__wfpdfZuschnitt.fertig = { seiten: info.length, felder: doc.fields.length };
+        const weg = vorher - doc.fields.length;
+        toast(doc.fields.length ? '✂️ Zugeschnitten — bitte prüfen, ob die Felder noch sitzen' + (weg ? ' (' + weg + ' auf entfernten Seiten gelöscht)' : '') : '✂️ Zugeschnitten');
+      } });
+  }
+
   /* ---------- Erkennung ---------- */
   async function erkennenDialog(ids) {
     const mehrere = ids.length > 1;
@@ -2832,6 +2878,7 @@
     $('mBearbeiten').onclick = () => { S.modus = 'bearbeiten'; zeichneModus(); };
     $('mAusfuellen').onclick = () => { S.modus = 'ausfuellen'; S.sel = null; zeichneModus(); };
     $('edErkennen').onclick = () => erkennenDialog([S.doc.id]);
+    $('edZuschneiden').onclick = () => seiteZuschneiden();
     $('edExport').onclick = exportDialog;
     $('edTeilen').onclick = () => teilenDocs([S.doc.id]);
     $('edSpeichern').onclick = speichernDialog;
