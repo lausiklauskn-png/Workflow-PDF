@@ -193,7 +193,7 @@ try {
     ok(`${lang}: zurück zum Erklärvideo`, d2 && /workfloh-pdf-quer/.test(d2.src) && d2.gedrueckt.join() === 'haupt', d2);
     if (STELLV) {
       // Ende des Erklärvideos → der kurze Film läuft von selbst
-      await p.evaluate(() => { const e = [...document.querySelectorAll('.dlg video')].find(x => !x.hidden); e.muted = true; e.addEventListener('loadedmetadata', () => { e.currentTime = e.duration - 0.4; e.play(); }, { once: true }); if (e.readyState >= 1) { e.currentTime = e.duration - 0.4; e.play(); } });
+      await p.evaluate(() => { const e = [...document.querySelectorAll('.dlg video')].find(x => !x.hidden); e.muted = true; const ans = () => { e.currentTime = e.duration - 0.4; e.play(); }; if (e.readyState >= 1) ans(); else e.addEventListener('loadedmetadata', ans, { once: true }); });   // nur EIN Weg: ein liegengebliebener Zuhörer spulte sonst auch den kurzen Film ans Ende
       await p.waitForFunction(s => { const e = [...document.querySelectorAll('.dlg video')].find(x => !x.hidden); return e && e.getAttribute('src') === s && !e.paused; }, SEITE + 'assets/' + quer, { timeout: 10000 }).catch(() => {});
       const e = await sicht();
       ok(`${lang}: ist das Erklärvideo zu Ende, läuft der kurze Film von selbst`, e && e.src === SEITE + 'assets/' + quer && e.laeuft && e.gedrueckt.join() === 'neu', e);
