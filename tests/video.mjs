@@ -159,6 +159,36 @@ try {
     ok(`${lang}: nach dem Schließen (Esc) wirft das Drehen keinen Fehler und legt kein Video an`, !(await p.$('.dlg video')));
     await ctx.close();
   }
+  // 3c · Angeheftet (Klaus 2026-10-06): der kurze Film „Versteckte Befehle erkennen" — eigener Knopf, und er läuft
+  //      von selbst, wenn das Erklärvideo zu Ende ist. Quer und hochkant, je Sprache.
+  for (const [lang, quer, hoch, posterQ] of [['de', 'neu-befehle-quer.mp4', 'neu-befehle-hoch.mp4', 'poster-neu-befehle-quer-de.jpg'], ['ru', 'neu-befehle-quer-ru.mp4', 'neu-befehle-hoch-ru.mp4', 'poster-neu-befehle-quer-ru.jpg'], ['ar', 'neu-befehle-quer-en.mp4', 'neu-befehle-hoch-en.mp4', 'poster-neu-befehle-quer-en.jpg']]) {
+    const { ctx, p, abrufe } = await oeffne(lang);
+    await p.evaluate(() => window.__wfpdf.dlg.erklaervideo());
+    const sicht = () => p.$eval('.dlg', d => { const e = [...d.querySelectorAll('video')].find(x => !x.hidden); const k = [...d.querySelectorAll('[data-teil]')];
+      return { src: e && e.getAttribute('src'), poster: e && e.getAttribute('poster'), laeuft: e && !e.paused, gedrueckt: k.filter(b => b.getAttribute('aria-pressed') === 'true').map(b => b.dataset.teil), knoepfe: k.map(b => b.dataset.teil + ':' + b.checkVisibility()) }; }).catch(() => null);
+    const a = await sicht();
+    ok(`${lang}: zwei Knöpfe (Erklärvideo · Neu), „Erklärvideo" ist gewählt`, a && a.knoepfe.join() === 'haupt:true,neu:true' && a.gedrueckt.join() === 'haupt', a);
+    ok(`${lang}: der kurze Film wird vor dem Tipp NICHT geholt`, !abrufe.some(u => /neu-befehle/.test(u)), abrufe);
+    await p.click('.dlg [data-teil="neu"]');
+    const b = await sicht();
+    ok(`${lang}: Knopf „Neu" → ${quer} mit seinem Standbild, „Neu" ist gewählt`, b && b.src === SEITE + 'assets/' + quer && b.poster === SEITE + 'assets/' + posterQ && b.gedrueckt.join() === 'neu', b);
+    await p.setViewportSize({ width: 390, height: 800 });
+    await p.waitForFunction(s => { const e = [...document.querySelectorAll('.dlg video')].find(x => !x.hidden); return e && e.getAttribute('src') === s; }, SEITE + 'assets/' + hoch, { timeout: 3000 }).catch(() => {});
+    const c = await sicht();
+    ok(`${lang}: gedreht bleibt es beim kurzen Film — hochkant ${hoch}`, c && c.src === SEITE + 'assets/' + hoch, c);
+    await p.setViewportSize({ width: 1280, height: 720 });
+    await p.click('.dlg [data-teil="haupt"]');
+    const d2 = await sicht();
+    ok(`${lang}: zurück zum Erklärvideo`, d2 && /workfloh-pdf-quer/.test(d2.src) && d2.gedrueckt.join() === 'haupt', d2);
+    if (STELLV) {
+      // Ende des Erklärvideos → der kurze Film läuft von selbst
+      await p.evaluate(() => { const e = [...document.querySelectorAll('.dlg video')].find(x => !x.hidden); e.muted = true; e.addEventListener('loadedmetadata', () => { e.currentTime = e.duration - 0.4; e.play(); }, { once: true }); if (e.readyState >= 1) { e.currentTime = e.duration - 0.4; e.play(); } });
+      await p.waitForFunction(s => { const e = [...document.querySelectorAll('.dlg video')].find(x => !x.hidden); return e && e.getAttribute('src') === s && !e.paused; }, SEITE + 'assets/' + quer, { timeout: 10000 }).catch(() => {});
+      const e = await sicht();
+      ok(`${lang}: ist das Erklärvideo zu Ende, läuft der kurze Film von selbst`, e && e.src === SEITE + 'assets/' + quer && e.laeuft && e.gedrueckt.join() === 'neu', e);
+    } else console.log('  ⊘ Weiterlaufen nach dem Ende nicht gemessen (ffmpeg fehlt)');
+    await ctx.close();
+  }
   // 4 · Offline: kein totes Video, sondern ein Satz
   {
     const { ctx, p, abrufe } = await oeffne('de');

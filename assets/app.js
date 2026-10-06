@@ -2723,10 +2723,15 @@
      Nicht im Vollbild (dort dreht der Browser selbst). */
   const LAGE_HOCH = window.matchMedia ? matchMedia('(orientation: portrait)') : null;
   const istHoch = () => !!(LAGE_HOCH && LAGE_HOCH.matches);
-  function videoFuer(lang, hoch) {
-    const sp = ['de', 'en', 'ru'].includes(lang) ? lang : 'en';
+  /* Zwei Teile (Klaus 2026-10-06): das Erklärvideo und, angehängt, der kurze Film „Versteckte Befehle erkennen"
+     (assets/neu-befehle-quer|hoch[-en|-ru].mp4 auf der Webseite, 26 s). Er läuft von selbst, wenn das
+     Erklärvideo zu Ende ist, und hat einen eigenen Knopf. Das Erklärvideo selbst ist unverändert. */
+  function videoFuer(lang, hoch, teil) {
+    const sp = ['de', 'en', 'ru'].includes(lang) ? lang : 'en', zus = sp === 'de' ? '' : '-' + sp;
+    if (teil === 'neu') return { sp, hoch: !!hoch, teil, ersatz: sp !== lang, src: WEBSEITE + 'assets/neu-befehle-' + (hoch ? 'hoch' : 'quer') + zus + '.mp4',
+      poster: WEBSEITE + 'assets/poster-neu-befehle-' + (hoch ? 'hoch' : 'quer') + '-' + sp + '.jpg' };
     const art = hoch ? 'hochvoll' : 'quer';
-    return { sp, hoch: !!hoch, ersatz: sp !== lang, src: WEBSEITE + 'assets/workfloh-pdf-' + art + (sp === 'de' ? '' : '-' + sp) + '.mp4',
+    return { sp, hoch: !!hoch, teil: 'haupt', ersatz: sp !== lang, src: WEBSEITE + 'assets/workfloh-pdf-' + art + zus + '.mp4',
       poster: WEBSEITE + 'assets/poster-' + (hoch ? 'hochvoll-' : '') + sp + '.jpg' };
   }
   function erklaervideo() {
@@ -2736,26 +2741,40 @@
     const zu0 = dialog(`<h2>🎬 Erklärvideo</h2>
       ${v.ersatz ? '<p class="hinweis" data-ersatz>Das Video gibt es auf Deutsch, Englisch und Russisch — hier läuft die englische Fassung.</p>' : ''}
       <p class="hinweis" data-offline ${offline ? '' : 'hidden'}>Ohne Internet lässt sich das Video nicht laden. Es liegt auf der Webseite und wird nicht auf dem Gerät gespeichert.</p>
-      ${offline ? '' : `<div data-buehne><video data-erklaer controls playsinline preload="metadata" poster="${v.poster}" src="${v.src}"></video></div>`}
-      <div class="pruef-neu" data-neu><b>Neu, noch nicht im Video: versteckte Befehle erkennen.</b> Im Hintergrund prüft Workflow PDF jede eingelesene Datei — mit den Prüfungen aus dem Auslieferungsprüfer und dem Sende-Prüfer, auf diesem Gerät und ohne Internet. Unsichtbarer Text im PDF, blasse Schrift im Foto, Anweisungen an eine KI und Text in den Bildpunkten werden rot markiert, nicht gelöscht. Zum Ausprobieren: Hilfe (?) → „🛡 Versteckte Befehle erkennen".</div>
+      ${offline ? '' : `<div class="zeile" data-teile><button class="knopf" data-teil="haupt" aria-pressed="true">▶ Erklärvideo</button><button class="knopf" data-teil="neu" aria-pressed="false">▶ Neu: Versteckte Befehle</button></div>
+      <div data-buehne><video data-erklaer controls playsinline preload="metadata" poster="${v.poster}" src="${v.src}"></video></div>`}
+      <div class="pruef-neu" data-neu><b>Neu, als kurzer Film nach dem Erklärvideo: versteckte Befehle erkennen.</b> Im Hintergrund prüft Workflow PDF jede eingelesene Datei — mit den Prüfungen aus dem Auslieferungsprüfer und dem Sende-Prüfer, auf diesem Gerät und ohne Internet. Unsichtbarer Text im PDF, blasse Schrift im Foto, Anweisungen an eine KI und Text in den Bildpunkten werden rot markiert, nicht gelöscht. Zum Ausprobieren: Hilfe (?) → „🛡 Versteckte Befehle erkennen".</div>
       <p class="hinweis"><a href="${WEBSEITE}" target="_blank" rel="noopener">Alle Kapitel und das Video hochkant auf der Webseite</a></p>
       <div class="zeile"><button class="knopf rot" data-x>Schließen</button></div>`, (d, zu) => {
-      let vid = d.querySelector('video'), zweit = null;
+      let vid = d.querySelector('video'), zweit = null, teil = 'haupt';
       const masse = (el, hoch) => { el.style.cssText = 'border-radius:10px;background:#000;margin:0 auto;' + (el.hidden ? 'display:none;' : 'display:block;') + (hoch ? 'width:auto;max-width:100%;height:min(62vh,640px);aspect-ratio:9/16' : 'width:100%'); };
       if (vid) masse(vid, v.hoch);
       const vorbereiten = () => {   // die andere Lage lädt still mit
         if (zweit || !vid || !vid.isConnected) return;
-        const n = videoFuer(lang, !istHoch());
+        const n = videoFuer(lang, !istHoch(), teil);
         zweit = document.createElement('video');
         zweit.playsInline = true; zweit.controls = true; zweit.preload = 'auto'; zweit.muted = true; zweit.hidden = true; zweit.src = n.src;
         zweit.setAttribute('data-erklaer', ''); masse(zweit, n.hoch);
         vid.after(zweit);
       };
-      if (vid) vid.addEventListener('playing', vorbereiten, { once: true });
+      // auf dem Dialog statt am Element: vid und zweit tauschen beim Drehen, und ein Teilwechsel legt zweit neu an
+      d.addEventListener('playing', e => { if (e.target === vid) vorbereiten(); }, true);
+      const teilWechseln = (neuTeil, starten) => {
+        if (!vid || !vid.isConnected) return;
+        teil = neuTeil;
+        d.querySelectorAll('[data-teil]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.teil === teil)));
+        if (zweit) { zweit.pause(); zweit.removeAttribute('src'); zweit.load(); zweit.remove(); zweit = null; }
+        const n = videoFuer(lang, istHoch(), teil);
+        masse(vid, n.hoch); vid.poster = n.poster; vid.src = n.src;
+        if (starten) vid.play().catch(() => {});
+      };
+      d.querySelectorAll('[data-teil]').forEach(b => b.onclick = () => { if (b.dataset.teil !== teil) teilWechseln(b.dataset.teil, true); });
+      // Angeheftet: ist das Erklärvideo zu Ende, läuft der kurze Film von selbst weiter (nicht im Vollbild — dort schaltet der Nutzer)
+      d.addEventListener('ended', e => { if (e.target === vid && teil === 'haupt' && !(document.fullscreenElement || document.webkitFullscreenElement)) teilWechseln('neu', true); }, true);
       const drehen = () => {
         if (!vid || !vid.isConnected) { ende(); return; }   // mit Esc oder Tipp daneben geschlossen
         if (document.fullscreenElement || document.webkitFullscreenElement) return;
-        const n = videoFuer(lang, istHoch());
+        const n = videoFuer(lang, istHoch(), teil);
         if (vid.getAttribute('src') === n.src) { masse(vid, n.hoch); return; }
         const t = vid.currentTime, lief = !vid.paused;
         if (zweit && zweit.getAttribute('src') === n.src) {
