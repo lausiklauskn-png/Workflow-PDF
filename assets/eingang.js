@@ -24,7 +24,7 @@
 (function () {
   'use strict';
   const WFP = window.WFP = window.WFP || {};
-  const KERN = ['assets/pruefer-formate.js?v=1', 'assets/pruefer-mail.js?v=1', 'assets/pruefer-anhang.js?v=2'];
+  const KERN = ['assets/pruefer-formate.js?v=1', 'assets/pruefer-mail.js?v=2', 'assets/pruefer-anhang.js?v=3'];
   const WARN = ['KI-ANWEISUNG', 'PDF-KI-ANWEISUNG', 'BILD-KI-ANWEISUNG', 'PDF-VERSTECKTER-TEXT', 'VERSTECKTER-TEXT',
     'BILD-LSB-VERDACHT', 'PDF-ANHANG', 'ANHANG-PROGRAMM', 'ANHANG-TARNUNG'];
   const NAME = {

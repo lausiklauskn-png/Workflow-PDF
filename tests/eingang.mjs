@@ -26,8 +26,8 @@ console.log('Workfloh PDF — Prüfung beim Einlesen');
 
 /* 1 · der Kern, byte-1:1 */
 const PINS = {
-  'pruefer-anhang.js': '3f0c28f0294ff65f754702fad5f1749f244082ebebff57d31a74592da9abfc09',
-  'pruefer-mail.js': '27e86606a3de4592100f20224eb955cb2f6e48339a82dc40e48fe309f8bdc989',
+  'pruefer-anhang.js': 'd249fd665af2f112e9c330eac6ca948a24481fee2df23df62214d4102be6d9d9',
+  'pruefer-mail.js': 'cdf3ca7881bfa68763a2c0be7436d35a65bea4dbd03f606e02eaec5c613632d7',
   'pruefer-formate.js': 'b057aa084f4b7821fce96f2b717ae51d183a0d8e3bcb67a08edc9fdfa3862a98'
 };
 const sha = f => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');

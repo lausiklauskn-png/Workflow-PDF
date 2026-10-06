@@ -588,7 +588,7 @@ wird im Hintergrund geprüft. Was gefunden wird, wird **markiert, nicht entfernt
 - Der Prüfkern ist der des Auslieferungsprüfers. `assets/pruefer-anhang.js`, `pruefer-mail.js` und `pruefer-formate.js`
   sind **byte-1:1** kopiert und in `tests/eingang.mjs` per SHA-256 gepinnt. Dort pflegen, hier neu kopieren.
   Zuletzt nachgezogen am 2026-10-02 (`pruefer-anhang.js` aus Auslieferung-Pruefer #37: KI-Anweisungen in Dateien,
-  ehrlicheres „ungeprüft"; Cache v72, `eingang.js?v=2`). Der Vergleich mit dem Klon daneben war bis dahin rot.
+  ehrlicheres „ungeprüft"; Cache v72, `eingang.js?v=2`). Wieder am 2026-10-06 (Auslieferung-Pruefer #44: Anweisungen in Bild-Metadaten, `KI-BEGRIFF`; Cache v74, `eingang.js?v=3`). Der Vergleich mit dem Klon daneben war bis dahin rot.
   `assets/eingang.js` ist der Klebstoff (`WFP.Eingang.pruefen`). Er lädt den Kern erst beim Einlesen und prüft die ORIGINALDATEI.
 - **Gemeldet** wird nur, was täuschen soll: eine Anweisung an eine KI (im Text, auf dem Scan, im Bild, auch blass),
   unsichtbarer Text im PDF, ein Verdacht in den Bildpunkten, eine Datei im PDF, ein Programm oder eine Tarnung.
@@ -691,6 +691,28 @@ gelöscht wird." Dieselbe Sicherung wie im Sende-Prüfer: ⚙️ Einstellungen �
   `sicherung.mjs` 41 grün.
 - ⚠ Nicht gemessen: Download, Dateiwahl und Dauer der 600 000 Runden am Tablet; große Bibliotheken (die ganze
   Sicherung liegt einmal als Text im Speicher).
+
+## 📲 In der Teilen-Liste und bei „Öffnen mit" (Klaus 2026-10-06)
+
+„Wenn ich eine PDF öffne, dann werden mir vom Android immer angeboten, verschiedene Öffnen mit … Workflow soll damit
+auftauchen … Überall, wo ich Teilen machen kann."
+
+- **Teilen** (`share_target` im Manifest): POST, multipart, Feld `dateien`, nimmt PDF, Bilder (PNG/JPEG/WebP) und
+  Arbeitsstände (`.json`). `sw.js` fängt den POST an `./teilen-empfang` ab, BEVOR der Ausstieg für alles außer GET
+  greift. Er legt jede Datei im Vorrat `workfloh-pdf-geteilt` ab (Name in `X-Name`, URI-kodiert; der Vorrat steht in
+  `BLEIBT`) und leitet mit 303 auf `./?geteilt=1|0|fehler`. `geteiltUebernehmen()` in app.js holt die Dateien, leert den
+  Vorrat, putzt die Adresse und gibt alles an `importDateien` (also auch an die Prüfung beim Einlesen). Ohne Datei oder
+  mit leerem Vorrat steht ein Hinweis da, nie Stille.
+- **Öffnen mit** (`file_handlers` + `window.launchQueue`, `oeffnenMitEmpfangen`): PDF und Bilder.
+- ⚠ **Benannte Grenzen:** beides gilt nur für die INSTALLIERTE App. Wer sie vor diesem Stand installiert hat, muss sie
+  eventuell neu installieren, damit Android das neue Manifest liest. `file_handlers` wirkt sicher am Desktop-Chrome; ob
+  Android die App bei „Öffnen mit" anbietet, ist **nicht gemessen**. Am Tablet ist nichts davon gemessen.
+- ⚠ Playwright: `setInputFiles` mit einem **Umlaut im Pfad** liefert eine leere Datei (gemessen, 0 Byte). Die Probe
+  übergibt die Dateien als Puffer. Chromium bringt `launchQueue` selbst mit (nur lesbar); die Probe stellt es mit
+  `Object.defineProperty`.
+- Proben: `tests/teilen-empfang.mjs` (in `npm test`; Manifest ⟷ Worker ohne Browser, echter POST an den Worker im
+  Browser, launchQueue gestellt) · `node tests/gegenprobe_teilen_empfang.mjs` (13 Fälle; `NUR_ANKER=1`). Cache v73 (v74 nach dem Nachziehen des Prüfkerns),
+  `app.js?v=56`, `sprache-texte.js?v=34`.
 
 ## Netzweit
 

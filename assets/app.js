@@ -2869,10 +2869,44 @@
 
     if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
     bedeutungZeichnen();
-    ladeBibliothek().then(() => { if (EINST.bedeutung) bedeutungStarten(); }).then(chromeTabRueckweg).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
-    window.__wfpdf = { eingang: { PRUEF, pruefDialog, eingangPruefen }, beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner,
+    ladeBibliothek().then(() => { if (EINST.bedeutung) bedeutungStarten(); }).then(chromeTabRueckweg).then(geteiltUebernehmen).then(oeffnenMitEmpfangen).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
+    window.__wfpdf = { eingang: { PRUEF, pruefDialog, eingangPruefen }, beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner, geteiltUebernehmen,
       // für tests/sprache.mjs: jeden Dialog einmal öffnen und seine Texte nachschlagen
       dlg: { neuerOrdner, verschieben, teilenDocs, wahlEnde, WAHL, wahlUmschalten, loeschen, speichernDialog, scanStarten, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, erklaervideo, videoFuer, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe, bedeutungDialog, sicherungDialog, sicherungErinnerung } };   // für die Probe
+  }
+  /* ---------- Aus einer anderen App geteilt (Klaus 2026-10-06) ----------
+     Android zeigt Workfloh PDF in der Teilen-Liste, sobald die App installiert ist (share_target
+     im Manifest). Der Worker legt die Dateien in den Vorrat „workfloh-pdf-geteilt" und leitet auf
+     ./?geteilt=1 weiter; hier werden sie abgeholt, eingelesen und der Vorrat geleert. Auf dem
+     Desktop kommt „Öffnen mit" über launchQueue (file_handlers). Nie still: kommt nichts an, steht
+     das da. */
+  async function geteiltUebernehmen() {
+    const q = new URLSearchParams(location.search), g = q.get('geteilt');
+    if (g === null) return;
+    q.delete('geteilt'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+    if (g === 'fehler') { toast('⚠️ Die geteilte Datei kam nicht an. Bitte noch einmal teilen.'); return; }
+    if (g === '0') { toast('Es kam keine Datei an. Workfloh PDF nimmt PDFs und Bilder.'); return; }
+    let dateien = [];
+    try {
+      const c = await caches.open('workfloh-pdf-geteilt');
+      for (const k of await c.keys()) {
+        const r = await c.match(k); if (!r) continue;
+        const b = await r.blob(); let name = 'Datei';
+        try { name = decodeURIComponent(r.headers.get('X-Name') || 'Datei'); } catch (_) {}
+        dateien.push(new File([b], name, { type: b.type || r.headers.get('Content-Type') || '' }));
+        await c.delete(k);
+      }
+    } catch (_) {}
+    if (!dateien.length) { toast('⚠️ Die geteilte Datei kam nicht an. Bitte noch einmal teilen.'); return; }
+    await importDateien(dateien);
+  }
+  function oeffnenMitEmpfangen() {
+    if (!('launchQueue' in window)) return;
+    window.launchQueue.setConsumer(async p => {
+      if (!p || !p.files || !p.files.length) return;
+      const fs = []; for (const h of p.files) { try { fs.push(await h.getFile()); } catch (_) {} }
+      if (fs.length) importDateien(fs);
+    });
   }
   start();
 })();

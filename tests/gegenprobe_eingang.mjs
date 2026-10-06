@@ -24,7 +24,7 @@ const FAELLE = [
   { name: 'die Karte bekommt nach der Prüfung keine Marke', datei: A, anker: "      markeErneuern(id);\n      // Ein Fenster genügt", ersatz: "      // Ein Fenster genügt", trifft: /Marke/ },
   { name: 'der Satz „Nichts wurde entfernt" fehlt', datei: A, anker: '<p class="hinweis" data-pruef-original>Nichts wurde entfernt:', ersatz: '<p class="hinweis">Nichts wurde entfernt:', trifft: /Nichts wurde entfernt|Absender/ },
   { name: 'der Hilfe-Knopf holt die Testdatei, liest sie aber nicht ein', datei: A, anker: "await importDateien([new File([await r.blob()], name, { type: typ })], 'Beispiele', { still: true });", ersatz: 'await r.blob();', trifft: /Hilfe → 🧪/ },
-  { name: 'eingang.js fehlt im Offline-Vorrat', datei: 'sw.js', anker: "'./assets/eingang.js?v=2', ", ersatz: '', trifft: /Offline-Vorrat/ }
+  { name: 'eingang.js fehlt im Offline-Vorrat', datei: 'sw.js', anker: "'./assets/eingang.js?v=3', ", ersatz: '', trifft: /Offline-Vorrat/ }
 ];
 
 let gefangen = 0, durch = 0, falsch = 0, tot = 0;
