@@ -2,8 +2,10 @@
    „Es soll nur ein Button hinzukommen, zuschneiden. Und dann kann man das Dokument
    zuschneiden, ausrichten und auf die Größe anpassen, die gewünscht ist. Alles andere ist okay."
    Gemessen: der Knopf steht in der Leiste, öffnet den Scanner mit JEDER Seite des offenen
-   Dokuments, „Übernehmen" ersetzt die Datei DESSELBEN Dokuments (Kennung, Ordner, Felder
-   bleiben), und Abbrechen lässt alles, wie es war. Nur erfundene Daten. */
+   Dokuments, „Übernehmen" speichert ein ZWEITES Dokument „<Name> (zugeschnitten)" im selben
+   Ordner mit eigenem Vorschaubild, das Original bleibt (Klaus 2026-10-06: „Originaldokument
+   sollte dabei als Original bleiben … zusätzlich … ein zweites Dokument"), und Abbrechen lässt
+   alles, wie es war. Nur erfundene Daten. */
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -68,7 +70,7 @@ try {
     S.doc.fields = [{ id: 'f1', page: 0, x: 10, y: 20, w: 40, h: 4, type: 'text', label: 'Name', value: 'Erika Beispiel' },
                     { id: 'f2', page: 1, x: 10, y: 30, w: 40, h: 4, type: 'text', label: 'Ort', value: 'Musterstadt' }];
     await WFP.DB.put('docs', S.doc);
-    return { id: S.doc.id, folderId: S.doc.folderId, createdAt: S.doc.createdAt, laenge: S.bytes.length, seiten: S.doc.pages.length };
+    return { id: S.doc.id, name: S.doc.name, folderId: S.doc.folderId, createdAt: S.doc.createdAt, laenge: S.bytes.length, seiten: S.doc.pages.length, thumb: S.doc.thumb };
   });
 
   // 1 · der Knopf steht in der Leiste, neben „Felder erkennen", und alles andere bleibt
@@ -87,8 +89,8 @@ try {
   await page.click('.scan [data-schliessen]');
   if (await page.$('.dlg [data-j]')) await page.click('.dlg [data-j]');
   await page.waitForFunction(() => !document.querySelector('.scan'));
-  const nachAbbruch = await page.evaluate(async id => { const S = window.__wfpdf.S; const f = await WFP.DB.getFile(id); return { laenge: S.bytes.length, datei: f && (f.byteLength || f.length || f.size), felder: S.doc.fields.length }; }, vorher.id);
-  ok('Abbrechen ändert nichts (Datei und Felder wie vorher)', nachAbbruch.laenge === vorher.laenge && nachAbbruch.felder === 2, nachAbbruch);
+  const nachAbbruch = await page.evaluate(async id => { const S = window.__wfpdf.S; const f = await WFP.DB.getFile(id); return { laenge: S.bytes.length, datei: f && (f.byteLength || f.length || f.size), felder: S.doc.fields.length, docs: (await WFP.DB.all('docs')).length }; }, vorher.id);
+  ok('Abbrechen ändert nichts (Datei und Felder wie vorher, kein zweites Dokument)', nachAbbruch.laenge === vorher.laenge && nachAbbruch.felder === 2 && nachAbbruch.docs === 1, nachAbbruch);
 
   // 3 · Zuschneiden und übernehmen
   await page.click('#edZuschneiden');
@@ -96,16 +98,38 @@ try {
   await page.click('.scan [data-fertig]');
   for (let i = 0; i < 4 && await page.waitForSelector('.dlg [data-j]', { timeout: 1500 }).then(() => true, () => false); i++) await page.click('.dlg [data-j]');
   await page.waitForFunction(() => window.__wfpdfZuschnitt && window.__wfpdfZuschnitt.fertig, null, { timeout: 90000 });
-  const nach = await page.evaluate(async () => {
-    const S = window.__wfpdf.S; const d = await WFP.DB.get('docs', S.doc.id); const g = await WFP.DB.getFile(S.doc.id);
-    return { id: S.doc.id, folderId: d.folderId, createdAt: d.createdAt, laenge: S.bytes.length, gespeichert: g ? g.length : -1, seiten: d.pages.length, pdfSeiten: S.pdf.numPages, felder: d.fields.map(f => f.id + ':' + f.value), docs: S.docs.length, gezeichnet: document.querySelectorAll('.seite').length, toast: (document.querySelector('.toast') || {}).textContent || '' };
+  const nach = await page.evaluate(async alt => {
+    const S = window.__wfpdf.S; const Z = window.__wfpdfZuschnitt.fertig;
+    const o = await WFP.DB.get('docs', alt); const og = await WFP.DB.getFile(alt);
+    const n = await WFP.DB.get('docs', Z.id); const ng = await WFP.DB.getFile(Z.id);
+    const alle = await WFP.DB.all('docs');
+    return { Z, offen: S.doc.id, docs: alle.length,
+      orig: { laenge: og ? (og.byteLength || og.length || og.size) : -1, felder: o.fields.map(f => f.id + ':' + f.value).join(), thumb: o.thumb, name: o.name },
+      neu: n && { id: n.id, name: n.name, folderId: n.folderId, quelle: n.quelle, laenge: ng ? (ng.byteLength || ng.length || ng.size) : -1, seiten: n.pages.length, thumb: n.thumb,
+        felder: n.fields.map(f => f.value).join(), ids: n.fields.map(f => f.id) },
+      pdfSeiten: S.pdf.numPages, bytes: S.bytes.length, gezeichnet: document.querySelectorAll('.seite').length,
+      toast: (document.querySelector('.toast') || {}).textContent || '' };
+  }, vorher.id);
+  const N = nach.neu || {};
+  ok('„Übernehmen" legt ein ZWEITES Dokument an (das Original bleibt daneben)', nach.docs === 2 && !!nach.neu && N.id !== vorher.id, nach);
+  ok('… es heißt „<Name> (zugeschnitten)" und liegt im selben Ordner', N.name === vorher.name + ' (zugeschnitten)' && N.folderId === vorher.folderId, N);
+  ok('… es ist gespeichert, mit neuen Bytes und gleicher Seitenzahl', N.laenge > 0 && N.laenge !== vorher.laenge && N.seiten === 2, N);
+  ok('… es hat ein EIGENES, frisches Vorschaubild', /^data:image\//.test(N.thumb || '') && N.thumb !== vorher.thumb, { neu: (N.thumb || '').length, alt: (vorher.thumb || '').length });
+  ok('… die Felder samt Einträgen sind kopiert, mit eigenen Kennungen', N.felder === 'Erika Beispiel,Musterstadt' && (N.ids || []).every(i => i !== 'f1' && i !== 'f2'), N);
+  ok('das Original ist unverändert: Datei, Felder, Name, Vorschaubild', nach.orig.laenge === vorher.laenge && nach.orig.felder === 'f1:Erika Beispiel,f2:Musterstadt' && nach.orig.name === vorher.name && nach.orig.thumb === vorher.thumb, nach.orig);
+  ok('… und offen ist danach die zugeschnittene Kopie', nach.offen === N.id && nach.bytes === N.laenge && nach.pdfSeiten === 2 && nach.gezeichnet === 2, nach);
+  ok('… die Meldung sagt, dass das Original bleibt, und bittet, die Felder zu prüfen', /Original bleibt/.test(nach.toast) && /Felder/.test(nach.toast), nach.toast);
+
+  // 4 · in der Bibliothek: zwei Karten, die Kopie mit ihrem eigenen Vorschaubild
+  await page.click('#edZurueck');
+  await page.waitForFunction(() => document.querySelector('#sc-bib.on') && document.querySelectorAll('#dokGitter .dok').length === 2, null, { timeout: 30000 });
+  const bib = await page.evaluate(id => {
+    const k = [...document.querySelectorAll('#dokGitter .dok')];
+    const bild = e => { const t = e.querySelector('[style*="background-image"]'); return t ? t.style.backgroundImage : ''; };
+    const kopie = k.find(e => /\(zugeschnitten\)/.test(e.textContent)); const orig = k.find(e => e !== kopie);
+    return { n: k.length, kopie: !!kopie, bildKopie: kopie ? bild(kopie).length : 0, gleich: kopie && orig ? bild(kopie) === bild(orig) : true };
   });
-  ok('„Übernehmen" ersetzt die Datei (neue Bytes, gleiche Seitenzahl)', nach.laenge !== vorher.laenge && nach.seiten === 2 && nach.pdfSeiten === 2, nach);
-  ok('… und die neue Datei liegt gespeichert in der Bibliothek (nicht nur im Speicher)', nach.gespeichert === nach.laenge && nach.gespeichert !== vorher.laenge, nach);
-  ok('… DASSELBE Dokument: Kennung, Ordner und Anlagedatum bleiben, kein zweites entsteht', nach.id === vorher.id && nach.folderId === vorher.folderId && nach.createdAt === vorher.createdAt && nach.docs === 1, nach);
-  ok('… die Felder samt Einträgen bleiben', nach.felder.join() === 'f1:Erika Beispiel,f2:Musterstadt', nach.felder);
-  ok('… die Seiten sind neu gezeichnet', nach.gezeichnet === 2, nach);
-  ok('… und die Meldung bittet, die Felder zu prüfen', /Felder/.test(nach.toast), nach.toast);
+  ok('in der Bibliothek stehen beide, die Kopie mit EIGENER Voransicht', bib.n === 2 && bib.kopie && bib.bildKopie > 50 && !bib.gleich, bib);
   ok('keine Fehler auf der Seite', fehler.length === 0, fehler);
 } catch (e) { rot++; console.log('  ✗ ROT: unterwegs gestolpert → ' + (e.stack || e).toString().split('\n').slice(0, 3).join(' | ')); }
 await browser.close(); srv.close();
