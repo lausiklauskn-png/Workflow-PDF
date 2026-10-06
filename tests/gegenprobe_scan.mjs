@@ -20,7 +20,7 @@ const FAELLE = [
   { name: 'quer wird nie erkannt', datei: 'assets/scan-bild.js', anker: 'const quer = br > ho;', ersatz: 'const quer = false;', trifft: /Letter quer/ },
   { name: 'drehen dreht falsch herum', datei: 'assets/scan-bild.js', anker: 'if (n === 1) { X = h - 1 - y; Y = x; }', ersatz: 'if (n === 1) { X = y; Y = w - 1 - x; }', trifft: /drehen rechts/ },
   { name: 'Hintergrund wird nicht geschätzt (Schatten bleibt)', datei: 'assets/scan-bild.js', anker: 'const g = Math.max(bg[p], 30), norm', ersatz: 'const g = 250, norm', trifft: /Schatten weg/ },
-  { name: 'Schwarzweiß-Schwelle kaputt', datei: 'assets/scan-bild.js', anker: 'const v = norm < 0.8 ? 0 : 255;', ersatz: 'const v = norm < 0.8 ? 0 : 200;', trifft: /Schwarzweiß/ },
+  { name: 'Schwarzweiß-Schwelle kaputt', datei: 'assets/scan-bild.js', anker: 'const v = 255 * glatt(', ersatz: 'const v = 200 * glatt(', trifft: /Schwarzweiß/ },
   { name: 'Kontrast wirkt verkehrt', datei: 'assets/scan-bild.js', anker: 'const k = kon >= 0 ? 1 + kon / 50 : 1 + kon / 125', ersatz: 'const k = kon >= 0 ? 1 - kon / 125 : 1 + kon / 125', trifft: /Kontrast/ },
   { name: 'Farben von Papier und Schrift vertauscht', datei: 'assets/scan-bild.js', anker: 'return { grund: mittel(hellst), schrift: mittel(dunkelst) };', ersatz: 'return { grund: mittel(dunkelst), schrift: mittel(hellst) };', trifft: /textFarben/ },
   { name: 'Modell sucht seine Dateien im Netz statt in vendor/scanic/', datei: 'assets/scanner.js', anker: "ml: { assetBaseUrl: pfad(PF.scanic) }", ersatz: 'ml: {}', trifft: /Modell \(Scanic ML\) lief|kein Aufruf ins Netz/ },
@@ -64,6 +64,12 @@ const FAELLE = [
   { name: "LUPE: feste 120 px statt nach dem Bild", datei: "assets/scanner.js", anker: "return Math.max(56, Math.min(84, Math.round(Math.min(W, H) / 5)));", ersatz: "return 120;", trifft: /Lupe ist klein|≤ 64 px/ },
   { name: "LUPE: liegt über dem Punkt", datei: "assets/scanner.js", anker: "lx = Math.max(0, Math.min(W - d, lx)); ly = Math.max(0, Math.min(H - d, ly));", ersatz: "lx = x - d / 2; ly = y - d / 2;", trifft: /NICHT über dem Punkt|deckt den Punkt nicht/ },
   { name: "HANDY: Foto bekommt wieder nur einen Streifen", datei: "assets/style.css", anker: ".scan-buehne{flex:none;height:52vh;height:52dvh}", ersatz: ".scan-buehne{flex:none;height:20vh;height:20dvh}", trifft: /ein Drittel der Höhe/ },
+  { name: "SCHAERFE: Unscharf-Maskieren tut nichts", datei: "assets/scan-bild.js", anker: "out[p] = klemm(L[p] + a * (L[p] - b[p]), 0, 255);", ersatz: "out[p] = L[p];", trifft: /Schärfe 40 macht einen blassen Strich/ },
+  { name: "SCHAERFE: Schwarzweiß wieder hart (Treppe)", datei: "assets/scan-bild.js", anker: "const v = 255 * glatt(klemm((norm - SW_VON) / (SW_BIS - SW_VON), 0, 1));", ersatz: "const v = norm < 0.8 ? 0 : 255;", trifft: /weiche Kanten/ },
+  { name: "SCHAERFE: Original-Filter bekommt keine Schärfe", datei: "assets/scan-bild.js", anker: "} else if (Ls) {", ersatz: "} else if (false) {", trifft: /Filter „Original"/ },
+  { name: "SCHAERFE: Regler kommt nicht beim Filter an", datei: "assets/scanner.js", anker: "kontrast: s.kontrast, schaerfe: schaerfeVon(s) });", ersatz: "kontrast: s.kontrast });", trifft: /neu gerechnet/ },
+  { name: "SCHAERFE: Vorgabe 0 statt 40", datei: "assets/scanner.js", anker: "SCHAERFE_VORGABE = 40;", ersatz: "SCHAERFE_VORGABE = 0;", trifft: /Vorgabe 40/ },
+  { name: "SCHAERFE: Vorschau bleibt grob bei 80 dpi", datei: "assets/scanner.js", anker: "return Math.min(150, Math.max(VORSCHAU_DPI,", ersatz: "return VORSCHAU_DPI; return Math.min(150, Math.max(VORSCHAU_DPI,", trifft: /Vorschau so fein/ },
   { name: "HANDY: Bild ragt über die Bühne, Ecken nicht greifbar", datei: "assets/scanner.js", anker: "const maxW = Math.max(60, b.clientWidth - 40), maxH = Math.max(60, b.clientHeight - 40);", ersatz: "const maxW = Math.max(60, b.clientWidth + 120), maxH = Math.max(60, b.clientHeight + 120);", trifft: /alle vier Ecken sind zu greifen/ }
 ];
 

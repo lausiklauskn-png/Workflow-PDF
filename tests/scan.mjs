@@ -100,6 +100,17 @@ const SB = globalThis.__WFP_SCANBILD;
   ok('Helligkeit +50 macht heller', px(hell, 100, 100)[0] > px(seite(), 100, 100)[0]);
   const kon = seite(); SB.filtern(kon, 'original', { kontrast: 60 });
   ok('Kontrast +60: Schrift dunkler, Papier heller', px(kon, 100, 100)[0] < px(seite(), 100, 100)[0] && px(kon, 10, 20)[0] > px(seite(), 10, 20)[0]);
+  // Schärfe (Klaus 2026-10-06: „Schärfeeinstellung … Pixelkanten glätten"). Gemessen an einem
+  // blassen, verwischten Strich (erfunden): Kern dunkler, Papier bleibt hell, 0 heißt aus.
+  const strich = () => bild(120, 40, (x) => { const v = Math.exp(-((x - 60) ** 2) / (2 * 1.2 * 1.2)); const L = 240 - 70 * v; return [L, L, L]; });
+  const kern = (m, s) => { const b = strich(); SB.filtern(b, m, { schaerfe: s }); return px(b, 60, 20)[0]; };
+  const papier = (m, s) => { const b = strich(); SB.filtern(b, m, { schaerfe: s }); return px(b, 10, 20)[0]; };
+  ok('Schärfe 40 macht einen blassen Strich im Filter „Dokument" deutlich dunkler (Kern ' + kern('dokument', 0) + ' → ' + kern('dokument', 40) + ')', kern('dokument', 40) < kern('dokument', 0) - 20);
+  ok('Schärfe lässt das Papier weiß (Dokument)', papier('dokument', 40) > 245);
+  ok('Schärfe 0 ändert nichts (Dokument, Pixel gleich ohne Option)', (() => { const a1 = strich(), a2 = strich(); SB.filtern(a1, 'dokument', { schaerfe: 0 }); SB.filtern(a2, 'dokument'); return a1.data.every((v, i) => v === a2.data[i]); })());
+  ok('Schärfe wirkt auch im Filter „Original" (Kern dunkler, Farbe bleibt grau)', (() => { const b = strich(); SB.filtern(b, 'original', { schaerfe: 60 }); const p = px(b, 60, 20); return p[0] < px(strich(), 60, 20)[0] - 5 && p[0] === p[1] && p[1] === p[2]; })());
+  ok('Schwarzweiß hat weiche Kanten: neben dem Strich ein Zwischenton statt Treppe', (() => { const b = strich(); SB.filtern(b, 'sw', { schaerfe: 0 }); const v = px(b, 59, 20)[0]; return v > 10 && v < 245; })());
+  ok('Schwarzweiß: Schärfe macht die Kante steiler (Zwischenton dunkler)', (() => { const z = s => { const b = strich(); SB.filtern(b, 'sw', { schaerfe: s }); return px(b, 59, 20)[0]; }; return z(40) < z(0) - 20; })());
   const bunt = bild(200, 200, (x, y) => { const papier = 250 - x * 0.55; return (x > 80 && x < 120 && y > 20 && y < 60) ? [papier * 0.8, papier * 0.3, papier * 0.3] : [papier, papier * 0.98, papier * 0.94]; });
   SB.filtern(bunt, 'farbe');
   const rotF = px(bunt, 100, 40);
@@ -235,6 +246,16 @@ try {
   await page.click('.scan [data-filter="dokument"]');
   const ecke = await page.evaluate(() => new Promise(res => { const i = document.querySelector('.scan [data-ergebnis]'); const go = () => { const c = document.createElement('canvas'); c.width = i.naturalWidth; c.height = i.naturalHeight; const x = c.getContext('2d'); x.drawImage(i, 0, 0); const d = x.getImageData(c.width - 20, 20, 8, 8).data; res(d[0]); }; i.complete ? go() : i.onload = go; }));
   ok('Filter „Dokument": auch die beschattete rechte Blattseite wird weiß (> 230)', ecke > 230, ecke);
+  // Schärfe-Regler: Vorgabe 40, ein Zug ändert die Seite und das Ergebnisbild
+  Z = await page.evaluate(() => window.__wfpdfScan);
+  ok('Regler „🔪 Schärfe" steht da, Vorgabe 40', await page.isVisible('.scan [data-schaerfe]') && Z.seiten[0].schaerfe === 40, Z.seiten[0].schaerfe);
+  const ergVor = await page.evaluate(() => document.querySelector('.scan [data-ergebnis]').src);
+  await page.evaluate(() => { const r = document.querySelector('.scan [data-schaerfe]'); r.value = '90'; r.dispatchEvent(new Event('input')); r.dispatchEvent(new Event('change')); });
+  Z = await page.evaluate(() => window.__wfpdfScan);
+  ok('Schärfe 90 wird übernommen und das Ergebnisbild neu gerechnet', Z.seiten[0].schaerfe === 90 && await page.evaluate(v => document.querySelector('.scan [data-ergebnis]').src !== v, ergVor));
+  const vs = await page.evaluate(() => { const i = document.querySelector('.scan [data-ergebnis]'); const soll = Math.min(150, Math.max(80, Math.round(innerWidth * devicePixelRatio / 8.27 / 10) * 10)); return { ist: Math.round(i.naturalWidth / 8.27), soll }; });
+  ok('Vorschau so fein wie der Schirm (hier über 80 dpi, höchstens 150)', vs.soll > 80 && Math.abs(vs.ist - vs.soll) <= 6, vs);
+  await page.evaluate(() => { const r = document.querySelector('.scan [data-schaerfe]'); r.value = '40'; r.dispatchEvent(new Event('input')); r.dispatchEvent(new Event('change')); });
   await page.click('.scan [data-dreh="1"]');
   Z = await page.evaluate(() => window.__wfpdfScan);
   ok('⟳ dreht die Seite (quer)', Z.seiten[0].drehung === 1 && await page.evaluate(() => { const i = document.querySelector('.scan [data-ergebnis]'); return i.naturalWidth > i.naturalHeight; }));
