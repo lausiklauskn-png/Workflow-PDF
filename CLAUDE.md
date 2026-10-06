@@ -698,14 +698,18 @@ gelöscht wird." Dieselbe Sicherung wie im Sende-Prüfer: ⚙️ Einstellungen �
 „🤖 Felder erkennen" der Knopf **✂️ Zuschneiden** (`#edZuschneiden` → `seiteZuschneiden()` in app.js). Er zeichnet
 jede Seite des Dokuments als JPEG (lange Kante 2400 px) und öffnet damit den Scanner (`WFP.Scanner.oeffnen`,
 `ablegen: null`, Fertig heißt „Übernehmen"): Ecken ziehen, gerade ziehen, drehen, Seitengröße wählen.
-- **Übernehmen ersetzt die Datei DESSELBEN Dokuments** (`DB.putFile`, Kennung, Ordner, Anlagedatum bleiben).
-  Felder bleiben in Prozent stehen; Felder auf Seiten, die es nicht mehr gibt, fallen weg. Die Meldung bittet,
-  die Lage der Felder zu prüfen — sie verschieben sich nicht mit dem Zuschnitt. Abbrechen ändert nichts.
+- **Übernehmen speichert ein ZWEITES Dokument** „<Name> (zugeschnitten)" im selben Ordner (`neuesDok`, Quelle
+  `zuschnitt`, frisches Vorschaubild), **das Original bleibt unverändert** (Klaus 2026-10-06: „Originaldokument sollte
+  dabei als Original bleiben … zusätzlich … ein zweites Dokument … separat löschen oder weiter zuordnen"). Danach ist die
+  Kopie offen. Felder und Einträge werden kopiert (neue Kennungen); Felder auf Seiten, die es nicht mehr gibt, fallen weg.
+  Der Prüf-Befund des Originals geht mit, eine neue Prüfung läuft nicht (`zuschnitt` steht nicht in `EINGANG_QUELLEN`).
+  ⚠ **Tafel-Evolution, benannt:** bis dahin ersetzte Übernehmen die Datei desselben Dokuments, und die Voransicht in der
+  Bibliothek blieb die alte (Klaus' Bild). Die Meldung bittet weiter, die Lage der Felder zu prüfen. Abbrechen ändert nichts.
 - ⚠ **Name `zuschneiden(c)` ist vergeben** (Unterschrift auf ihre Striche zuschneiden). Die erste Fassung hieß
   ebenso, die spätere Deklaration gewann, und die Unterschrift öffnete den Scanner. `tests/zuschneiden.mjs`
   prüft seitdem, dass kein Funktionsname in app.js zweimal steht (von Hand gegengeprüft: rot mit dem Namen).
 - An 1280 px bricht die Editor-Leiste jetzt in zwei Zeilen um (vorher füllte sie 1270 px).
-- Probe `tests/zuschneiden.mjs` (in `npm test`). Cache v75, `app.js?v=57`, `sprache-texte.js?v=35`.
+- Probe `tests/zuschneiden.mjs` (in `npm test`). Cache v76, `app.js?v=58`, `sprache-texte.js?v=36`.
 - ⚠ **Der Knopf kam zuerst nicht an** (Klaus 2026-10-06, Bild vom Tablet ohne ✂️): die Pages-Auslieferung nach dem Merge
   scheiterte bei GitHub (`Failed to get ID Token`, Zeitüberschreitung), die Seite blieb auf v74. Neu starten durfte die
   Sitzung den Lauf nicht (403); ausgeliefert hat ihn der nächste Commit auf `main`. **Nach einem Merge den Lauf

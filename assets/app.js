@@ -1569,9 +1569,10 @@
      „Es soll nur ein Button hinzukommen, zuschneiden. Und dann kann man das Dokument
      zuschneiden, ausrichten und auf die Größe anpassen, die gewünscht ist."
      Jede Seite des offenen Dokuments wird als Bild gezeichnet und im Scanner geöffnet
-     (Ecken ziehen, drehen, Seitengröße). „Übernehmen" ersetzt die Datei DESSELBEN
-     Dokuments — Kennung, Ordner, Anlagedatum und Felder bleiben. Felder stehen in Prozent
-     der Seite; ob sie nach dem Zuschnitt noch sitzen, sagt der Hinweis danach. */
+     (Ecken ziehen, drehen, Seitengröße). „Übernehmen" speichert ein ZWEITES Dokument
+     „<Name> (zugeschnitten)" im selben Ordner; das Original bleibt, wie es war (Klaus
+     2026-10-06: „Originaldokument sollte dabei als Original bleiben"). Die Felder werden
+     kopiert; sie stehen in Prozent der Seite, ob sie noch sitzen, sagt der Hinweis danach. */
   const ZUSCHNITT_KANTE = 2400;
   async function seiteZuschneiden() {
     if (!S.doc || !S.pdf) return;
@@ -1596,18 +1597,20 @@
     return WFP.Scanner.oeffnen({ titel: 'Zuschneiden', fertigText: 'Übernehmen', dateien, name: doc.name,
       toast, dialog, frage, fortschritt, laden, ablegen: null,
       fertig: async bytes => {
-        if (!S.doc || S.doc.id !== doc.id) { toast('⚠️ Das Dokument ist nicht mehr offen — nichts übernommen'); return; }
-        const neuPdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
-        const info = await seitenInfo(neuPdf);
+        // Das Original bleibt unberührt; der Zuschnitt wird ein ZWEITES Dokument im selben
+        // Ordner, gleich gespeichert, mit frischem Vorschaubild (Klaus 2026-10-06).
+        const name = doc.name + ' (zugeschnitten)';
+        const neu = await neuesDok(name, bytes, 'zuschnitt', doc.folderId);
         const vorher = (doc.fields || []).length;
-        doc.fields = (doc.fields || []).filter(f => f.page < info.length);
-        doc.pages = info; doc.updatedAt = jetzt();
-        await DB.putFile(doc.id, bytes); S.bytes = bytes;
-        if (S.pdf) { try { S.pdf.destroy(); } catch (_) {} }
-        S.pdf = neuPdf; await speichernJetzt(); zeichneSeiten();
-        window.__wfpdfZuschnitt.fertig = { seiten: info.length, felder: doc.fields.length };
-        const weg = vorher - doc.fields.length;
-        toast(doc.fields.length ? '✂️ Zugeschnitten — bitte prüfen, ob die Felder noch sitzen' + (weg ? ' (' + weg + ' auf entfernten Seiten gelöscht)' : '') : '✂️ Zugeschnitten');
+        neu.fields = (doc.fields || []).filter(f => f.page < neu.pages.length)
+          .map(f => Object.assign({}, f, { id: uid() }));
+        if (doc.pruefung) neu.pruefung = doc.pruefung;   // derselbe Inhalt, derselbe Befund
+        await DB.put('docs', neu);
+        window.__wfpdfZuschnitt.fertig = { id: neu.id, original: doc.id, seiten: neu.pages.length, felder: neu.fields.length };
+        await oeffneDok(neu.id);
+        const weg = vorher - neu.fields.length;
+        toast('✂️ Zugeschnitten und als neues Dokument gespeichert — das Original bleibt'
+          + (neu.fields.length ? '. Bitte prüfen, ob die Felder noch sitzen' + (weg ? ' (' + weg + ' auf entfernten Seiten weggelassen)' : '') : ''));
       } });
   }
 
