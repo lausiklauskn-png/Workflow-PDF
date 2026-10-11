@@ -13,7 +13,11 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1">
 <link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png?v=1">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1">
-<link rel="stylesheet" href="assets/style.css?v=35">
+<link rel="stylesheet" href="assets/style.css?v=36">
+<!-- Lighthouse 2026-10-11: Skripte laufen mit defer, die Seite malt vorher. Wer eine andere Sprache als Deutsch
+     gewählt hat, sieht die Seite erst nach der Übersetzung (sprache.js nimmt die Marke weg) — kein deutsches Aufblitzen. -->
+<script>try{var l=JSON.parse(localStorage.getItem('wfpdf_sprache_v1')||'{}').lang;if(l&&l!=='de'){var h=document.documentElement;h.setAttribute('data-ue-wartet','');if(l==='ar')h.dir='rtl';setTimeout(function(){h.removeAttribute('data-ue-wartet')},4000)}}catch(e){}</script>
+<style>html[data-ue-wartet] body{visibility:hidden}</style>
 </head>
 <body>
 <header class="kopf">
@@ -109,27 +113,28 @@
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 <div id="modals"></div>
 
-<script src="vendor/pdfjs/pdf.min.js"></script>
-<script src="vendor/pdf-lib.min.js"></script>
-<script src="vendor/qrcode.js"></script>
-<script src="assets/db.js?v=5"></script>
-<script src="assets/suche.js?v=2"></script>
-<script src="assets/bedeutung.js?v=2"></script>
-<script src="assets/zip.js?v=1"></script>
-<script src="assets/erkennung.js?v=5"></script>
-<script src="assets/blatt.js?v=1"></script>
-<script src="assets/scan-bild.js?v=7"></script>
-<script src="assets/scanner.js?v=13"></script>
-<script src="assets/export.js?v=7"></script>
-<script src="assets/html-export.js?v=2"></script>
-<script src="assets/uebersetzung.js?v=12"></script>
-<script src="assets/sprache-texte.js?v=38"></script>
-<script src="assets/sprache.js?v=1"></script>
-<script src="assets/sprechen.js?v=3"></script>
-<script src="assets/schieber.js?v=1"></script>
-<script src="assets/eingang.js?v=3"></script>
-<script src="assets/schluesseltresor.js?v=1"></script>
-<script src="assets/sicherung.js?v=1"></script>
-<script src="assets/app.js?v=59"></script>
+<script defer src="vendor/pdfjs/pdf.min.js"></script>
+<script defer src="vendor/qrcode.js"></script>
+<script defer src="assets/db.js?v=5"></script>
+<script defer src="assets/suche.js?v=2"></script>
+<script defer src="assets/bedeutung.js?v=2"></script>
+<script defer src="assets/zip.js?v=1"></script>
+<script defer src="assets/erkennung.js?v=5"></script>
+<script defer src="assets/blatt.js?v=1"></script>
+<script defer src="assets/scan-bild.js?v=7"></script>
+<script defer src="assets/scanner.js?v=13"></script>
+<script defer src="assets/export.js?v=7"></script>
+<script defer src="assets/html-export.js?v=2"></script>
+<script defer src="assets/uebersetzung.js?v=12"></script>
+<script defer src="assets/sprache-texte.js?v=38"></script>
+<script defer src="assets/sprache.js?v=2"></script>
+<script defer src="assets/sprechen.js?v=3"></script>
+<script defer src="assets/schieber.js?v=1"></script>
+<script defer src="assets/eingang.js?v=3"></script>
+<script defer src="assets/schluesseltresor.js?v=1"></script>
+<script defer src="assets/sicherung.js?v=1"></script>
+<script defer src="assets/app.js?v=59"></script>
+<!-- pdf-lib erst NACH app.js: die App wird nur zum Ausgeben gebraucht (kein Aufruf beim Start), so steht die Bibliothek früher da -->
+<script defer src="vendor/pdf-lib.min.js"></script>
 </body>
 </html>

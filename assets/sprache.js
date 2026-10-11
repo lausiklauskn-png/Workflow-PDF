@@ -289,6 +289,7 @@
 
   function start() {
     anwenden();
+    document.documentElement.removeAttribute('data-ue-wartet');
     beob.observe(document.documentElement, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ATTR });
   }
   function speichern() { try { localStorage.setItem(KEY, JSON.stringify({ lang: LANG, tipps: TIPPS })); } catch (_) {} }
