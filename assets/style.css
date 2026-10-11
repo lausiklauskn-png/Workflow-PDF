@@ -17,6 +17,7 @@ button{cursor:pointer}
   background:var(--flaeche);border-bottom:3px solid var(--rot);box-shadow:var(--schatten);min-height:64px}
 .floh-knopf{border:0;background:none;padding:0;width:60px;height:60px;flex:none}
 .floh{display:block;width:60px;height:60px;background:url(../icons/w-floh-160.png) center/contain no-repeat;
+  background-image:image-set(url(../icons/w-floh-120.webp) type('image/webp'),url(../icons/w-floh-160.png) type('image/png'));
   transform-origin:50% 90%;animation:floh-wippen 3.2s ease-in-out infinite}
 .floh.hopst{animation:floh-hopsen .7s ease-out 1}
 @keyframes floh-wippen{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-3px) rotate(2deg)}}

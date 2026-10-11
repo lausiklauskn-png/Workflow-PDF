@@ -35,6 +35,12 @@ npm install && npm test     # Syntax + Probe im echten Browser
   die Textebene stimmte, nur das Bild nicht. Kostet ~240 KB je PDF. `tests/schrift.mjs`
   misst die Tinte im gerenderten Bild (heil 0,74–0,79 · Teilmenge 0,11–0,35).
 - **Cache-Bump:** `CACHE_VERSION` in `sw.js` erhöhen, wenn eine App-Datei sich ändert.
+- **Lighthouse** (Klaus 2026-10-11, mobil 75): alle `<script>` mit `defer` — die Seite malt, bevor 630 KB JS
+  da sind. pdf-lib steht NACH app.js (beim Start nicht gebraucht). Wer nicht Deutsch gewählt hat, bekommt
+  `html[data-ue-wartet]` (Inline-Skript im Kopf, unsichtbar bis `sprache.js` übersetzt hat, spätestens 4 s) —
+  kein deutsches Aufblitzen. Floh als `w-floh-120.webp` (7 KB statt 29 KB, PNG als Rückfall). Lokal gemessen
+  (ohne gzip): FCP 3,1–11,5 s → 0,9 s; LCP bleibt (der Leer-Satz kommt aus app.js, wartet also auf alle
+  Skripte). Cache-TTL 10 Min. setzt GitHub Pages, nicht änderbar — der Service-Worker deckt Wiederbesuche.
 - **DB-Name `WorkflohPDF1` nie ändern** — github.io ist eine geteilte Adresse.
 - **Resize nur bei Breitenänderung neu zeichnen.** Die Bildschirmtastatur macht das
   Fenster niedriger; ein Neuzeichnen warf das Feld weg, in das getippt wurde
