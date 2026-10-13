@@ -4,6 +4,13 @@
    (fail-soft). Geprüft von tests/sprache.mjs. */
 (function(){ (window.WFP=window.WFP||{}).SPRACH_TEXTE = {
  "en": {
+  "lebt": "alive",
+  "verkehr": "traffic",
+  "fremd": "foreign",
+  "SBKIM-Knoten: lebt · verkehr · fremd — tippen zeigt Siegel und Netz": "SBKIM node: alive · traffic · foreign — tap to show seal and network",
+  "lebt — eigene Identität geladen": "alive — own identity loaded",
+  "verkehr — grün, solange am Relais gelauscht wird": "traffic — green while listening at the relay",
+  "fremd — rot nur bei echtem Fremdzugriff": "foreign — red only on real foreign access",
   "🔐 Bibliothek sichern und zurückholen …": "🔐 Back up and restore the library …",
   "🔐 Bibliothek sichern": "🔐 Back up the library",
   "Alle Ordner, Dokumente (mit Feldern und Einträgen) und PDF-Dateien in <b>eine Datei</b>, verschlüsselt mit einem eigenen Passwort. In der Datei steht kein lesbarer Text. Nicht mit dabei: KI-Schlüssel und Einstellungen.": "All folders, documents (with fields and entries) and PDF files in <b>one file</b>, encrypted with a password of its own. The file contains no readable text. Not included: AI keys and settings.",
@@ -930,6 +937,13 @@
   "Zurück und prüfen": "Go back and check"
  },
  "ru": {
+  "lebt": "жив",
+  "verkehr": "трафик",
+  "fremd": "чужое",
+  "SBKIM-Knoten: lebt · verkehr · fremd — tippen zeigt Siegel und Netz": "Узел SBKIM: жив · трафик · чужое — нажмите, чтобы показать печать и сеть",
+  "lebt — eigene Identität geladen": "жив — собственная идентичность загружена",
+  "verkehr — grün, solange am Relais gelauscht wird": "трафик — зелёный, пока идёт прослушивание реле",
+  "fremd — rot nur bei echtem Fremdzugriff": "чужое — красный только при настоящем чужом доступе",
   "🔐 Bibliothek sichern und zurückholen …": "🔐 Резервная копия библиотеки …",
   "🔐 Bibliothek sichern": "🔐 Резервная копия библиотеки",
   "Alle Ordner, Dokumente (mit Feldern und Einträgen) und PDF-Dateien in <b>eine Datei</b>, verschlüsselt mit einem eigenen Passwort. In der Datei steht kein lesbarer Text. Nicht mit dabei: KI-Schlüssel und Einstellungen.": "Все папки, документы (с полями и записями) и PDF-файлы в <b>одном файле</b>, зашифрованном отдельным паролем. В файле нет читаемого текста. Не входят: ключи ИИ и настройки.",
@@ -1856,6 +1870,13 @@
   "Zurück und prüfen": "Назад и проверить"
  },
  "ar": {
+  "lebt": "حيّ",
+  "verkehr": "حركة",
+  "fremd": "غريب",
+  "SBKIM-Knoten: lebt · verkehr · fremd — tippen zeigt Siegel und Netz": "عقدة SBKIM: حيّ · حركة · غريب — المس لعرض الختم والشبكة",
+  "lebt — eigene Identität geladen": "حيّ — تم تحميل الهوية الخاصة",
+  "verkehr — grün, solange am Relais gelauscht wird": "حركة — أخضر طالما يتم الاستماع إلى المرحّل",
+  "fremd — rot nur bei echtem Fremdzugriff": "غريب — أحمر فقط عند وصول غريب حقيقي",
   "🔐 Bibliothek sichern und zurückholen …": "🔐 نسخ المكتبة احتياطيًا واستعادتها …",
   "🔐 Bibliothek sichern": "🔐 نسخ المكتبة احتياطيًا",
   "Alle Ordner, Dokumente (mit Feldern und Einträgen) und PDF-Dateien in <b>eine Datei</b>, verschlüsselt mit einem eigenen Passwort. In der Datei steht kein lesbarer Text. Nicht mit dabei: KI-Schlüssel und Einstellungen.": "كل المجلدات والمستندات (مع الحقول والمدخلات) وملفات PDF في <b>ملف واحد</b>، مشفّر بكلمة مرور خاصة به. لا يحتوي الملف على نص مقروء. غير مشمول: مفاتيح الذكاء الاصطناعي والإعدادات.",

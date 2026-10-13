@@ -102,9 +102,13 @@
   const ATT = new WeakMap();    // Element → { attr: { o, t } }
   let aus = false;              // eigene Änderungen nicht selbst wieder beobachten
 
+  // SBKIM-Knoten (2026-10-13): Siegel, Mycel-Blase, Verbinden-Fenster und Fremdzugriff-Fenster bringen
+  // die Module selbst mit, samt eigener Deutsch/Englisch-Tabelle (Kanon aus Sage). Sie werden hier nicht
+  // übersetzt — sonst stünden zwei Übersetzungen übereinander. Russisch und Arabisch fallen dort auf Deutsch zurück.
+  const sbkimTeil = e => typeof e.id === 'string' && e.id.indexOf('sbkim-') === 0;
   const geschuetzt = el => {
     for (let e = el; e && e.nodeType === 1; e = e.parentElement) {
-      if (e.hasAttribute('data-kein-ue') || e.id === 'wfp-chrome') return true;
+      if (e.hasAttribute('data-kein-ue') || e.id === 'wfp-chrome' || sbkimTeil(e)) return true;
     }
     return false;
   };
@@ -240,7 +244,7 @@
     const stapel = [root];
     while (stapel.length) {
       const el = stapel.pop();
-      if (SKIP.has(el.tagName) || el.hasAttribute('data-kein-ue') || el.id === 'wfp-chrome') continue;
+      if (SKIP.has(el.tagName) || el.hasAttribute('data-kein-ue') || el.id === 'wfp-chrome' || sbkimTeil(el)) continue;
       attribute(el);
       if (richElement(el)) { for (const c of el.querySelectorAll('*')) attribute(c); continue; }
       for (const c of el.childNodes) {

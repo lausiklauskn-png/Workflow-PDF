@@ -764,6 +764,45 @@ auftauchen … Überall, wo ich Teilen machen kann."
   Browser, launchQueue gestellt) · `node tests/gegenprobe_teilen_empfang.mjs` (13 Fälle; `NUR_ANKER=1`). Cache v73 (v74 nach dem Nachziehen des Prüfkerns),
   `app.js?v=56`, `sprache-texte.js?v=34`.
 
+## 🕸 SBKIM-Knoten mit Netz-Einstellung (2026-10-13)
+
+Workflow PDF ist ein eigener SBKIM-Knoten, nach dem Muster des Sende-Prüfers. Er hat eine feste Leiste in der Kopfzeile
+und kein Modul 17. In der Mycel-Blase steht die Box „Netz“ (`[data-sbkim-netz-box]`): **öffentlich** ist die Vorgabe,
+ein **eigenes Netz** kommt über einen Beitritts-Link `#sbkim-netz=…` oder von Hand. Die Einstellung speichert Modul 23
+unter `sbkim_netz_workflowpdf`. **Der Netz-Code steht nie im Depot.**
+
+| | |
+|---|---|
+| Module | 01 02 05 05b 07 15 16 16b 23 23-UI noble unter `sbkim/`, **byte-1:1 aus Sage** (origin/main `49fb020`), gepinnt in `tests/knoten.mjs`. 04 ist die **vorhandene** `vendor/sbkim/04_match.js?v=1` (dieselbe Adresse wie die Suche nach Bedeutung, keine zweite Kopie; schon geladen → nicht noch einmal). **Modul 03 steht NICHT in der Kette**: die Suche nach Bedeutung lädt es erst auf „Modell laden“ (`tests/bedeutung.mjs` bewacht das, der erste volle Lauf war daran 2× rot); das Siegel führt 03 als „lazy“ |
+| Schublade | `workflowpdf` — im `<head>` vor jedem Skript UND im Klebstoff. **Nie ändern.** (Die DB der App bleibt `WorkflohPDF1`.) |
+| Klebstoff | `assets/sbkim-init.js` (Kette nach `load` im Leerlauf, Lampen, Auf-/Zuklappen, Gerätename) · `assets/siegel-inhalt.js` (Identität, Beschreibung) |
+| Membran | `allowedOrigins: []` |
+| Leiste | `#netzleiste` als Kind von `.kopf`: Lampen `#lamp-alive/-traffic/-fremd`, `#siegel-platz`, `[data-sbkim-mycel-platz]` |
+
+- **Bis 600 px hängt die Leiste als Lasche unter der Kopfzeile** (rechts, 24 px hoch). In der Zeile selbst war kein Platz:
+  „Workfloh PDF" wurde bei 320–520 px abgeschnitten (`tests/bibliothek.mjs` war erst 5× rot). Ein Tipp auf die Lampen
+  klappt Namen, Siegel und Blase auf; ein Tipp daneben oder Esc klappt zu. Ab 901 px stehen die Namen in der Leiste.
+- ⚠ Bei 481 px schneidet die Kopfzeile „Workfloh PDF" um 13 px ab — **auch auf main, ohne Knoten** (gemessen); nicht angefasst.
+- **Beim Laden geht nichts ins Netz**: kein WebSocket, kein fremder Abruf. Verbinden braucht einen Klick in der Mycel-Blase.
+- Die Module stehen **nicht** im Installations-Vorrat (der Worker legt sie beim ersten Abruf ab); Klebstoff und Identität schon.
+- `sprache.js` übersetzt nichts in Elementen mit `sbkim-`-Kennung (dort sprechen die Kanon-Module selbst DE/EN);
+  die Lampen-Namen haben Einträge in EN/RU/AR.
+- Proben: `tests/knoten.mjs` (in `npm test`; ohne Browser: Pins, Schublade vor jedem Skript, Kette und Kommas, Vorrat,
+  Identität, ?v=; im Browser bei 1280/520/380/360/320 px: Kette durch, Lampen, Siegel 28×28, Blase mit Netz-Box und
+  Gerätename, kein WebSocket und kein fremder Abruf, Kopfzeile ohne Überlauf, Lasche verdeckt keinen Knopf) ·
+  `node tests/gegenprobe_knoten.mjs` (13 Fälle, Wegwerf-Kopie; `NUR_ANKER=1`, `NUR_FALL="…"`).
+- ⚠ **Playwrights `websocket`-Ereignis kommt hinter dem Ausgangs-Proxy des Behälters nicht an** (gemessen: 0 Ereignisse für ein
+  echtes `new WebSocket`). Der Wächter „kein WebSocket beim Laden“ war dadurch zuerst **blind** (Gegenprobe: 1 durchgerutscht);
+  `tests/knoten.mjs` zählt jetzt zusätzlich jeden Aufruf des Konstruktors (Init-Skript).
+- ⚠ **Benannte Grenze:** das Wappen im Siegel (Modul 16) zeichnet seinen Text einmal beim Einhängen in der Sprache von damals;
+  nach dem Umschalten spricht es bis zum nächsten Laden die alte Sprache. `tests/sprache.mjs` blendet es im Rundreise-Vergleich
+  aus und wartet auf `WFP_KNOTEN_BEREIT` (sonst verglich er zwei verschiedene Augenblicke: 3× rot).
+- Gemessen 2026-10-13: `npm test` **Rückgabe 0, 26 Proben, 1235 grün · 0 ROT** (`knoten.mjs` 126, `bibliothek.mjs` 58,
+  `sprache.mjs` 49) · Gegenprobe **13 gefangen · 0 durchgerutscht · 0 aus falschem Grund · 0 tote Anker** · `NUR_ANKER` 13 · 0 tot.
+- Cache v81.
+- ⚠ Nicht gemessen: das Tablet; ein echtes Relais (das interne `relay-intern.family-projekt.de` steht noch nicht); der Beitritt
+  zu einem eigenen Netz; wie das Siegel-Fenster am Handy aussieht.
+
 ## Netzweit
 
 Freibrief · frisch von `origin/main` · Ton · kein PII · Ehrlichkeit:
