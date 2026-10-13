@@ -321,7 +321,9 @@
     });
   }
   async function modulLaden() {
-    if (!window.SbkimEmbedding) await skriptLaden('vendor/sbkim/03_embedding.js?v=1');
+    // Sprachmodell vom eigenen Server (Klaus 2026-10-13); antwortet er nicht, nimmt Modul 03 Hugging Face
+    if (!window.SBKIM_MODEL_ROOT) window.SBKIM_MODEL_ROOT = 'https://family-projekt.de/models/';
+    if (!window.SbkimEmbedding) await skriptLaden('vendor/sbkim/03_embedding.js?v=2');
     if (!window.SbkimMatch) await skriptLaden('vendor/sbkim/04_match.js?v=1');
     if (!window.SbkimEmbedding || !window.SbkimMatch) throw new Error('Modul 03/04 nicht geladen');
   }
@@ -360,7 +362,7 @@
     const an = BED.zustand !== 'aus';
     dialog(`<h2>🧠 Suche nach Bedeutung</h2>
       <p>Die Wortsuche findet, was wörtlich dasteht. Die Suche nach Bedeutung findet auch Dokumente, in denen <b>andere Wörter</b> stehen — „Kündigung" findet den Brief, in dem „Vertrag beenden" steht.</p>
-      <p><b>Was dafür aus dem Netz kommt:</b> einmalig ein Sprachmodell (multilingual-e5-small, rund 30 MB) von jsDelivr und Hugging Face. Der Balken zeigt, wie viel schon da ist. Danach liegt es im Speicher dieses Browsers.</p>
+      <p><b>Was dafür aus dem Netz kommt:</b> einmalig ein Sprachmodell (multilingual-e5-small, rund 135 MB): das Programm von jsDelivr, die Modelldateien vom Server des Betreibers (family-projekt.de); antwortet er nicht, von Hugging Face. Der Balken zeigt, wie viel schon da ist. Danach liegt es im Speicher dieses Browsers.</p>
       <p><b>Was NICHT ins Netz geht:</b> deine Dokumente. Sie werden auf diesem Gerät eingeordnet.</p>
       <p class="hinweis">Eingeordnet werden <b>alle Seiten</b>, Satz für Satz. Bei einem langen Handbuch dauert das — die Leiste zeigt die Seite und die gemessene Zeit, und nach einer Unterbrechung geht es an derselben Stelle weiter. Suchen geht schon währenddessen.</p>
       <p class="hinweis">Gezeigt wird, was höchstens ${String(BD.ABSTAND).replace('.', ',')} hinter dem besten Treffer liegt (nie unter ${String(BD.NAEHE_MIN).replace('.', ',')}), höchstens ${BD.MAX_ZEIGEN} Dokumente. Bei Fragen aus mehreren Wörtern zählen die Wörter mit.</p>
