@@ -782,7 +782,7 @@ unter `sbkim_netz_workflowpdf`. **Der Netz-Code steht nie im Depot.**
 - **Bis 600 px hängt die Leiste als Lasche unter der Kopfzeile** (rechts, 24 px hoch). In der Zeile selbst war kein Platz:
   „Workfloh PDF" wurde bei 320–520 px abgeschnitten (`tests/bibliothek.mjs` war erst 5× rot). Ein Tipp auf die Lampen
   klappt Namen, Siegel und Blase auf; ein Tipp daneben oder Esc klappt zu. Ab 901 px stehen die Namen in der Leiste.
-- ⚠ Bei 481 px schneidet die Kopfzeile „Workfloh PDF" um 13 px ab — **auch auf main, ohne Knoten** (gemessen); nicht angefasst.
+- ✅ **Kopfzeile bei 481–499 px behoben (2026-10-13).** Hier stand: *„Bei 481 px schneidet die Kopfzeile „Workfloh PDF" um 13 px ab — auch auf main, ohne Knoten; nicht angefasst."* Gemessen auf main: 481 und 490 px abgeschnitten (Schriftzug 133 px, Platz 120 px), 500 px knapp grün. Die 480er-Verdichtung (Floh 42 px, Knöpfe 34 px, Name 1.08rem, darf umbrechen) gilt jetzt bis **520 px**. `tests/bibliothek.mjs` misst 320 · 360 · 390 · 412 · 470 · 480 · 481 · 490 · 500 · 520 · 560 · 600 · 640 px (90 grün). Gegenprobe-Fall „Verdichtung greift wieder erst ab 480 px“ fängt mit genau den drei Zeilen von main; `gegenprobe_bibliothek.mjs` kennt jetzt `NUR_FALL`. Cache v82, `style.css?v=38`. ⚠ Am Tablet nicht gemessen.
 - **Beim Laden geht nichts ins Netz**: kein WebSocket, kein fremder Abruf. Verbinden braucht einen Klick in der Mycel-Blase.
 - Die Module stehen **nicht** im Installations-Vorrat (der Worker legt sie beim ersten Abruf ab); Klebstoff und Identität schon.
 - `sprache.js` übersetzt nichts in Elementen mit `sbkim-`-Kennung (dort sprechen die Kanon-Module selbst DE/EN);

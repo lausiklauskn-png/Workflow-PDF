@@ -55,7 +55,7 @@ try {
   ok('7 · … die Lupe als Knopf rechts bleibt (Suchen)', such.lupen === 1 && /🔍/.test(such.knopf), such);
 
   // 3 · Kopfleiste bei verschiedenen Breiten
-  for (const w of [320, 360, 390, 412, 480]) {
+  for (const w of [320, 360, 390, 412, 470, 480, 481, 490, 500, 520, 560, 600, 640]) {
     await page.setViewportSize({ width: w, height: 740 }); await page.waitForTimeout(80);
     const k = await page.evaluate((w) => {
       const name = document.querySelector('.marke-name'), rng = document.createRange(); rng.selectNodeContents(name);
