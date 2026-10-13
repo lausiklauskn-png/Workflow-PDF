@@ -1,7 +1,7 @@
 /* Gegenprobe zu tests/bibliothek.mjs: baut in einer WEGWERF-KOPIE je einen Fehler ein.
    Jeder Fall muss die Probe umwerfen — mit einer roten Zeile, die zu ihm passt („trifft").
    Ein Anker, der nicht genau einmal vorkommt, ist ein toter Anker — dann wurde nichts sabotiert.
-   NUR_ANKER=1 prüft nur die Anker (Sekunden, ohne Browser).
+   NUR_ANKER=1 prüft nur die Anker (Sekunden, ohne Browser). NUR_FALL="…" fährt nur Fälle, deren Name das enthält.
    Nicht in npm test (dauert); Aufruf: node tests/gegenprobe_bibliothek.mjs */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,7 +22,8 @@ const FAELLE = [
   { name: 'der Pfeil sitzt auf dem Auswahl-Punkt', datei: C, anker: '.dok-hoch{position:absolute;right:40px;', ersatz: '.dok-hoch{position:absolute;right:6px;', trifft: /links neben dem Auswahl-Punkt/ },
   // 3 · Kopfleiste
   { name: 'der Bedeutungs-Knopf macht die Seite bei 320 px wieder breiter (328 px, wie auf main)', datei: C, anker: '.bedeutung-leiste .knopf{white-space:normal;text-align:left;max-width:100%}', ersatz: '', trifft: /320 px: die Seite ist nicht breiter/ },
-  { name: 'Kopfleiste am Handy ohne Verkleinerung', datei: C, anker: '@media (max-width:480px){.kopf{gap:6px;', ersatz: '@media (max-width:1px){.kopf{gap:6px;', trifft: /überlagern den Schriftzug nicht|nicht abgeschnitten/ },
+  { name: 'Kopfleiste am Handy ohne Verkleinerung', datei: C, anker: '@media (max-width:520px){.kopf{gap:6px;', ersatz: '@media (max-width:1px){.kopf{gap:6px;', trifft: /überlagern den Schriftzug nicht|nicht abgeschnitten/ },
+  { name: 'die Verdichtung greift wieder erst ab 480 px (Kopfzeile bei 481–499 px abgeschnitten, wie auf main)', datei: C, anker: '@media (max-width:520px){.kopf{gap:6px;', ersatz: '@media (max-width:480px){.kopf{gap:6px;', trifft: /481 px/ },
   { name: 'der Schriftzug darf nicht umbrechen (schmalste Breite)', datei: C, anker: '.marke-name{font-size:1.08rem;white-space:normal;line-height:1.05}', ersatz: '.marke-name{font-size:1.08rem}', trifft: /überlagern den Schriftzug nicht|nicht abgeschnitten/ },
   { name: 'die Knöpfe werden zu klein zum Treffen', datei: C, anker: '.ikon{width:31px;height:31px;', ersatz: '.ikon{width:22px;height:22px;', trifft: /treffbar/ },
   // 4 · Erstellungsdatum
@@ -66,7 +67,7 @@ if (process.env.NUR_ANKER) {
 kopieren();
 const basis = lauf();
 if (basis.status !== 0) { console.log('Ausgangslage ist schon rot — Gegenprobe misst nichts.\n' + basis.stdout.slice(-1500)); process.exit(2); }
-for (const f of FAELLE) {
+for (const f of FAELLE.filter(f => !process.env.NUR_FALL || f.name.includes(process.env.NUR_FALL))) {
   kopieren();
   if (!tausche(f.datei, f.anker, f.ersatz)) { tot++; console.log('  ☠ TOTER ANKER: ' + f.name); continue; }
   const r = lauf(); const rote = (r.stdout || '').split('\n').filter(l => l.includes('✗ ROT'));
