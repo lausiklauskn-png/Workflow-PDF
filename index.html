@@ -13,7 +13,9 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1">
 <link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png?v=1">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1">
-<link rel="stylesheet" href="assets/style.css?v=36">
+<!-- SBKIM-Knoten (2026-10-13): Modul 01 liest die Schublade BEIM LADEN — deshalb steht sie hier, vor allem anderen. Nie ändern. -->
+<script>window.SBKIM_DB_SUFFIX = "workflowpdf";</script>
+<link rel="stylesheet" href="assets/style.css?v=37">
 <!-- Lighthouse 2026-10-11: Skripte laufen mit defer, die Seite malt vorher. Wer eine andere Sprache als Deutsch
      gewählt hat, sieht die Seite erst nach der Übersetzung (sprache.js nimmt die Marke weg) — kein deutsches Aufblitzen. -->
 <script>try{var l=JSON.parse(localStorage.getItem('wfpdf_sprache_v1')||'{}').lang;if(l&&l!=='de'){var h=document.documentElement;h.setAttribute('data-ue-wartet','');if(l==='ar')h.dir='rtl';setTimeout(function(){h.removeAttribute('data-ue-wartet')},4000)}}catch(e){}</script>
@@ -27,6 +29,20 @@
   <div class="marke">
     <div class="marke-name" data-kein-ue>Workfloh <b>PDF</b></div>
     <div class="marke-sub" id="kopfSub">Formulare einlesen · Felder setzen · übersetzen · PDF ausgeben</div>
+  </div>
+  <!-- SBKIM-Knoten: Lampen, Siegel, Mycel-Blase. Breit steht die Leiste vor den Knöpfen; am Handy (≤ 480 px)
+       hängt sie als Lasche unter der Kopfzeile, damit „Workfloh PDF" bei 320 px ganz dasteht. -->
+  <div class="netzleiste" id="netzleiste" data-offen="0">
+    <button class="lampen" id="lampen" type="button" aria-expanded="false" aria-controls="netz-mehr" title="SBKIM-Knoten: lebt · verkehr · fremd — tippen zeigt Siegel und Netz">
+      <span class="lamp" id="lamp-alive" title="lebt — eigene Identität geladen"><span class="lamp-t">lebt</span></span>
+      <span class="lamp" id="lamp-traffic" title="verkehr — grün, solange am Relais gelauscht wird"><span class="lamp-t">verkehr</span></span>
+      <span class="lamp" id="lamp-fremd" title="fremd — rot nur bei echtem Fremdzugriff"><span class="lamp-t">fremd</span></span>
+    </button>
+    <span class="netz-mehr" id="netz-mehr">
+      <span class="lampen-legende" aria-hidden="true"><span class="lamp" data-lampe-kopie="lamp-alive">lebt</span><span class="lamp" data-lampe-kopie="lamp-traffic">verkehr</span><span class="lamp" data-lampe-kopie="lamp-fremd">fremd</span></span>
+      <span class="siegel-platz" id="siegel-platz" data-kein-ue></span>
+      <span class="mycel-platz" data-sbkim-mycel-platz data-kein-ue></span>
+    </span>
   </div>
   <div class="kopf-rechts">
     <button class="knopf klein rot" id="btnInstall" hidden title="Als App auf dieses Gerät legen">📲<span class="lang"> Installieren</span></button>
@@ -126,8 +142,8 @@
 <script defer src="assets/export.js?v=7"></script>
 <script defer src="assets/html-export.js?v=2"></script>
 <script defer src="assets/uebersetzung.js?v=12"></script>
-<script defer src="assets/sprache-texte.js?v=39"></script>
-<script defer src="assets/sprache.js?v=2"></script>
+<script defer src="assets/sprache-texte.js?v=40"></script>
+<script defer src="assets/sprache.js?v=3"></script>
 <script defer src="assets/sprechen.js?v=3"></script>
 <script defer src="assets/schieber.js?v=1"></script>
 <script defer src="assets/eingang.js?v=3"></script>
@@ -136,5 +152,7 @@
 <script defer src="assets/app.js?v=60"></script>
 <!-- pdf-lib erst NACH app.js: die App wird nur zum Ausgeben gebraucht (kein Aufruf beim Start), so steht die Bibliothek früher da -->
 <script defer src="vendor/pdf-lib.min.js"></script>
+<!-- SBKIM-Knoten (2026-10-13): Lampen, Siegel, Mycel-Blase. Die Module lädt sbkim-init.js erst nach dem Laden in einer Leerlauf-Pause; beim Laden geht nichts ins Netz. -->
+<script defer src="assets/sbkim-init.js?v=1"></script>
 </body>
 </html>
