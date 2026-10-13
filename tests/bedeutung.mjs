@@ -29,7 +29,7 @@ await import(pathToFileURL(path.join(WURZEL, 'assets/bedeutung.js')).href);
 const BD = globalThis.__WFP_BEDEUTUNG;
 
 // Sage-Module sind byte-1:1 — dort pflegen, hier neu kopieren (Stand Sage 4fe124d)
-const PIN = { '03_embedding.js': 'e4bb8bd6a237914e7841cab5165912daf636adf0ee90c5d4ffd0c74cc5d706e5', '04_match.js': '5de95923c3f62f141e94f576feebcac0eecc55c60e40b564540a56420436a4cd' };
+const PIN = { '03_embedding.js': 'a6ac64d7536da3fa5cc426d0f7db9440fdaf5ab4460f0bdc66a10eb8203b1b68', '04_match.js': '5de95923c3f62f141e94f576feebcac0eecc55c60e40b564540a56420436a4cd' };
 for (const [f, sha] of Object.entries(PIN)) {
   const p = path.join(WURZEL, 'vendor/sbkim', f);
   const ist = fs.existsSync(p) ? crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex') : 'fehlt';
@@ -209,7 +209,7 @@ else {
 
     await page.click('[data-bed-an]');
     const dlg = await page.textContent('.dlg');
-    ok('Dialog: sagt VORHER, was aus dem Netz kommt (jsDelivr, Hugging Face, Größe)', /jsDelivr/.test(dlg) && /Hugging Face/.test(dlg) && /30 MB/.test(dlg), dlg.slice(0, 300));
+    ok('Dialog: sagt VORHER, was aus dem Netz kommt (jsDelivr, eigener Server, Hugging Face, Größe)', /jsDelivr/.test(dlg) && /Hugging Face/.test(dlg) && /135 MB/.test(dlg) && /family-projekt\.de/.test(dlg), dlg.slice(0, 300));
     ok('Dialog: sagt, dass die Dokumente NICHT ins Netz gehen', /NICHT ins Netz/.test(dlg) && /deine Dokumente/.test(dlg));
     ok('Dialog: noch nichts geladen, solange nicht „Modell laden" gedrückt ist', await page.evaluate(() => !window.SbkimEmbedding));
     await page.evaluate(() => { window.__stubTakt = 150; window.__stand = []; const l = document.getElementById('bedeutungLeiste');
