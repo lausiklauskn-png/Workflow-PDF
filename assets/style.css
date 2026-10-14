@@ -555,6 +555,8 @@ div.dok-pruefung{cursor:default;font-weight:600;opacity:.8}
 /* Prüfbericht für jedes geprüfte Dokument (Klaus 2026-10-14): ruhig, keine Warnfarbe */
 .dok-pruefung.ok{background:#eef7ef;border-color:#7fb38a;color:#235c31}
 .dok-pruefung.laeuft{display:flex;align-items:center;gap:7px}
+.dok-pruefung.offen{background:#fff8e6;border-color:#c99a2e;color:#6b4a00}
+.ed-pruefung{display:inline-flex;align-items:center}.ed-pruefung[hidden]{display:none}.ed-pruefung .dok-pruefung{margin-top:0}
 .pruef-dreh{width:12px;height:12px;flex:0 0 12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:pruefDreh .9s linear infinite}
 @keyframes pruefDreh{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.pruef-dreh{animation:none;border-right-color:currentColor;opacity:.6}}

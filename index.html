@@ -15,7 +15,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1">
 <!-- SBKIM-Knoten (2026-10-13): Modul 01 liest die Schublade BEIM LADEN — deshalb steht sie hier, vor allem anderen. Nie ändern. -->
 <script>window.SBKIM_DB_SUFFIX = "workflowpdf";</script>
-<link rel="stylesheet" href="assets/style.css?v=40">
+<link rel="stylesheet" href="assets/style.css?v=41">
 <!-- Lighthouse 2026-10-11: Skripte laufen mit defer, die Seite malt vorher. Wer eine andere Sprache als Deutsch
      gewählt hat, sieht die Seite erst nach der Übersetzung (sprache.js nimmt die Marke weg) — kein deutsches Aufblitzen. -->
 <script>try{var l=JSON.parse(localStorage.getItem('wfpdf_sprache_v1')||'{}').lang;if(l&&l!=='de'){var h=document.documentElement;h.setAttribute('data-ue-wartet','');if(l==='ar')h.dir='rtl';setTimeout(function(){h.removeAttribute('data-ue-wartet')},4000)}}catch(e){}</script>
@@ -104,6 +104,7 @@
       </div>
       <button class="knopf" id="edErkennen" title="Formularfelder erkennen lassen">🤖<span class="lang"> Felder</span> erkennen</button>
       <button class="knopf" id="edZuschneiden" title="Zuschneiden, gerade ziehen, Seitengröße wählen">✂️<span class="lang"> Zuschneiden</span></button>
+      <span id="edPruefung" class="ed-pruefung" hidden></span>
       <div class="zoom"><button class="knopf klein" id="zMinus" title="Kleiner">−</button><button class="knopf klein" id="zPlus" title="Größer">+</button></div>
       <button class="knopf" id="edSpeichern" title="Speichern · Arbeitsstand als Datei sichern">💾<span class="lang"> Speichern</span></button>
       <button class="knopf" id="edTeilen" title="Teilen mit … (E-Mail, Messenger …)">📤<span class="lang"> Teilen</span></button>
@@ -131,7 +132,7 @@
 
 <script defer src="vendor/pdfjs/pdf.min.js"></script>
 <script defer src="vendor/qrcode.js"></script>
-<script defer src="assets/db.js?v=5"></script>
+<script defer src="assets/db.js?v=6"></script>
 <script defer src="assets/suche.js?v=2"></script>
 <script defer src="assets/bedeutung.js?v=2"></script>
 <script defer src="assets/zip.js?v=1"></script>
@@ -142,14 +143,14 @@
 <script defer src="assets/export.js?v=7"></script>
 <script defer src="assets/html-export.js?v=2"></script>
 <script defer src="assets/uebersetzung.js?v=12"></script>
-<script defer src="assets/sprache-texte.js?v=42"></script>
+<script defer src="assets/sprache-texte.js?v=43"></script>
 <script defer src="assets/sprache.js?v=3"></script>
 <script defer src="assets/sprechen.js?v=3"></script>
 <script defer src="assets/schieber.js?v=1"></script>
 <script defer src="assets/eingang.js?v=5"></script>
 <script defer src="assets/schluesseltresor.js?v=1"></script>
-<script defer src="assets/sicherung.js?v=1"></script>
-<script defer src="assets/app.js?v=62"></script>
+<script defer src="assets/sicherung.js?v=2"></script>
+<script defer src="assets/app.js?v=63"></script>
 <!-- pdf-lib erst NACH app.js: die App wird nur zum Ausgeben gebraucht (kein Aufruf beim Start), so steht die Bibliothek früher da -->
 <script defer src="vendor/pdf-lib.min.js"></script>
 <!-- SBKIM-Knoten (2026-10-13): Lampen, Siegel, Mycel-Blase. Die Module lädt sbkim-init.js erst nach dem Laden in einer Leerlauf-Pause; beim Laden geht nichts ins Netz. -->

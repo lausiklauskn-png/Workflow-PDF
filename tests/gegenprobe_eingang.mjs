@@ -17,13 +17,13 @@ const E = 'assets/eingang.js', A = 'assets/app.js';
 const FAELLE = [
   { name: 'unsichtbarer Text im PDF wird nicht mehr gemeldet', datei: E, anker: "'PDF-VERSTECKTER-TEXT', 'VERSTECKTER-TEXT',", ersatz: "'VERSTECKTER-TEXT',", trifft: /0D \(weißer|PDF: unsichtbarer/ },
   { name: 'die markierte Kopie fällt weg', datei: E, anker: 'markiert: m, art: r.art, zeit', ersatz: 'markiert: null, art: r.art, zeit', trifft: /markiert/ },
-  { name: 'geprüft wird das daraus gebaute PDF statt des Fotos', datei: A, anker: "original ? original.bytes : bytes);", ersatz: "bytes);", trifft: /Foto|Bild/ },
+  { name: 'geprüft wird das daraus gebaute PDF statt des Fotos', datei: A, anker: "const b = o && o.bytes ? o.bytes : await DB.getFile(id);", ersatz: "const b = await DB.getFile(id);", trifft: /Foto|Bild|ORIGINALFOTO/ },
   { name: 'ein „sauber" aus einer fremden Arbeitsstand-Datei wird geglaubt', datei: A, anker: '        delete d.pruefung;                                  // ein Befund', ersatz: '        // ein Befund', trifft: /fremde[nm] Arbeitsstand/ },
   { name: 'der offene Editor bekommt den Befund nicht', datei: A, anker: 'if (S.doc && S.doc.id === id) S.doc.pruefung = r;', ersatz: ';', trifft: /Editor/ },
   { name: 'der Dialog öffnet sich nicht mehr von selbst', datei: A, anker: "if (r.stand === 'warnung' && !document.querySelector('.dlg')) pruefDialog(id);", ersatz: ';', trifft: /von selbst/ },
   { name: 'die Karte bekommt nach der Prüfung keine Marke', datei: A, anker: "      markeErneuern(id);\n      // Ein Fenster genügt", ersatz: "      // Ein Fenster genügt", trifft: /Marke/ },
   { name: 'der Satz „Nichts wurde entfernt" fehlt', datei: A, anker: '<p class="hinweis" data-pruef-original>Nichts wurde entfernt:', ersatz: '<p class="hinweis">Nichts wurde entfernt:', trifft: /Nichts wurde entfernt|Absender/ },
-  { name: 'der Hilfe-Knopf holt die Testdatei, liest sie aber nicht ein', datei: A, anker: "await importDateien([new File([await r.blob()], name, { type: typ })], 'Beispiele', { still: true });", ersatz: 'await r.blob();', trifft: /Hilfe → 🧪/ },
+  { name: 'der Hilfe-Knopf holt die Testdatei, liest sie aber nicht ein', datei: A, anker: "await importDateien([new File([await r.blob()], name, { type: typ })], 'Beispiele', { still: true, pruefen: true });", ersatz: 'await r.blob();', trifft: /Hilfe → 🧪/ },
   // Herkunftsnachweis (C2PA, Klaus 2026-10-14): eine Angabe, nie eine Warnung
   { name: 'HERKUNFT: der Nachweis landet in der Warnliste', datei: E, anker: "'BILD-LSB-VERDACHT', 'PDF-ANHANG', 'ANHANG-PROGRAMM', 'ANHANG-TARNUNG'];", ersatz: "'BILD-LSB-VERDACHT', 'PDF-ANHANG', 'ANHANG-PROGRAMM', 'ANHANG-TARNUNG', 'PDF-HERKUNFT', 'BILD-HERKUNFT'];", trifft: /Warnung|Warnliste/ },
   { name: 'HERKUNFT: das Ergebnis trägt keine Herkunft mehr', datei: E, anker: 'markiert: m, art: r.art, zeit, herkunft, angaben };', ersatz: 'markiert: m, art: r.art, zeit, angaben };', trifft: /HERKUNFT|Herkunft/ },
@@ -33,6 +33,13 @@ const FAELLE = [
   { name: 'BERICHT: ein sauberes Dokument hat wieder keine Marke', datei: A, anker: `return '<button class="dok-pruefung ok" data-pruef data-pruefung="sauber">✓ Geprüft · Prüfbericht</button>';`, ersatz: "return '';", trifft: /ruhige Marke/ },
   { name: 'BERICHT: die Angaben werden nicht mehr aufgehoben', datei: E, anker: 'const angaben = alle.filter(x => !WARN.includes(x.kennung) && !HERKUNFT.includes(x.kennung))', ersatz: 'const angaben = [].filter(x => x)', trifft: /Metadaten als Angabe|Was sonst in der Datei steht/ },
   { name: 'BERICHT: der Knopf „als Textdatei" fehlt', datei: A, anker: '<button class="knopf" data-bericht-laden>⬇ Prüfbericht als Textdatei</button>', ersatz: '', trifft: /Pruefbericht\.txt|Prüfbericht als Textdatei/ },
+  { name: 'MANUELL: das Einlesen prüft wieder von selbst', datei: A, anker: 'if (pruefen && EINGANG_QUELLEN.includes(quelle)) pruefungNachholen([d.id]);', ersatz: 'if (EINGANG_QUELLEN.includes(quelle)) pruefungNachholen([d.id]);', trifft: /läuft KEINE Prüfung|keine Prüfung läuft/ },
+  { name: 'MANUELL: ungeprüfte Dokumente tragen keinen Knopf', datei: A, anker: `if (!p) return pruefbar(d) ? '<button class="dok-pruefung offen"`, ersatz: `if (!p) return false ? '<button class="dok-pruefung offen"`, trifft: /jetzt prüfen/ },
+  { name: 'MANUELL: der Knopf im Editor tut nichts', datei: A, anker: 'if (d) pruefKnopfBinden(w, d.id);', ersatz: '', trifft: /Tipp im Editor startet/ },
+  { name: 'MANUELL: der Knopf an der Karte öffnet das Dokument mit', datei: A, anker: 'nk.onclick = e => { e.stopPropagation(); pruefungNachholen([id]); };', ersatz: 'nk.onclick = e => { pruefungNachholen([id]); };', trifft: /statt das Dokument zu öffnen/ },
+  { name: 'MANUELL: geprüft wird das PDF statt des Originalfotos', datei: A, anker: "const o = await DB.get('files', id + ORIGINAL);", ersatz: 'const o = null;', trifft: /ORIGINALFOTO/ },
+  { name: 'MANUELL: das Originalfoto bleibt nach der Prüfung liegen', datei: A, anker: 'if (originalWeg) await DB.del(\'files\', id + ORIGINAL);', ersatz: '', trifft: /Original ist danach weg/ },
+  { name: 'MANUELL: Löschen lässt das Originalfoto liegen', datei: 'assets/db.js', anker: "st.delete(id); if (store === 'files' && !String(id).endsWith('~original')) st.delete(id + '~original');", ersatz: 'st.delete(id);', trifft: /Original mit/ },
   { name: 'eingang.js fehlt im Offline-Vorrat', datei: 'sw.js', anker: "'./assets/eingang.js?v=5', ", ersatz: '', trifft: /Offline-Vorrat/ }
 ];
 

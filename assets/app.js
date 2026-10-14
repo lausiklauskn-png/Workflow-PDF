@@ -278,7 +278,7 @@
       const fz = el.querySelector('[data-fundzeilen]'); if (fz) fz.onclick = auf;
       el.querySelector('[data-haken]').onclick = () => { WAHL_AN = true; wahlUmschalten(id); };
       el.querySelector('[data-hoch]').onclick = ganzNachOben;
-      const pk = el.querySelector('[data-pruef]'); if (pk) pk.onclick = () => pruefDialog(id);
+      pruefKnopfBinden(el, id);
       const tk = el.querySelector('[data-teilen]'); if (tk) tk.onclick = () => teilenDocs([id]);   // Platzhalter, kein Ausstieg
       ziehenBinden(el, id);
       el.querySelector('[data-verschieben]').onclick = () => verschieben(id);
@@ -888,15 +888,19 @@
     }
     return out;
   }
-  async function neuesDok(name, bytes, quelle, folderId, original) {
+  async function neuesDok(name, bytes, quelle, folderId, original, pruefen) {
     const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
     const d = { id: uid(), name, folderId: folderId || null, quelle, createdAt: jetzt(), updatedAt: jetzt(),
       pages: await seitenInfo(pdf), thumb: await vorschaubild(pdf), fields: await vorhandeneFelder(pdf) };
     const text = await seitenText(pdf);
     try { pdf.destroy(); } catch (_) {}
     await DB.putFile(d.id, bytes); await DB.put('docs', d); await textAblegen(d.id, text);
-    // Was von außen kommt (PDF, Foto), wird beim Einlesen geprüft — eigene Ausgaben (Übersetzung, Teil) nicht
-    if (EINGANG_QUELLEN.includes(quelle)) eingangPruefen(d.id, original ? original.name : name + '.pdf', original ? original.bytes : bytes);
+    /* Geprüft wird nur auf Knopfdruck (Klaus 2026-10-14: „400 Seiten eines Buches … obwohl nicht
+       notwendig, weil die Datei schon mehrfach geprüft wurde"). ⚠ Tafel-Evolution: bis dahin lief die
+       Prüfung bei jedem Einlesen. Das Originalfoto wird bis zur Prüfung aufgehoben — im PDF daraus
+       fehlen Metadaten, Herkunftsnachweis und die Bildpunkte, die die Prüfung lesen soll. */
+    if (original && EINGANG_QUELLEN.includes(quelle)) await DB.put('files', { id: d.id + ORIGINAL, name: original.name, bytes: original.bytes });
+    if (pruefen && EINGANG_QUELLEN.includes(quelle)) pruefungNachholen([d.id]);
     return d;
   }
   // Ein abgelegtes Dokument mit neuem Inhalt: Kennung, Ordner und Anlagedatum bleiben
@@ -907,7 +911,7 @@
     const text = await seitenText(pdf);
     try { pdf.destroy(); } catch (_) {}
     await DB.putFile(d.id, bytes); await DB.put('docs', d); await textAblegen(d.id, text);
-    if (EINGANG_QUELLEN.includes(d.quelle)) eingangPruefen(d.id, d.name + '.pdf', bytes);
+    await DB.del('files', d.id + ORIGINAL);           // das alte Original gehört nicht mehr zu diesem Inhalt
     return d;
   }
   let _persistGefragt = false;
@@ -921,7 +925,7 @@
      brächten ein Tablet ins Schwitzen. */
   const EINGANG_QUELLEN = ['pdf', 'foto'];
   const PRUEF = { laufend: new Set(), kette: Promise.resolve(), fertig: 0 };
-  function eingangPruefen(id, name, bytes) {
+  function eingangPruefen(id, name, bytes, originalWeg) {
     if (!window.WFP || !WFP.Eingang) return;
     const b = new Uint8Array(bytes).slice(0);
     PRUEF.laufend.add(id);
@@ -930,6 +934,7 @@
       const d = await DB.get('docs', id);
       if (!d) { PRUEF.laufend.delete(id); PRUEF.fertig++; return; }   // inzwischen gelöscht
       d.pruefung = r; await DB.put('docs', d);
+      if (originalWeg) await DB.del('files', id + ORIGINAL);   // geprüft — das Originalfoto wird nicht mehr gebraucht
       // Dasselbe Objekt behalten, nur die Angabe setzen: andere Stellen (Suche, Einordnen) halten es in der Hand
       const e = S.docs.find(x => x.id === id); if (e) e.pruefung = r;
       if (S.doc && S.doc.id === id) S.doc.pruefung = r;  // sonst überschriebe das nächste Speichern den Befund
@@ -949,18 +954,41 @@
      und am Tablet spränge sie unter dem Finger. Steht die Karte (noch) nicht da, zeichnet das
      nächste Zeichnen sie ohnehin mit der richtigen Marke. */
   function markeErneuern(id) {
+    if (S.doc && S.doc.id === id) edPruefungZeigen();
     const k = document.querySelector(`.dok[data-id="${id}"]`), d = S.docs.find(x => x.id === id);
     if (!k || !d) return;
     const alt = k.querySelector('.dok-pruefung'); if (alt) alt.remove();
     const html = pruefMarke(d); if (!html) return;
     const metas = k.querySelectorAll(':scope .dok-meta'), nach = metas[metas.length - 1];
     if (nach) nach.insertAdjacentHTML('afterend', html); else k.insertAdjacentHTML('beforeend', html);
-    const pk = k.querySelector('[data-pruef]'); if (pk) pk.onclick = () => pruefDialog(id);
+    pruefKnopfBinden(k, id);
+  }
+  /* Ein Griff für beide Marken: „Prüfbericht" öffnet den Bericht, „jetzt prüfen" holt die Prüfung nach. */
+  function pruefKnopfBinden(wo, id) {
+    const pk = wo.querySelector('[data-pruef]'); if (pk) pk.onclick = e => { e.stopPropagation(); pruefDialog(id); };
+    const nk = wo.querySelector('[data-pruef-nachholen]'); if (nk) nk.onclick = e => { e.stopPropagation(); pruefungNachholen([id]); };
+  }
+  /* Geprüft wird auf Knopfdruck (Klaus 2026-10-14): „erst auf Knopfdruck wird die Datei geprüft,
+     wenn derjenige will … Und so auch bei älteren Dateien." Ein Dokument von außen ohne Befund trägt
+     „Noch nicht geprüft · jetzt prüfen" — an der Karte und im Editor. Liegt das Originalfoto noch
+     da, wird es geprüft (danach weggeworfen), sonst die abgelegte PDF. Eigene Ausgaben (Übersetzung,
+     Teil) bekommen keinen Knopf. */
+  const ORIGINAL = '~original';
+  const pruefbar = d => !d.pruefung && !PRUEF.laufend.has(d.id) && !['uebersetzung', 'teil'].includes(d.quelle);
+  async function pruefungNachholen(ids) {
+    for (const id of ids) {
+      if (PRUEF.laufend.has(id)) continue;
+      const d = S.docs.find(x => x.id === id) || await DB.get('docs', id); if (!d) continue;
+      const o = await DB.get('files', id + ORIGINAL);
+      const b = o && o.bytes ? o.bytes : await DB.getFile(id); if (!b) continue;
+      eingangPruefen(id, o && o.bytes ? o.name : d.name + '.pdf', b, !!o);
+      edPruefungZeigen();
+    }
   }
   function pruefMarke(d) {
     const p = d.pruefung;
     if (PRUEF.laufend.has(d.id)) return '<div class="dok-pruefung laeuft" data-pruefung="laeuft" role="status"><span class="pruef-dreh" aria-hidden="true"></span>Wird gelesen und geprüft …</div>';
-    if (!p) return '';
+    if (!p) return pruefbar(d) ? '<button class="dok-pruefung offen" data-pruef-nachholen data-pruefung="offen">○ Noch nicht geprüft · jetzt prüfen</button>' : '';
     if (p.stand === 'warnung') return '<button class="dok-pruefung warn" data-pruef data-pruefung="warnung">⚠ Verdächtiger Inhalt — ansehen</button>';
     if (p.stand === 'ungeprueft') return '<button class="dok-pruefung" data-pruef data-pruefung="ungeprueft">? Nicht ganz geprüft</button>';
     // Herkunftsnachweis (C2PA, Klaus 2026-10-14): eine Angabe, keine Warnung — auch bei „sauber" erreichbar
@@ -968,6 +996,15 @@
     /* Auch ohne Fund ein Weg zum Bericht (Klaus 2026-10-14: „man kann danach auch keine Analyse erkennen").
        ⚠ Tafel-Evolution: bis dahin trug ein sauberes Dokument gar keine Marke. */
     return '<button class="dok-pruefung ok" data-pruef data-pruefung="sauber">✓ Geprüft · Prüfbericht</button>';
+  }
+  /* Die Marke im Editor (Klaus 2026-10-14): ein einzelnes Bild öffnet nach dem Einlesen sofort
+     den Editor — die Marke stand nur an der Karte in der Bibliothek, die niemand sah. Dieselbe
+     Marke steht jetzt auch oben im Editor, mit demselben Griff. */
+  function edPruefungZeigen() {
+    const w = $('edPruefung'); if (!w) return;
+    const d = S.doc; w.innerHTML = d ? pruefMarke(d) : '';
+    w.hidden = !w.innerHTML;
+    if (d) pruefKnopfBinden(w, d.id);
   }
   /* Der Prüfbericht als Text — dieselben Sätze wie im Dialog, in derselben Reihenfolge. */
   function pruefBerichtText(d, kopf, zeit, tun) {
@@ -1044,9 +1081,8 @@
           hinweis = ' · im Browser lag ein neuerer Stand, deshalb als Kopie';
         } else if (vorhanden) hinweis = ' · Stand im Browser ersetzt';
         if (d.folderId && !S.ordner.some(o => o.id === d.folderId)) d.folderId = null;
-        delete d.pruefung;                                  // ein Befund aus einer fremden Datei wird nicht geglaubt
+        delete d.pruefung;                                  // ein Befund aus einer fremden Datei wird nicht geglaubt — geprüft wird auf Knopfdruck
         await DB.putFile(d.id, bytes); await DB.put('docs', d);
-        eingangPruefen(d.id, d.name + '.pdf', bytes);
         neu.push({ d, hinweis });
       } catch (e) { fehler.push(f.name + ': ' + (e.message || e)); }
     }
@@ -1093,7 +1129,7 @@
         let bytes, quelle = 'pdf', original = null;
         if (istPdf(f)) bytes = new Uint8Array(await f.arrayBuffer());
         else { original = { name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) }; const b = await bildNormalisieren(f); bytes = await EX.bilderZuPdf([b]); quelle = 'foto'; }
-        neu.push(await neuesDok(f.name.replace(/\.[^.]+$/, ''), bytes, quelle, folderId, original));
+        neu.push(await neuesDok(f.name.replace(/\.[^.]+$/, ''), bytes, quelle, folderId, original, opt.pruefen));
       } catch (e) {
         console.error(e);
         fehler.push(f.name + ': ' + (/password/i.test(e && e.name + e.message) ? 'passwortgeschützt' : (e.message || e)));
@@ -1158,7 +1194,7 @@
     if (nr !== _oeffnenNr || S.doc !== d) { try { pdf.destroy(); } catch (_) {} return; }
     S.pdf = pdf;
     $('sc-bib').classList.remove('on'); $('sc-ed').classList.add('on');
-    $('edName').value = d.name; $('kopfSub').setAttribute('data-kein-ue', ''); $('kopfSub').textContent = d.name;
+    $('edName').value = d.name; edPruefungZeigen(); $('kopfSub').setAttribute('data-kein-ue', ''); $('kopfSub').textContent = d.name;
     history.pushState({ ed: 1 }, '', '#dok');
     zeichneSeiten(); zeichneModus();
     if (fund && fund.bedeutung) {
@@ -2680,7 +2716,6 @@
         try {
           const inhalt = await SI.oeffnen(pw, datei);
           const r = await SI.zusammenfuehren(DB, inhalt);
-          for (const x of r.neu) if (EINGANG_QUELLEN.includes(x.doc.quelle)) eingangPruefen(x.doc.id, x.doc.name + '.pdf', x.bytes);
           q('#siPwZ').value = '';
           e.textContent = `✅ ${r.dazu} Dokument(e) dazu, ${r.schonDa} schon da` + (r.ordnerDazu ? `, ${r.ordnerDazu} Ordner dazu` : '') + '.' + (r.ohneDatei ? ` ${r.ohneDatei} Dokument(e) ohne Datei wurden übersprungen.` : '');
           await ladeBibliothek();
@@ -2870,7 +2905,7 @@
         const test = (datei, name, typ) => async () => {
           zu();
           try { const r = await fetch(datei); if (!r.ok) throw new Error(r.status);
-            await importDateien([new File([await r.blob()], name, { type: typ })], 'Beispiele', { still: true });
+            await importDateien([new File([await r.blob()], name, { type: typ })], 'Beispiele', { still: true, pruefen: true });   // eine Testdatei ist zum Prüfen da
           } catch (e) { toast('Die Testdatei ließ sich nicht laden — beim ersten Mal braucht es Internet.'); }
         };
         d.querySelector('[data-test-bild]').onclick = test('beispiele/Testbild-versteckte-Anweisung.png', 'Testbild versteckte Anweisung.png', 'image/png');
@@ -2980,7 +3015,7 @@
     if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
     bedeutungZeichnen();
     ladeBibliothek().then(() => { if (EINST.bedeutung) bedeutungStarten(); }).then(chromeTabRueckweg).then(geteiltUebernehmen).then(oeffnenMitEmpfangen).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
-    window.__wfpdf = { eingang: { PRUEF, pruefDialog, eingangPruefen }, beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner, geteiltUebernehmen,
+    window.__wfpdf = { eingang: { PRUEF, pruefDialog, eingangPruefen, pruefungNachholen }, beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner, geteiltUebernehmen,
       // für tests/sprache.mjs: jeden Dialog einmal öffnen und seine Texte nachschlagen
       dlg: { neuerOrdner, verschieben, teilenDocs, wahlEnde, WAHL, wahlUmschalten, loeschen, speichernDialog, scanStarten, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, erklaervideo, videoFuer, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe, bedeutungDialog, sicherungDialog, sicherungErinnerung } };   // für die Probe
   }

@@ -56,7 +56,9 @@
     // Die Suche erfasst ihn dann neu (app.js, texteNachholen) — ein veralteter Text
     // fände Dinge, die im PDF nicht mehr stehen. Die Bedeutungs-Vektoren ebenso.
     vektorenWeg,
-    del: (store, id) => tx(store, 'readwrite', st => st.delete(id)).then(r => (store === 'files' ? abgeleitetWeg(id).then(() => r) : r)),
+    // Wer eine Datei löscht, löscht ihr aufgehobenes Originalfoto mit (app.js, Prüfung auf Knopfdruck)
+    del: (store, id) => tx(store, 'readwrite', st => { st.delete(id); if (store === 'files' && !String(id).endsWith('~original')) st.delete(id + '~original'); })
+      .then(r => (store === 'files' ? abgeleitetWeg(id).then(() => r) : r)),
     async putFile(id, bytes) { await DB.put('files', { id, bytes }); await abgeleitetWeg(id); },
     async getFile(id) { const r = await DB.get('files', id); return r ? r.bytes : null; },
     async persist() {
