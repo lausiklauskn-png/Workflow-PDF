@@ -877,11 +877,13 @@ Dokument gespeichert, damit man weiß, woher er kam." Vorbild ist der Sende-Prü
   des Textstücks ist im GEZEICHNETEN Seitenbild keine Schrift (`versteckt`: weiß auf weiß, Darstellungsart 3, blass — Abstand zum
   Grund ≤ `KONTRAST` 32), es ist winzig (< 1,5 pt) oder liegt außerhalb der Seite. Dieselbe Idee wie `tinteIm` im Prüfkern, aber
   ohne Texterkennung — daher schnell genug für jede gesendete Seite.
-- **Zwei Wege zur KI, beide gereinigt:**
+- **Drei Wege nach draußen, alle gereinigt** (der dritte seit Klaus' Wort am selben Tag: „Ja, Chrome-Übersetzen auch reinigen"):
   · **Übersetzen über die KI:** `UE.lauf` hat einen Haken `opt.reinigen(roh, bild, scale, seite)` vor dem Gruppieren; was er
   herausnimmt, geht nicht in den Text an die KI (und wird auch nicht abgedeckt — es bleibt unsichtbar im Original stehen).
   `false` heißt: anhalten, nichts senden. ⚠ `uebersetzung.js` ist byte-1:1 in die WorkFlohs kopiert — dort neu kopieren und die
   Pins nachziehen; ohne den Haken ändert sich dort nichts.
+  · **Mit Chrome übersetzen:** derselbe Haken, Weg `chrome` — der Halt kommt, BEVOR der Text auf Chromes Fläche (`#wfp-chrome`)
+  steht; was dort steht, übersetzt Googles Übersetzer. Im Vermerk und im Prüfbericht heißt der Weg „Übersetzen mit Chrome".
   · **Felder erkennen mit KI:** `kiSeitenBild` deckt versteckte Stücke in einer KOPIE des Seitenbilds zu (`zudecken`, Farbe des
   Grundes) — gemeint ist blasser Text, den eine KI im Bild lesen könnte — und nimmt Bild-Metadaten aus dem JPEG (`jpegOhneMeta`:
   EXIF/XMP, IPTC, Hersteller-Segmente und Kommentar heraus, alles andere Byte für Byte). ⚠ **ICC-Farbprofil (APP2) und Adobe
@@ -892,8 +894,7 @@ Dokument gespeichert, damit man weiß, woher er kam." Vorbild ist der Sende-Prü
 - **Der Vermerk** steht am Dokument: `d.kiEntfernt = [{zeit, weg, seite, text, grund}]` (je Weg, Seite, Grund und Text einmal,
   höchstens 300, Text ≤ 400 Zeichen). Er reist mit Datenbank, Sicherung und Arbeitsstand und steht im Prüfbericht
   (`[data-ki-entfernt]`, „Vor dem Senden an eine KI entfernt") und in dessen Textdatei. Das Dokument selbst bleibt unverändert.
-- ⚠ **Benannte Grenzen:** nur der KI-Weg wird gereinigt — **„Mit Chrome übersetzen" schickt den Text an Googles Übersetzer und
-  wird NICHT gereinigt** (offene Frage an Klaus), der Übersetzer im Browser bleibt auf dem Gerät · Text über einem Foto oder über
+- ⚠ **Benannte Grenzen:** der Übersetzer im Browser (Translator-API) bleibt auf dem Gerät und wird nicht gereinigt · Text über einem Foto oder über
   sichtbarer Schrift hat dort Tinte und bleibt drin · schräger Text wird nicht beurteilt · gescannte Seiten (Texterkennung) lesen
   ohnehin nur, was zu sehen ist · der Vermerk steht im Prüfbericht, den es erst nach einer Prüfung gibt · „Mit ChatGPT übersetzen"
   im Scanner teilt ein Bild aus einer Leinwand: es trägt keine Metadaten, Text darin ist sichtbar — nicht angefasst.
@@ -905,4 +906,8 @@ Dokument gespeichert, damit man weiß, woher er kam." Vorbild ist der Sende-Prü
 - Proben: `tests/reinigung.mjs` (in `npm test`; A ohne Browser, B im Browser mit gestellter KI und erfundenem PDF mit weißem,
   winzigem, unsichtbar gesetztem und blassem Text) · `node tests/gegenprobe_reinigung.mjs` (`NUR_ANKER=1`, `NUR_FALL="…"`) ·
   `tests/sicherung.mjs` und `gegenprobe_sicherung.mjs` um die Originale ergänzt.
-- ⚠ Nicht gemessen: am Tablet · an echten Dokumenten aus Klaus' Alltag · mit einer echten KI (die Anfragen sind abgefangen).
+- ⚠ Nicht gemessen: am Tablet · an echten Dokumenten aus Klaus' Alltag · mit einer echten KI (die Anfragen sind abgefangen) ·
+  mit Chromes echter Übersetzung (headless gibt es sie nicht; der Stellvertreter ist der aus `tests/chrome.mjs`).
+- ⚠ **Die Probe stolperte, statt zu melden** (Gegenprobe, Fall „Chrome-Übersetzen wird nicht gereinigt"): fehlte der Halt, wartete
+  sie 30 s auf seinen Knopf und starb — „Felder erkennen" dahinter blieb ungemessen. `haltKnopf` drückt nur, wenn der Halt da ist.
+- Cache v89, `app.js?v=65`, `sprache-texte.js?v=45` (Chrome-Weg); davor v88 (#112).
