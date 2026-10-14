@@ -36,7 +36,10 @@ const FAELLE = [
   { name: 'MANUELL: das Einlesen prüft wieder von selbst', datei: A, anker: 'if (pruefen && EINGANG_QUELLEN.includes(quelle)) pruefungNachholen([d.id]);', ersatz: 'if (EINGANG_QUELLEN.includes(quelle)) pruefungNachholen([d.id]);', trifft: /läuft KEINE Prüfung|keine Prüfung läuft/ },
   { name: 'MANUELL: ungeprüfte Dokumente tragen keinen Knopf', datei: A, anker: `if (!p) return pruefbar(d) ? '<button class="dok-pruefung offen"`, ersatz: `if (!p) return false ? '<button class="dok-pruefung offen"`, trifft: /jetzt prüfen/ },
   { name: 'MANUELL: der Knopf im Editor tut nichts', datei: A, anker: 'if (d) pruefKnopfBinden(w, d.id);', ersatz: '', trifft: /Tipp im Editor startet/ },
-  { name: 'MANUELL: der Knopf an der Karte öffnet das Dokument mit', datei: A, anker: 'nk.onclick = e => { e.stopPropagation(); pruefungNachholen([id]); };', ersatz: 'nk.onclick = e => { pruefungNachholen([id]); };', trifft: /statt das Dokument zu öffnen/ },
+  // Benannte Grenze: kein Fall für „der Knopf an der Karte öffnet das Dokument mit“. Die Marke steht in .dok-info,
+  // außerhalb jedes [data-auf]; die Karte selbst hat keinen Klick-Zuhörer. Ohne stopPropagation öffnet also nichts —
+  // der Riegel ist am Bestand nicht von seinem Fehlen zu unterscheiden (gemessen 2026-10-14: durchgerutscht).
+  // Der Wächter in eingang.mjs bleibt und fängt es, sobald die Marke je in einen Öffnen-Bereich wandert.
   { name: 'MANUELL: geprüft wird das PDF statt des Originalfotos', datei: A, anker: "const o = d ? await DB.get('files', id + ORIGINAL) : null;", ersatz: 'const o = null;', trifft: /ORIGINALFOTO/ },
   { name: 'MANUELL: das Originalfoto bleibt nach der Prüfung liegen', datei: A, anker: 'if (originalWeg) await DB.del(\'files\', id + ORIGINAL);', ersatz: '', trifft: /Original ist danach weg/ },
   { name: 'MANUELL: Löschen lässt das Originalfoto liegen', datei: 'assets/db.js', anker: "st.delete(id); if (store === 'files' && !String(id).endsWith('~original')) st.delete(id + '~original');", ersatz: 'st.delete(id);', trifft: /Original mit/ },

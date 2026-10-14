@@ -863,6 +863,6 @@ möchte … Und so auch bei älteren Dateien, die schon importiert wurden."
 - ⚠ **Benannte Grenzen:** eine Sicherung trägt die Originalfotos nicht mit (zurückgeholt wird dann das PDF geprüft) ·
   Fotos von vor diesem Stand haben kein Original mehr, ihre Prüfung sieht nur das gespeicherte PDF.
 - Proben: `tests/eingang.mjs` **76 grün · 0 ROT** (Abschnitt 10: Editor-Knopf mit H2.jpg samt BILD-METADATEN, Karten-Knopf prüft
-  nur das eine Dokument, Löschen nimmt das Original mit) · Gegenprobe `NUR_FALL="MANUELL:"` (7 Fälle) — Ergebnis unten.
+  nur das eine Dokument, Löschen nimmt das Original mit) · Gegenprobe `NUR_FALL="MANUELL:"` (6 Fälle). Gefahren in einer Kopie: erst **1 aus falschem Grund** (die Probe las den Editor, bevor „wird geprüft" stand — seitdem zeigt die App es schon beim Tipp, und die Probe wartet auf die Bedingung), danach **6 gefangen · 1 durchgerutscht**. Der durchgerutschte Fall („der Knopf an der Karte öffnet das Dokument mit") ist als benannte Grenze ersetzt: die Marke liegt außerhalb jedes Öffnen-Bereichs, `stopPropagation` ist dort am Bestand nicht messbar. `npm test` Rückgabe 0.
 - Cache v86, `app.js?v=63`, `db.js?v=6`, `sicherung.js?v=2`, `style.css?v=41`, `sprache-texte.js?v=43`.
 - ⚠ Am Tablet nicht gemessen; ein Buch mit 400 Seiten auch nicht.
