@@ -34,6 +34,8 @@ const FAELLE = [
   { name: 'der Vermerk der Übersetzung wird nicht gespeichert', datei: A, anker: "if (rein && rein.st.n > vorN) {\n          await DB.put('docs', d);", ersatz: 'if (rein && rein.st.n > vorN) {', trifft: /Vermerk am Dokument/ },
   { name: 'Felder erkennen schickt das ungereinigte Bild', datei: A, anker: 'const antwort = await ER.kiAnfrage(kiCfg(), sicher.url,', ersatz: 'const antwort = await ER.kiAnfrage(kiCfg(), ER.markiertesBild(c, kand),', trifft: /zugedeckt/ },
   { name: 'Felder erkennen deckt den blassen Text nicht zu', datei: A, anker: 'if (g) { liste.push({ seite, text: t.str, grund: g }); RE.zudecken(img, st, vp.scale); }', ersatz: 'if (g) liste.push({ seite, text: t.str, grund: g });', trifft: /zugedeckt/ },
+  { name: 'Chrome-Übersetzen wird nicht gereinigt', datei: A, anker: "const rein = weg !== 'browser' ? kiReiniger(weg === 'chrome' ? 'chrome' : 'uebersetzung') : null;", ersatz: "const rein = weg !== 'browser' && weg !== 'chrome' ? kiReiniger('uebersetzung') : null;", trifft: /Chrome|Google/ },
+  { name: 'der Prüfbericht nennt den Chrome-Weg nicht', datei: A, anker: "w === 'chrome' ? 'Übersetzen mit Chrome' : w;", ersatz: 'w;', trifft: /Übersetzen mit Chrome/ },
   { name: 'der Prüfbericht zeigt den Vermerk nicht', datei: A, anker: '${kiEntferntHtml(d)}', ersatz: '', trifft: /Prüfbericht: Abschnitt/ },
   { name: 'die Textdatei des Prüfberichts nennt ihn nicht', datei: A, anker: "z.push('Vor dem Senden an eine KI entfernt (das Dokument selbst ist unverändert):');", ersatz: "z.push('Entfernt:');", trifft: /Textdatei/ }
 ];

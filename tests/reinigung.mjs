@@ -98,7 +98,7 @@ const ohneMeta = Buffer.concat([Buffer.from([0xFF, 0xD8]), APP0, ICC, ADOBE, DQT
 /* ══ B · im Browser ══ */
 const APP = fs.readFileSync(path.join(WURZEL, 'assets/app.js'), 'utf8'), SW = fs.readFileSync(path.join(WURZEL, 'sw.js'), 'utf8'), IDX = fs.readFileSync(path.join(WURZEL, 'index.html'), 'utf8');
 ok('reinigung.js steht in der Seite VOR app.js und im Offline-Vorrat', /reinigung\.js\?v=\d+/.test(SW) && IDX.indexOf('assets/reinigung.js') > 0 && IDX.indexOf('assets/reinigung.js') < IDX.indexOf('assets/app.js'));
-ok('nur der KI-Weg wird gereinigt — Chrome und der Übersetzer im Browser nicht (benannt)', /weg !== 'chrome' && weg !== 'browser' \? kiReiniger\('uebersetzung'\)/.test(APP));
+ok('gereinigt wird jeder Weg, der das Gerät verlässt (KI und Chrome), nur der Übersetzer im Browser nicht', /const rein = weg !== 'browser' \? kiReiniger\(weg === 'chrome' \? 'chrome' : 'uebersetzung'\)/.test(APP));
 
 let pw = null, pdflib = null;
 try { pw = await import('playwright-core'); pdflib = await import('pdf-lib'); } catch (_) {}
@@ -120,7 +120,7 @@ const testPdf = async (mitVersteckt) => {
   }
   return Buffer.from(await d.save()).toString('base64');
 };
-const B = { 'Versteckt.pdf': await testPdf(true), 'Sauber.pdf': await testPdf(false), 'Abbruch.pdf': await testPdf(true) };
+const B = { 'Versteckt.pdf': await testPdf(true), 'Sauber.pdf': await testPdf(false), 'Abbruch.pdf': await testPdf(true), 'ChromeWeg.pdf': await testPdf(true) };
 
 const typ = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.css': 'text/css', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json', '.pdf': 'application/pdf', '.ttf': 'font/ttf' };
 const srv = await new Promise(res => { const s = http.createServer((q, r) => {
@@ -133,6 +133,19 @@ const exe = ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome'].find(fs.exist
 const browser = await pw.chromium.launch(exe ? { executablePath: exe } : {});
 try {
   const ctx = await browser.newContext({ viewport: { width: 1000, height: 800 } });
+  // Stellvertreter für Chromes Seitenübersetzung (wie tests/chrome.mjs): <html> bekommt „translated-ltr", Text außerhalb
+  // von translate="no" wird in <font> gehüllt und ersetzt. Erst __chromeUebersetzen() schaltet ihn an.
+  await ctx.addInitScript(() => {
+    let an = false;
+    const gesperrt = n => { for (let e = n.nodeType === 1 ? n : n.parentElement; e; e = e.parentElement) { const t = e.getAttribute && e.getAttribute('translate'); if (t === 'no') return true; if (t === 'yes') return false; } return false; };
+    const lauf = wurzel => {
+      const w = document.createTreeWalker(wurzel, NodeFilter.SHOW_TEXT); const ns = [];
+      for (let n; (n = w.nextNode());) if (n.nodeValue.trim() && !gesperrt(n) && !(n.parentElement && n.parentElement.closest('font,script,style'))) ns.push(n);
+      ns.forEach(n => { const a = document.createElement('font'); a.dataset.orig = n.nodeValue; const b = document.createElement('font'); b.textContent = '[en] ' + n.nodeValue; a.appendChild(b); n.replaceWith(a); });
+    };
+    window.__chromeUebersetzen = () => { an = true; document.documentElement.classList.add('translated-ltr'); lauf(document.body);
+      new MutationObserver(ms => { if (an) ms.forEach(m => m.addedNodes.forEach(x => setTimeout(() => { const w = x.nodeType === 1 ? x : x.parentElement; if (w && w.isConnected) lauf(w); }, 60))); }).observe(document.body, { childList: true, subtree: true }); };
+  });
   const page = await ctx.newPage();
   const fehler = []; page.on('pageerror', e => fehler.push(String(e)));
   const anfragen = [];
@@ -153,8 +166,11 @@ try {
     const neu = await window.__wfpdf.importDateien(files, 'Testordner Reinigung', { still: true });
     return Object.fromEntries(neu.map(d => [d.name.replace(/\.pdf$/, ''), d.id]));
   }, B);
-  ok('drei Test-PDFs eingelesen', ids.Versteckt && ids.Sauber && ids.Abbruch, ids);
+  ok('vier Test-PDFs eingelesen', ids.Versteckt && ids.Sauber && ids.Abbruch && ids.ChromeWeg, ids);
   const dlgText = () => page.evaluate(() => [...document.querySelectorAll('.dlg')].map(d => d.textContent).join(' | '));
+  // Den Knopf im Halt nur drücken, wenn der Halt da ist — sonst wartete die Probe 30 s und stürbe, und alles danach bliebe
+  // ungemessen (Gegenprobe 2026-10-14, Fall „Chrome-Übersetzen wird nicht gereinigt": gestolpert statt gemeldet).
+  const haltKnopf = async knopf => { if (await page.evaluate(() => !!document.querySelector('.dlg [data-ki-halt]'))) await page.click('.dlg:has([data-ki-halt]) ' + knopf); };
   const halteDa = () => page.waitForFunction(() => !!document.querySelector('.dlg [data-ki-halt]'), null, { timeout: 30000 }).then(() => true, () => false);
   const uebersetzen = async (name, erstesMal) => {
     await page.evaluate(() => { window.__wfpdf.S.aktOrdner = 'alle'; });
@@ -176,7 +192,7 @@ try {
   const liste = await page.evaluate(() => [...document.querySelectorAll('.dlg [data-ki-entfernt-stueck]')].map(li => li.textContent));
   ok('… der Halt nennt die versteckten Stücke (weiß, winzig, unsichtbar gesetzt, blass)', Object.values(VERSTECKT).every(t => liste.some(l => l.includes(t))) && !liste.some(l => l.includes(SICHTBAR)), liste);
   ok('… mit Grund und Seite', liste.some(l => /winzige Schrift/.test(l)) && liste.some(l => /nicht zu sehen/.test(l)) && liste.every(l => /Seite 1/.test(l)), liste);
-  await page.click('.dlg:has([data-ki-halt]) [data-n]');
+  await haltKnopf('[data-n]');
   await page.waitForFunction(() => !document.querySelector('.dlg [data-ki-halt]') && !document.querySelector('.dlg [data-t]'), null, { timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(500);
   ok('„Abbrechen": keine einzige Anfrage an die KI', anfragen.length === 0, anfragen.length);
@@ -189,7 +205,7 @@ try {
   // (offen im Editor) mitnähme. Im Übersetzen-Ablauf oben lädt die Bibliothek danach neu, dort wäre es nicht zu sehen.
   const haltProbe = async knopf => {
     const p = page.evaluate(() => { const d = { name: 'Haltprobe' }; return window.__wfpdf.kiReiniger('probe').halt(d, [{ seite: 2, text: 'Haltprobe-Stück', grund: 'winzig' }]).then(ok => ({ ok, v: d.kiEntfernt || null })); });
-    await halteDa(); await page.click('.dlg:has([data-ki-halt]) ' + knopf); return p;
+    await halteDa(); await haltKnopf(knopf); return Promise.race([p, new Promise(r => setTimeout(() => r({ ok: 'kein Halt', v: null }), 2000))]);
   };
   const hAb = await haltProbe('[data-n]');
   ok('der Halt: „Abbrechen" gibt nein und legt am Dokument keinen Vermerk ab', hAb.ok === false && hAb.v === null, hAb);
@@ -199,12 +215,12 @@ try {
   // 2 · Ohne ihn senden
   await uebersetzen('Versteckt', false);
   ok('zweiter Lauf: der Halt kommt wieder (einmal je Sendevorgang)', await halteDa());
-  await page.click('.dlg:has([data-ki-halt]) [data-j]');
+  await haltKnopf('[data-j]');
   await page.waitForFunction(() => /Übersetzung fertig/.test(document.querySelector('.dlg h2')?.textContent || ''), null, { timeout: 60000 }).catch(() => {});
   const gesendet = textAnfragen();
   ok('„Ohne ihn senden": der sichtbare Text ging an die KI', gesendet.includes(SICHTBAR.slice(0, 20)), gesendet.slice(0, 300));
   ok('… der versteckte Text steht in KEINER Anfrage', Object.values(VERSTECKT).every(t => !gesendet.includes(t.split(' ').pop())), gesendet);
-  ok('… der Bericht nennt, dass etwas nicht an die KI ging', /versteckter Text gingen nicht an die KI/.test(await dlgText()));
+  ok('… der Bericht nennt, dass etwas nicht mitgeschickt wurde', /versteckter Text wurden nicht mitgeschickt/.test(await dlgText()));
   const v = await page.evaluate(async id => (await WFP.DB.get('docs', id)).kiEntfernt, ids.Versteckt);
   ok('Vermerk am Dokument: vier Stücke, Weg „uebersetzung", Seite 1', Array.isArray(v) && v.length === 4 && v.every(x => x.weg === 'uebersetzung' && x.seite === 1 && x.zeit), v);
   ok('… mit den Gründen „winzig" und „unsichtbar"', v && v.some(x => x.grund === 'winzig' && x.text.includes('winzigtext')) && v.filter(x => x.grund === 'unsichtbar').length === 3, v);
@@ -234,6 +250,31 @@ try {
   ok('… und kein Vermerk', await page.evaluate(async id => { const d = await WFP.DB.get('docs', id); return !d.kiEntfernt; }, ids.Sauber));
   await page.evaluate(() => { const g = document.getElementById('modals'); if (g) g.innerHTML = ''; });
 
+  // 4b · Mit Chrome übersetzen (Klaus 2026-10-14: „Ja, Chrome-Übersetzen auch reinigen"): der Text geht an Googles Übersetzer
+  await page.evaluate(() => { window.__wfpdf.S.aktOrdner = 'alle'; });
+  await page.click('.ordner-chip[data-o="alle"]');
+  await page.click('[data-ueb]'); await page.waitForSelector('.dlg [data-dok]');
+  const ci = await page.evaluate(() => [...document.querySelectorAll('.dlg [data-dok]')].findIndex(c => c.parentNode.textContent.includes('ChromeWeg')));
+  await page.locator('.dlg [data-dok]').nth(ci).check();
+  await page.selectOption('.dlg [data-von]', 'de'); await page.selectOption('.dlg [data-nach]', 'en');
+  await page.click('.dlg [data-weg="chrome"]');
+  ok('Chrome-Weg: der Halt kommt, BEVOR der Text auf Chromes Fläche steht', await halteDa() && !(await page.evaluate(() => !!document.getElementById('wfp-chrome'))));
+  await haltKnopf('[data-j]');
+  const flaeche = await page.waitForSelector('#wfp-chrome [data-liste]', { timeout: 15000 }).then(() => page.textContent('#wfp-chrome [data-liste]'), () => null);
+  ok('… auf Chromes Fläche steht der sichtbare Text', !!flaeche && flaeche.includes(SICHTBAR.slice(0, 20)), flaeche);
+  ok('… und KEIN versteckter Text (er geht nicht an Google)', !!flaeche && Object.values(VERSTECKT).every(t => !flaeche.includes(t.split(' ').pop())), flaeche);
+  await page.evaluate(() => window.__chromeUebersetzen());
+  await page.waitForFunction(() => /Übersetzung fertig/.test(document.querySelector('.dlg h2')?.textContent || ''), null, { timeout: 60000 }).catch(() => {});
+  const vc = await page.evaluate(async id => (await WFP.DB.get('docs', id)).kiEntfernt, ids.ChromeWeg);
+  ok('… vermerkt mit dem Weg „chrome"', Array.isArray(vc) && vc.length === 4 && vc.every(x => x.weg === 'chrome'), vc);
+  await page.evaluate(() => { const g = document.getElementById('modals'); if (g) g.innerHTML = ''; });
+  await page.evaluate(id => window.__wfpdf.eingang.pruefungNachholen([id]), ids.ChromeWeg);
+  await page.evaluate(() => { const g = document.getElementById('modals'); if (g) g.innerHTML = ''; });
+  await page.evaluate(id => window.__wfpdf.eingang.pruefDialog(id), ids.ChromeWeg);
+  await page.waitForSelector('.dlg [data-pruefbericht]');
+  ok('… und der Prüfbericht nennt „Übersetzen mit Chrome"', /Übersetzen mit Chrome/.test(await page.evaluate(() => document.querySelector('.dlg [data-ki-entfernt]')?.textContent || '')));
+  await page.evaluate(() => { const g = document.getElementById('modals'); if (g) g.innerHTML = ''; });
+
   // 5 · Felder erkennen: das Bild an die KI
   const bilderVorher = anfragen.filter(b => JSON.stringify(b).includes('image_url')).length;
   await page.evaluate(id => window.__wfpdf.dlg.erkennenDialog([id]), ids.Versteckt);
@@ -241,7 +282,7 @@ try {
   await page.waitForFunction(() => /Seiten an die KI senden/.test(document.querySelector('.dlg h2')?.textContent || ''), null, { timeout: 10000 }).catch(() => {});
   if (await page.evaluate(() => /Seiten an die KI senden/.test(document.querySelector('.dlg h2')?.textContent || ''))) await page.click('.dlg [data-j]');
   ok('Felder erkennen hält ebenfalls an, bevor das Bild hinausgeht', await halteDa() && anfragen.filter(b => JSON.stringify(b).includes('image_url')).length === bilderVorher);
-  await page.click('.dlg:has([data-ki-halt]) [data-j]');
+  await haltKnopf('[data-j]');
   const t0 = Date.now(); while (anfragen.filter(b => JSON.stringify(b).includes('image_url')).length === bilderVorher && Date.now() - t0 < 30000) await page.waitForTimeout(200);
   const bildAnfrage = anfragen.filter(b => JSON.stringify(b).includes('image_url')).pop();
   const dataUrl = bildAnfrage && bildAnfrage.messages[0].content.find(c => c.type === 'image_url').image_url.url;

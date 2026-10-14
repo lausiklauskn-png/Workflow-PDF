@@ -77,7 +77,7 @@
       if (!st.gefragt) {
         st.gefragt = true;
         const zeig = liste.slice(0, 8).map(e => `<li data-ki-entfernt-stueck><b data-g>${h(RE.grundSatz(e.grund))}</b>${e.seite ? ` · <span data-s>Seite ${h(e.seite)}</span>` : ''}<br><span data-kein-ue>„${h(String(e.text).slice(0, 120))}“</span></li>`).join('');
-        st.ok = await frage('Versteckten Text gefunden', `<div data-ki-halt><p>In <b><span data-kein-ue>${h(d.name)}</span></b> steht Text, den man auf der Seite nicht sieht. Eine KI würde ihn trotzdem lesen.</p><ul>${zeig}</ul>${liste.length > 8 ? `<p class="hinweis">… und weitere Stellen.</p>` : ''}<p>Gesendet wird die sichere Fassung: <b>ohne</b> diesen Text. Was entfernt wurde, wird mit dem Dokument gespeichert und steht im Prüfbericht. Das Dokument selbst bleibt unverändert.</p></div>`, 'Ohne ihn senden', 'Abbrechen');
+        st.ok = await frage('Versteckten Text gefunden', `<div data-ki-halt><p>In <b><span data-kein-ue>${h(d.name)}</span></b> steht Text, den man auf der Seite nicht sieht. Eine KI oder ein Übersetzer würde ihn trotzdem lesen.</p><ul>${zeig}</ul>${liste.length > 8 ? `<p class="hinweis">… und weitere Stellen.</p>` : ''}<p>Gesendet wird die sichere Fassung: <b>ohne</b> diesen Text. Was entfernt wurde, wird mit dem Dokument gespeichert und steht im Prüfbericht. Das Dokument selbst bleibt unverändert.</p></div>`, 'Ohne ihn senden', 'Abbrechen');
       }
       if (st.ok) { RE.vermerken(d, liste, weg); st.n += liste.length; }
       return st.ok;
@@ -1045,7 +1045,7 @@
     }
     if (Array.isArray(d.kiEntfernt) && d.kiEntfernt.length) {
       z.push('Vor dem Senden an eine KI entfernt (das Dokument selbst ist unverändert):');
-      d.kiEntfernt.forEach(v => z.push('- ' + (v.seite ? 'Seite ' + v.seite + ', ' : '') + WFP.Reinigung.grundSatz(v.grund) + ' (' + (v.weg === 'erkennung' ? 'Felder erkennen' : v.weg === 'uebersetzung' ? 'Übersetzen' : v.weg) + ', ' + String(v.zeit || '').slice(0, 10) + '): „' + v.text + '“'));
+      d.kiEntfernt.forEach(v => z.push('- ' + (v.seite ? 'Seite ' + v.seite + ', ' : '') + WFP.Reinigung.grundSatz(v.grund) + ' (' + (v.weg === 'erkennung' ? 'Felder erkennen' : v.weg === 'uebersetzung' ? 'Übersetzen' : v.weg === 'chrome' ? 'Übersetzen mit Chrome' : v.weg) + ', ' + String(v.zeit || '').slice(0, 10) + '): „' + v.text + '“'));
       z.push('');
     }
     if (p.hinweise && p.hinweise.length) { z.push('Was geprüft wurde:'); p.hinweise.forEach(x => z.push('- ' + x)); z.push(''); }
@@ -1056,7 +1056,7 @@
   function kiEntferntHtml(d) {
     const l = Array.isArray(d.kiEntfernt) ? d.kiEntfernt : [];
     if (!l.length) return '';
-    const wegName = w => w === 'erkennung' ? 'Felder erkennen' : w === 'uebersetzung' ? 'Übersetzen' : w;
+    const wegName = w => w === 'erkennung' ? 'Felder erkennen' : w === 'uebersetzung' ? 'Übersetzen' : w === 'chrome' ? 'Übersetzen mit Chrome' : w;
     return `<div class="pruef-angaben" data-ki-entfernt><p><b>Vor dem Senden an eine KI entfernt</b></p><p class="hinweis">Dieser Text steht im Dokument, ist auf der Seite aber nicht zu sehen. Er ging nicht mit. Das Dokument selbst ist unverändert.</p><ul>${l.map(v => `<li data-grund="${h(v.grund)}"><b data-g>${h(WFP.Reinigung.grundSatz(v.grund))}</b><br><span data-w>${h(wegName(v.weg))}</span>${v.seite ? ` · <span data-s>Seite ${h(v.seite)}</span>` : ''}<br><span data-kein-ue>„${h(v.text)}“</span></li>`).join('')}</ul></div>`;
   }
   async function pruefDialog(id) {
@@ -2558,8 +2558,9 @@
     if (hin) hin.meldeWarten = (ms, v, n) => fb.setze(stand, (standText || 'Erste Seite') + ' · Anbieter bremst (Tempo-Limit), warte ' + Math.round(ms / 1000) + ' s — Versuch ' + v + ' von ' + n);   // „⏹ Abbrechen" auf der Chrome-Fläche
     const fb = fortschritt('Übersetzung ' + von.toUpperCase() + ' → ' + nach.toUpperCase(), stopp);
     const bericht = []; const t0 = Date.now();
-    // Nur der KI-Weg wird gereinigt: Chrome und der Übersetzer im Browser sind keine KI des Nutzers (offene Frage an Klaus)
-    const rein = weg !== 'chrome' && weg !== 'browser' ? kiReiniger('uebersetzung') : null;
+    // Gereinigt wird alles, was das Gerät verlässt: die KI des Nutzers UND „Mit Chrome übersetzen" (der Text geht an Googles
+    // Übersetzer — Klaus 2026-10-14: „Ja, Chrome-Übersetzen auch reinigen"). Der Übersetzer im Browser bleibt auf dem Gerät.
+    const rein = weg !== 'browser' ? kiReiniger(weg === 'chrome' ? 'chrome' : 'uebersetzung') : null;
     let schrift = null;
     try { schrift = await UE.schriftLaden('vendor/'); } catch (e) { fb.zu(); toast('⚠️ ' + (e.message || e)); return; }
     for (let k = 0; k < ids.length && !abbruch; k++) {
@@ -2585,7 +2586,7 @@
           melde: (i, n, info) => { stand = (k + i / n) / ids.length; standText = info.text ? vor + info.text : `${vor}Seite ${i} von ${n}${info.neu ? ' · ' + (info.ms / info.neu / 1000).toFixed(1) + ' s je Seite' : ''}`; fb.setze(stand, standText); } });
         if (rein && rein.st.n > vorN) {
           await DB.put('docs', d);
-          zeile.hinweise.push((rein.st.n - vorN) + ' Stück(e) versteckter Text gingen nicht an die KI — sie stehen im Prüfbericht des Dokuments.');
+          zeile.hinweise.push((rein.st.n - vorN) + ' Stück(e) versteckter Text wurden nicht mitgeschickt — sie stehen im Prüfbericht des Dokuments.');
         }
         zeile.ocr = r.ocrSeiten;
         if (r.ocrFehler) zeile.hinweise.push('Texterkennung für gescannte Seiten nicht verfügbar (' + r.ocrFehler + ') — diese Seiten bleiben unübersetzt.');
