@@ -36,7 +36,7 @@
 
   var BEFUNDE = ["ANHANG-TARNUNG", "ANHANG-PROGRAMM", "BILD-ANHAENGSEL", "BILD-METADATEN",
     "SVG-SKRIPT", "SVG-VERWEIS", "OFFICE-MAKRO", "OFFICE-VERWEIS", "OFFICE-EINBETTUNG",
-    "PDF-VERWEIS", "PDF-AKTION", "PDF-ANHANG", "PDF-METADATEN", "PDF-ALTFASSUNG", "PDF-KI-ANWEISUNG", "BILD-KI-ANWEISUNG", "PDF-VERSTECKTER-TEXT", "BILD-LSB-VERDACHT", "BILD-METADATEN-KI-ANWEISUNG"];
+    "PDF-VERWEIS", "PDF-AKTION", "PDF-ANHANG", "PDF-METADATEN", "PDF-ALTFASSUNG", "PDF-KI-ANWEISUNG", "BILD-KI-ANWEISUNG", "PDF-VERSTECKTER-TEXT", "BILD-LSB-VERDACHT", "BILD-METADATEN-KI-ANWEISUNG", "PDF-HERKUNFT", "BILD-HERKUNFT"];
 
   function alsBytes(b) { return b instanceof Uint8Array ? b : new Uint8Array(b || []); }
   function latin1(b, von, bis) {
@@ -90,7 +90,7 @@
 
   /* ══ BILDER */
   function jpegPruefen(b, melde, texte) {
-    var i = 2, ende = -1, meta = [];
+    var i = 2, ende = -1, meta = [], c2pa = [];
     texte = texte || [];
     while (i + 4 <= b.length) {
       if (b[i] !== 0xFF) break;
@@ -110,6 +110,10 @@
         xmpTexte(xs.subarray(xn < 0 ? 0 : xn + 1), texte);
       }
       else if (mk === 0xED) { meta.push("IPTC/Photoshop"); iptcTexte(b, i + 4, Math.min(i + 2 + len, b.length), texte); }
+      else if (mk === 0xEB && inhalt.slice(0, 2) === "JP") {   // APP11: JUMBF (Herkunftsnachweis)
+        var seg = b.subarray(i + 4, Math.min(i + 2 + len, b.length));
+        if (seg.length > 16) c2pa.push(c2pa.length ? seg.subarray(16) : seg.subarray(8));
+      }
       else if (mk === 0xFE) { meta.push("Kommentar"); texte.push({ feld: "Kommentar", text: utf8oderLatin1(b.subarray(i + 4, Math.min(i + 2 + len, b.length))) }); }
       if (mk === 0xDA) {                         // Bilddaten: bis zum echten Ende suchen
         var j = i + 2 + len;
@@ -122,7 +126,25 @@
       i += 2 + len;
     }
     if (meta.length) melde("BILD-METADATEN", "Im Bild stehen Metadaten: " + meta.join(", ") + ".");
+    herkunftMelden(c2pa, melde);
     return ende;
+  }
+  /* Herkunftsnachweis (C2PA, „Content Credentials") lesen — Klaus 2026-10-14:
+     „kurz und verständlich, genauere Ausgabe auf Knopfdruck". Gelesen wird mit
+     PrueferFormate.c2paLesen (eine Stelle für PDF und Bild). Das ist eine
+     Auskunft, keine Warnung. Fehlt der Leser oder ist der Nachweis nicht
+     lesbar, steht „ungeprüft" da, nie „nichts". */
+  function herkunftMelden(teile, melde) {
+    if (!teile || !teile.length) return;
+    var n = 0; teile.forEach(function (x) { n += x.length; });
+    var alle = new Uint8Array(n), o = 0;
+    teile.forEach(function (x) { alle.set(x, o); o += x.length; });
+    var PF = welt.PrueferFormate, r = null;
+    if (!PF || !PF.c2paLesen) { melde("BILD-HERKUNFT", "Herkunftsnachweis (Content Credentials) vorhanden, aber der Leser fehlt — ungeprüft."); return; }
+    try { r = PF.c2paLesen(alle); } catch (e) { r = { kaputt: true }; }
+    if (r === null) return;                    // eine andere JUMBF-Box, kein Nachweis
+    if (r.satz) melde("BILD-HERKUNFT", r.satz, null, r.daten);
+    else melde("BILD-HERKUNFT", "Herkunftsnachweis (Content Credentials) vorhanden, aber nicht lesbar — ungeprüft.");
   }
   /* GPS nur, wenn IFD0 wirklich den Verweis 0x8825 trägt — eine geratene
      Ortsangabe wäre eine falsche Warnung über den Aufnahmeort. */
@@ -136,7 +158,7 @@
     return false;
   }
   function pngPruefen(b, melde, texte) {
-    var i = 8, ende = -1, meta = [];
+    var i = 8, ende = -1, meta = [], c2pa = [];
     texte = texte || [];
     while (i + 12 <= b.length) {
       var len = b32(b, i), typ = latin1(b, i + 4, i + 8);
@@ -145,22 +167,26 @@
         meta.push("Text „" + schl + "“");
         pngTextLesen(typ, schl, b.subarray(i + 8, Math.min(i + 8 + len, b.length)), texte);
       } else if (typ === "eXIf") { meta.push("EXIF"); exifTexte(b, i + 8, Math.min(i + 8 + len, b.length), texte); }
+      else if (typ === "caBX") c2pa.push(b.subarray(i + 8, Math.min(i + 8 + len, b.length)));
       i += 12 + len;
       if (typ === "IEND") { ende = i; break; }
     }
     if (meta.length) melde("BILD-METADATEN", "Im Bild stehen Metadaten: " + meta.join(", ") + ".");
+    herkunftMelden(c2pa, melde);
     return ende;
   }
   function webpPruefen(b, melde, texte) {
-    var ende = 8 + u32(b, 4), i = 12, meta = [];
+    var ende = 8 + u32(b, 4), i = 12, meta = [], c2pa = [];
     texte = texte || [];
     while (i + 8 <= Math.min(ende, b.length)) {
       var typ = latin1(b, i, i + 4), len = u32(b, i + 4), dbis = Math.min(i + 8 + len, b.length);
       if (typ === "EXIF") { meta.push("EXIF"); exifTexte(b, latin1(b, i + 8, i + 14) === "Exif\0\0" ? i + 14 : i + 8, dbis, texte); }
       else if (typ === "XMP ") { meta.push("XMP"); xmpTexte(b.subarray(i + 8, dbis), texte); }
+      else if (typ === "C2PA") c2pa.push(b.subarray(i + 8, dbis));
       i += 8 + len + (len & 1);
     }
     if (meta.length) melde("BILD-METADATEN", "Im Bild stehen Metadaten: " + meta.join(", ") + ".");
+    herkunftMelden(c2pa, melde);
     return ende;
   }
   /* ══ TEXT IN DEN METADATEN — Stufe 0 (Klaus 2026-10-05)
@@ -1121,7 +1147,7 @@
   }
   function pruefe(name, bytes) {
     var b = alsBytes(bytes), art = artVon(b), befunde = [], hinweise = [], text = null, seiten = null, stand = { bildUngeprueft: false };
-    function melde(k, satz, box) { var x = { kennung: k, satz: satz }; if (box) x.box = box; befunde.push(x); }
+    function melde(k, satz, box, daten) { var x = { kennung: k, satz: satz }; if (box) x.box = box; if (daten) x.daten = daten; befunde.push(x); }
     name = String(name || "");
     var endung = (/\.([A-Za-z0-9]{1,6})$/.exec(name) || [])[1];
     endung = endung ? endung.toLowerCase() : "";
@@ -1152,7 +1178,7 @@
       var PF = welt.PrueferFormate;
       if (!PF) { hinweise.push("Der PDF-Prüfer (assets/pruefer-formate.js) ist nicht geladen — das PDF ist ungeprüft, nicht sauber."); ungeprueft(stand, "PDF ungeprüft"); }
       else weiter = PF.pruefePdf(b, []).then(function (r) {
-        r.stellen.forEach(function (x) { melde(x.kennung, x.satz + " (" + x.stelle + ")"); });
+        r.stellen.forEach(function (x) { melde(x.kennung, x.satz + " (" + x.stelle + ")", null, x.daten); });
         hinweise.push.apply(hinweise, r.hinweise);
       });
       weiter = weiter.then(function () { return pdfTextPruefen(b, melde, hinweise, stand); }).then(function (s) {
