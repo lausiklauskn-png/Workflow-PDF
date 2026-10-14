@@ -828,3 +828,19 @@ Ausgabe auf Knopfdruck." `pruefer-formate.js` und `pruefer-anhang.js` sind neu b
   caBX, Gegenrichtung ohne Nachweis) · Gegenprobe `NUR_FALL="HERKUNFT:"` (5 Fälle). Cache v84, `app.js?v=61`,
   `eingang.js?v=4`, `style.css?v=39`, `sprache-texte.js?v=41`.
 - ⚠ Nicht gemessen: echte C2PA-Dateien (Klaus' Kaffee-Eule-PDF liegt nur bei ihm), das Tablet.
+
+## 📄 Prüfbericht für jedes Dokument (Klaus 2026-10-14)
+
+„Man hat nicht einmal gesehen, dass die Datei gelesen wurde … danach auch keine Analyse … die zweite Seite, sozusagen das Siegel."
+- Während der Prüfung trägt die Karte „Wird gelesen und geprüft …" mit Drehkreis (`data-pruefung="laeuft"`, ruht bei weniger Bewegung).
+- ⚠ **Tafel-Evolution, benannt:** bisher trug ein sauberes Dokument **keine** Marke. Jetzt trägt es eine ruhige Marke „✓ Geprüft · Prüfbericht" (`data-pruefung="sauber"`). Mit Herkunft heißt sie „ℹ Herkunft · Prüfbericht".
+- Der Dialog heißt „Prüfbericht" (`[data-pruefbericht]`). Er zeigt Funde, „Was jetzt tun" (nur bei Warnung), Herkunft und neu **„Was sonst in der Datei steht"** (`[data-angaben]`: Metadaten, frühere Speicherstände, Personenbezug, Bild-Metadaten). Diese Angaben sind keine Gefahr und haben kein „Was jetzt tun". Eine Prüfung ohne Angaben-Feld sagt das ausdrücklich (`data-angaben-alt`: neu einlesen).
+- `eingang.js` gibt `angaben: [{kennung, satz}]` zurück, das ist alles außer WARN und HERKUNFT; die Namen stehen in `ANGABE_NAME`.
+- „⬇ Prüfbericht als Textdatei" (`data-bericht-laden`) speichert `<Name>-Pruefbericht.txt` (UTF-8 mit BOM) mit allen Abschnitten und dem Satz „keine Virenprüfung".
+- Der Kern ist derselbe wie im Auslieferungsprüfer: Seitentext, Texterkennung, Bildpunkte und versteckte Befehle.
+- Proben: `tests/eingang.mjs` mit 59 grünen Zeilen.
+- Gegenprobe `NUR_FALL="BERICHT:"` mit 3 Fällen: 3 gefangen. Ein Fall war zuerst „aus falschem Grund", weil die Probe am fehlenden Knopf stolperte; sie meldet das jetzt.
+- Ein toter Anker eines HERKUNFT-Falls ist nachgezogen.
+- Cache v85, `app.js?v=62`, `eingang.js?v=5`, `style.css?v=40`, `sprache-texte.js?v=42`.
+- ⚠ **Noch nicht gebaut (Klaus' Wort, 2026-10-14):** Erst wenn etwas an eine KI geht, wird gereinigt. Das betrifft Bild-Metadaten und versteckten Text. Der entfernte Text wird mit dem Dokument gespeichert, damit man weiß, woher er kam. Vorbild ist der Weg im Sende-Prüfer: Halt vor der KI und eine sichere Fassung.
+- ⚠ Am Tablet nicht gemessen.
