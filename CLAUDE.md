@@ -844,3 +844,25 @@ Ausgabe auf Knopfdruck." `pruefer-formate.js` und `pruefer-anhang.js` sind neu b
 - Cache v85, `app.js?v=62`, `eingang.js?v=5`, `style.css?v=40`, `sprache-texte.js?v=42`.
 - ⚠ **Noch nicht gebaut (Klaus' Wort, 2026-10-14):** Erst wenn etwas an eine KI geht, wird gereinigt. Das betrifft Bild-Metadaten und versteckten Text. Der entfernte Text wird mit dem Dokument gespeichert, damit man weiß, woher er kam. Vorbild ist der Weg im Sende-Prüfer: Halt vor der KI und eine sichere Fassung.
 - ⚠ Am Tablet nicht gemessen.
+
+## ▶ Prüfen erst auf Knopfdruck (Klaus 2026-10-14)
+
+„Die Prüfung einer Datei soll manuell initiiert werden können … wenn ich zum Beispiel 400 Seiten eines Buches importieren
+möchte … Und so auch bei älteren Dateien, die schon importiert wurden."
+- ⚠ **Tafel-Evolution, benannt:** bisher lief die Prüfung beim Einlesen von selbst (und der Stand lag nur im Speicher —
+  daher Klaus' Befund „es ist nichts gemessen worden": ein ungeprüftes Dokument trug keine Marke, der Editor zeigte nichts).
+  Jetzt läuft beim Einlesen und beim Laden **keine** Prüfung.
+- Ein ungeprüftes PDF oder Foto (`pruefbar(d)`, Quellen `pdf`/`foto`) trägt an der Karte **„○ Noch nicht geprüft · jetzt prüfen"**
+  (`data-pruefung="offen"`, `[data-pruef-nachholen]`), dieselbe Marke steht im Editor (`#edPruefung`). Ein Tipp prüft genau dieses
+  Dokument (`pruefungNachholen([id])`), öffnet es nicht, zeigt „Wird gelesen und geprüft …" und danach den Prüfbericht.
+  Gilt auch für Dokumente von vor diesem Stand.
+- **Ausnahme:** die zwei Testdateien aus der Hilfe werden weiter sofort geprüft (`importDateien(…, {pruefen: true})`) —
+  dort ist der Befund der Zweck.
+- **Das Originalfoto bleibt liegen, bis geprüft ist** (`files`, Schlüssel `<id>~original`), denn geprüft wird das Foto, nicht das
+  daraus gebaute PDF. Nach der Prüfung wird es gelöscht; `DB.del('files', id)` und `dokErsetzen` nehmen es mit.
+- ⚠ **Benannte Grenzen:** eine Sicherung trägt die Originalfotos nicht mit (zurückgeholt wird dann das PDF geprüft) ·
+  Fotos von vor diesem Stand haben kein Original mehr, ihre Prüfung sieht nur das gespeicherte PDF.
+- Proben: `tests/eingang.mjs` **76 grün · 0 ROT** (Abschnitt 10: Editor-Knopf mit H2.jpg samt BILD-METADATEN, Karten-Knopf prüft
+  nur das eine Dokument, Löschen nimmt das Original mit) · Gegenprobe `NUR_FALL="MANUELL:"` (7 Fälle) — Ergebnis unten.
+- Cache v86, `app.js?v=63`, `db.js?v=6`, `sicherung.js?v=2`, `style.css?v=41`, `sprache-texte.js?v=43`.
+- ⚠ Am Tablet nicht gemessen; ein Buch mit 400 Seiten auch nicht.
