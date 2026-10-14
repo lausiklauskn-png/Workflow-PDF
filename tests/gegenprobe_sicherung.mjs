@@ -29,6 +29,10 @@ const FAELLE = [
   { name: 'nach dem Zurückholen wird die Liste nicht neu geladen', datei: A, anker: "await ladeBibliothek();\n        } catch (err) { e.textContent = '⚠️ ' + (SICH_FEHLER[err && err.message] || 'Zurückholen", ersatz: "\n        } catch (err) { e.textContent = '⚠️ ' + (SICH_FEHLER[err && err.message] || 'Zurückholen", trifft: /in der Liste/ },
   { name: 'die Erinnerung erscheint nie', datei: A, anker: "if (!SI || !SI.erinnernNoetig(n, zuletzt, lsLies(SICH_SPAETER, true) === '1')) { el.hidden = true;", ersatz: "if (true) { el.hidden = true;", trifft: /nie gesichert|kommt die Erinnerung/ },
   { name: 'der Speicher-Stand wird nicht genannt', datei: A, anker: 'dauerStand().then(dauerZeigen);', ersatz: ';', trifft: /beim Öffnen genannt/ },
+  { name: 'die Originale kommen nicht mit', datei: S, anker: 'if (b && ob) originale.push(', ersatz: 'if (false) originale.push(', trifft: /Originalfoto des/ },
+  { name: 'das Original kommt nicht zurück', datei: S, anker: "if (o) { await db.put('files', { id: k.id + ORIGINAL, name: o.name, bytes: o.bytes }); originale++; }", ersatz: ';', trifft: /kommt zurück/ },
+  { name: 'der Vermerk fehlt im Namen', datei: S, anker: 'return m && m[1] ? m[1] + ORIGINAL_VERMERK + m[2] : n + ORIGINAL_VERMERK;', ersatz: 'return n;', trifft: /Vermerk/ },
+  { name: 'der Vermerk kommt doppelt', datei: S, anker: 'if (n.includes(ORIGINAL_VERMERK)) return n;', ersatz: ';', trifft: /Vermerk/ },
   { name: 'die Einstellungen führen nicht hin', datei: A, anker: "d.querySelector('#stSicherung').onclick = () => { zu(); sicherungDialog(); };", ersatz: "d.querySelector('#stSicherung').onclick = () => { zu(); };", trifft: /öffnet die Sicherung/ }
 ];
 

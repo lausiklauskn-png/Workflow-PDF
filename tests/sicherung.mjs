@@ -44,12 +44,16 @@ await quelle.put('folders', { id: 'o1', name: 'Verträge' });
 await quelle.put('docs', { id: 'd1', name: GEHEIM, folderId: 'o1', fields: [{ id: 'f1', value: 'DE89370400440532013000' }], pruefung: { stand: 'sauber' } });
 await quelle.putFile('d1', new TextEncoder().encode('%PDF-1.4 erfunden ' + GEHEIM));
 await quelle.put('docs', { id: 'd2', name: 'Ohne Datei', folderId: null, fields: [] });
+// das aufgehobene Originalfoto eines noch ungeprüften Dokuments (Klaus 2026-10-14: „die Originale mitnehmen")
+const ORIG_INHALT = 'JPEG-erfunden ' + GEHEIM + ' Original';
+await quelle.put('files', { id: 'd1~original', name: 'Foto Quast.jpg', bytes: new TextEncoder().encode(ORIG_INHALT) });
 
 const r = await SI.verschliessen('richtig-langes-Passwort', quelle);
 const text = JSON.stringify(r.datei);
 ok('die Datei trägt Art und Fassung', r.datei.art === 'workfloh-pdf-sicherung' && r.datei.fassung === 1);
 ok('in der Datei steht KEIN Klartext (Name, IBAN, PDF-Inhalt)', !text.includes(GEHEIM) && !text.includes('DE8937040044') && !text.includes('PDF-1.4'), text.slice(0, 200));
 ok('ein Dokument ohne Datei wird gezählt, nicht verschwiegen', r.ohneDatei === 1 && r.docs === 2, r);
+ok('das Originalfoto des ungeprüften Dokuments kommt mit in die Sicherung', r.originale === 1, r);
 
 let fehler = null; try { await SI.oeffnen('falsches-Passwort-123', r.datei); } catch (e) { fehler = e.message; }
 ok('falsches Passwort → „passwort"', fehler === 'passwort', fehler);
@@ -66,9 +70,14 @@ ok('zurückholen: 1 Dokument dazu, 1 Ordner dazu, 1 ohne Datei übersprungen', z
 ok('die PDF-Bytes kommen Byte für Byte zurück', new TextDecoder().decode(ziel.st.files.get('d1')) === '%PDF-1.4 erfunden ' + GEHEIM);
 ok('ein Prüf-Befund aus der Datei wird nicht geglaubt (pruefung entfernt)', !('pruefung' in ziel.st.docs.get('d1')));
 ok('ein vorhandenes Dokument bleibt unberührt', ziel.st.docs.get('x9').name === 'Schon vorher da');
+const orig = ziel.st.files.get('d1~original');
+ok('das Originalfoto kommt zurück, Byte für Byte', z1.originale === 1 && !!orig && new TextDecoder().decode(orig.bytes) === ORIG_INHALT, z1);
+ok('… sein Name trägt den Vermerk „Original, „ungeprüft““ vor der Endung', !!orig && orig.name === 'Foto Quast (Original, „ungeprüft“).jpg', orig && orig.name);
+ok('originalName: kein zweiter Vermerk, und ohne Endung steht er hinten', SI.originalName(SI.originalName('a.jpg')) === 'a (Original, „ungeprüft“).jpg' && SI.originalName('ohne') === 'ohne (Original, „ungeprüft“)');
+ok('eine Sicherung ohne Originale (von vor dem 2026-10-14) lässt sich lesen', SI.inhaltLesen({ art: 'workfloh-pdf-sicherung', docs: [], ordner: [], dateien: [] }).originale.size === 0);
 await ziel.put('docs', Object.assign({}, ziel.st.docs.get('d1'), { name: 'Hier umbenannt' }));
 const z2 = await SI.zusammenfuehren(ziel, inhalt);
-ok('ein zweites Zurückholen fügt nichts hinzu und überschreibt nichts', z2.dazu === 0 && z2.schonDa === 1 && ziel.st.docs.get('d1').name === 'Hier umbenannt', z2);
+ok('ein zweites Zurückholen fügt nichts hinzu und überschreibt nichts', z2.dazu === 0 && z2.schonDa === 1 && ziel.st.docs.get('d1').name === 'Hier umbenannt' && z2.originale === 0, z2);
 const ohneOrdner = { ordner: [], docs: [{ id: 'd7', name: 'x', folderId: 'gibt-es-nicht' }], dateien: new Map([['d7', new Uint8Array([1])]]) };
 await SI.zusammenfuehren(ziel, ohneOrdner);
 ok('ein Ordner, den es nicht gibt, wird nicht erfunden (folderId → null)', ziel.st.docs.get('d7').folderId === null);
@@ -101,6 +110,7 @@ const { PDFDocument, StandardFonts } = await import('pdf-lib');
 const pdf = await PDFDocument.create(); const schrift = await pdf.embedFont(StandardFonts.Helvetica);
 pdf.addPage([595.28, 841.89]).drawText('Erfundener Mietvertrag', { x: 60, y: 760, size: 14, font: schrift });
 const B64 = Buffer.from(await pdf.save({ useObjectStreams: false })).toString('base64');
+const FOTO_ROH = fs.readFileSync(path.join(WURZEL, 'tests/eingang-vorlagen/Vorlage-H0-Foto-sauber.jpg')), FOTO = FOTO_ROH.toString('base64'), FOTO_LEN = FOTO_ROH.length;
 const DLDIR = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'wfsich-'));
 
 try {
@@ -117,6 +127,13 @@ try {
     const bin = atob(b64), a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
     await window.__wfpdf.importDateien([new File([a], 'Erfundener Mietvertrag Quast.pdf', { type: 'application/pdf' })], 'Testordner Sicherung', { still: true });
   }, B64);
+  // dazu ein Foto: bis zur Prüfung liegt sein Original daneben (<id>~original) — es reist mit (Klaus 2026-10-14)
+  await page.evaluate(async b64 => {
+    const bin = atob(b64), a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+    await window.__wfpdf.importDateien([new File([a], 'Erfundenes Foto Quast.jpg', { type: 'image/jpeg' })], 'Testordner Sicherung', { still: true });
+  }, FOTO);
+  const fotoOrig = await page.evaluate(async () => { const d = window.__wfpdf.S.docs.find(x => x.name.includes('Foto Quast')); const o = d && await WFP.DB.get('files', d.id + '~original'); return o ? { name: o.name, n: o.bytes.length } : null; });
+  ok('Ausgangslage: das Foto hat sein Original noch daneben (ungeprüft)', !!fotoOrig && fotoOrig.n === FOTO_LEN, fotoOrig);
   await page.waitForFunction(() => window.__wfpdf.S.docs.some(d => d.name.includes('Quast')), null, { timeout: 30000 });
 
   // Erinnerung: eigenes Dokument, nie gesichert
@@ -166,17 +183,26 @@ try {
 
   await page.fill('#siPwZ', 'Testpasswort-2026'); await page.click('#siZurueck');
   await page.waitForFunction(() => /✅/.test(document.querySelector('[data-sich-zurueck]').textContent), null, { timeout: 60000 });
-  ok('zurückgeholt: 1 Dokument und 1 Ordner dazu', /1 Dokument\(e\) dazu, 0 schon da, 1 Ordner dazu/.test(await page.textContent('[data-sich-zurueck]')), await page.textContent('[data-sich-zurueck]'));
+  ok('zurückgeholt: 2 Dokumente und 1 Ordner dazu', /2 Dokument\(e\) dazu, 0 schon da, 1 Ordner dazu/.test(await page.textContent('[data-sich-zurueck]')), await page.textContent('[data-sich-zurueck]'));
   const zurueck = await page.evaluate(async () => {
-    const d = (await WFP.DB.all('docs')).find(x => x.name.includes('Quast')); if (!d) return null;
+    const d = (await WFP.DB.all('docs')).find(x => x.name.includes('Mietvertrag Quast')); if (!d) return null;
     const b = await WFP.DB.getFile(d.id); const o = (await WFP.DB.all('folders')).find(x => x.id === d.folderId);
     return { name: d.name, ordner: o && o.name, kopf: b ? new TextDecoder().decode(new Uint8Array(b).slice(0, 5)) : null, inListe: window.__wfpdf.S.docs.some(x => x.id === d.id) };
   });
   ok('das Dokument ist mit Datei und Ordner zurück und steht in der Liste', !!zurueck && zurueck.kopf === '%PDF-' && zurueck.ordner === 'Testordner Sicherung' && zurueck.inListe, zurueck);
+  const orig = await page.evaluate(async () => {
+    const d = (await WFP.DB.all('docs')).find(x => x.name.includes('Foto Quast')); if (!d) return null;
+    const o = await WFP.DB.get('files', d.id + '~original');
+    const karte = document.querySelector('[data-id="' + d.id + '"] [data-pruef-nachholen]');
+    return o ? { name: o.name, n: o.bytes.length, offen: !!karte, befund: !!d.pruefung } : { name: null };
+  });
+  ok('das Originalfoto ist mit zurück, Byte für Byte', !!orig && orig.n === FOTO_LEN, orig);
+  ok('… sein Name trägt den Vermerk „Original, „ungeprüft““', !!orig && orig.name === 'Erfundenes Foto Quast (Original, „ungeprüft“).jpg', orig);
+  ok('… und das Dokument ist ungeprüft: kein Befund, „jetzt prüfen" steht an der Karte', !!orig && !orig.befund && orig.offen, orig);
 
   await page.fill('#siPwZ', 'Testpasswort-2026'); await page.click('#siZurueck');
   await page.waitForFunction(() => /0 Dokument\(e\) dazu/.test(document.querySelector('[data-sich-zurueck]').textContent), null, { timeout: 60000 });
-  ok('ein zweites Zurückholen legt nichts doppelt an', await page.evaluate(async () => (await WFP.DB.all('docs')).filter(x => x.name.includes('Quast')).length === 1));
+  ok('ein zweites Zurückholen legt nichts doppelt an', await page.evaluate(async () => (await WFP.DB.all('docs')).filter(x => x.name.includes('Quast')).length === 2));
 
   // „Später" blendet die Erinnerung für diesen Besuch aus
   await page.evaluate(() => { localStorage.removeItem('wfpdf_sicherung_zuletzt'); sessionStorage.removeItem('wfpdf_sicherung_spaeter'); window.__wfpdf.dlg.sicherungErinnerung(); });
