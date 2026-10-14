@@ -911,3 +911,9 @@ Dokument gespeichert, damit man weiß, woher er kam." Vorbild ist der Sende-Prü
 - ⚠ **Die Probe stolperte, statt zu melden** (Gegenprobe, Fall „Chrome-Übersetzen wird nicht gereinigt"): fehlte der Halt, wartete
   sie 30 s auf seinen Knopf und starb — „Felder erkennen" dahinter blieb ungemessen. `haltKnopf` drückt nur, wenn der Halt da ist.
 - Cache v89, `app.js?v=65`, `sprache-texte.js?v=45` (Chrome-Weg); davor v88 (#112).
+
+
+## 🛡 Prüfliste vor dem KI-Richter (Sage Bau 04.J, 2026-10-14)
+
+Modul 04 kommt neu aus dem Kanon (Sage #1082). Der Richter prüft die Suchfrage und jede fremde Antwort mit der Prüfliste (`pruefer-mail.js`). Fehlt die Liste, läuft er nicht. Eine Antwort, in der eine Anweisung an eine KI steht, geht nicht an die KI. Sie bekommt „gefahr“ und `ausgeschlossen: "ki-anweisung"`.
+In der Kette steht `assets/pruefer-mail.js?v=2` direkt nach 04, unter derselben Adresse wie in `eingang.js`. `tests/knoten.mjs` verlangt diese Stelle. Gemessen: `npm test` Rückgabe 0; im Browser ist `prueflisteGeladen` true. Cache v90. Am Tablet nicht gemessen.

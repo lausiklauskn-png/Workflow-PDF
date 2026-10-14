@@ -103,6 +103,7 @@
     /* Modul 03 steht NICHT in der Kette: die Suche nach Bedeutung lädt es erst auf
        „Modell laden" (tests/bedeutung.mjs bewacht das). Das Siegel führt 03 als „lazy". */
     ["",       "vendor/sbkim/04_match.js?v=1"],      // dieselbe Adresse wie die Suche nach Bedeutung
+    ["",       "assets/pruefer-mail.js?v=2"],   // Prüfliste für den KI-Richter (Sage 04.J): ohne sie läuft er nicht (dieselbe Adresse wie eingang.js)
     ["",       "sbkim/05_anastomose.js"],
     ["",       "sbkim/07_apoptose.js"],
     ["",       "sbkim/15_membran.js"],
