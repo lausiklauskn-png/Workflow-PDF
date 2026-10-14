@@ -842,7 +842,7 @@ Ausgabe auf Knopfdruck." `pruefer-formate.js` und `pruefer-anhang.js` sind neu b
 - Gegenprobe `NUR_FALL="BERICHT:"` mit 3 Fällen: 3 gefangen. Ein Fall war zuerst „aus falschem Grund", weil die Probe am fehlenden Knopf stolperte; sie meldet das jetzt.
 - Ein toter Anker eines HERKUNFT-Falls ist nachgezogen.
 - Cache v85, `app.js?v=62`, `eingang.js?v=5`, `style.css?v=40`, `sprache-texte.js?v=42`.
-- ⚠ **Noch nicht gebaut (Klaus' Wort, 2026-10-14):** Erst wenn etwas an eine KI geht, wird gereinigt. Das betrifft Bild-Metadaten und versteckten Text. Der entfernte Text wird mit dem Dokument gespeichert, damit man weiß, woher er kam. Vorbild ist der Weg im Sende-Prüfer: Halt vor der KI und eine sichere Fassung.
+- ✅ **Gebaut am 2026-10-14** — siehe „🧽 Reinigung vor der KI" unten. Hier stand: *„Noch nicht gebaut (Klaus' Wort): Erst wenn etwas an eine KI geht, wird gereinigt …"*
 - ⚠ Am Tablet nicht gemessen.
 
 ## ▶ Prüfen erst auf Knopfdruck (Klaus 2026-10-14)
@@ -860,9 +860,49 @@ möchte … Und so auch bei älteren Dateien, die schon importiert wurden."
   dort ist der Befund der Zweck.
 - **Das Originalfoto bleibt liegen, bis geprüft ist** (`files`, Schlüssel `<id>~original`), denn geprüft wird das Foto, nicht das
   daraus gebaute PDF. Nach der Prüfung wird es gelöscht; `DB.del('files', id)` und `dokErsetzen` nehmen es mit.
-- ⚠ **Benannte Grenzen:** eine Sicherung trägt die Originalfotos nicht mit (zurückgeholt wird dann das PDF geprüft) ·
-  Fotos von vor diesem Stand haben kein Original mehr, ihre Prüfung sieht nur das gespeicherte PDF.
+- ⚠ **Benannte Grenze:** Fotos von vor diesem Stand haben kein Original mehr, ihre Prüfung sieht nur das gespeicherte PDF.
+  ✅ Hier stand auch: *„eine Sicherung trägt die Originalfotos nicht mit"* — seit dem 2026-10-14 trägt sie sie (Klaus' Wort,
+  Abschnitt „🧽 Reinigung vor der KI" unten).
 - Proben: `tests/eingang.mjs` **76 grün · 0 ROT** (Abschnitt 10: Editor-Knopf mit H2.jpg samt BILD-METADATEN, Karten-Knopf prüft
   nur das eine Dokument, Löschen nimmt das Original mit) · Gegenprobe `NUR_FALL="MANUELL:"` (6 Fälle). Gefahren in einer Kopie: erst **1 aus falschem Grund** (die Probe las den Editor, bevor „wird geprüft" stand — seitdem zeigt die App es schon beim Tipp, und die Probe wartet auf die Bedingung), danach **6 gefangen · 1 durchgerutscht**. Der durchgerutschte Fall („der Knopf an der Karte öffnet das Dokument mit") ist als benannte Grenze ersetzt: die Marke liegt außerhalb jedes Öffnen-Bereichs, `stopPropagation` ist dort am Bestand nicht messbar. `npm test` Rückgabe 0.
 - Cache v86, `app.js?v=63`, `db.js?v=6`, `sicherung.js?v=2`, `style.css?v=41`, `sprache-texte.js?v=43`.
 - ⚠ Am Tablet nicht gemessen; ein Buch mit 400 Seiten auch nicht.
+
+## 🧽 Reinigung vor der KI · Originale in der Sicherung (Klaus 2026-10-14)
+
+„Erst wenn etwas an eine KI geht, wird gereinigt: Bild-Metadaten und versteckter Text. Der entfernte Text wird mit dem
+Dokument gespeichert, damit man weiß, woher er kam." Vorbild ist der Sende-Prüfer: **einmal anhalten, dann die sichere Fassung**.
+
+- **Die Rechnung** steht in `assets/reinigung.js` (`WFP.Reinigung`, kein DOM, in Node geprüft). „Versteckt" heißt: an der Stelle
+  des Textstücks ist im GEZEICHNETEN Seitenbild keine Schrift (`versteckt`: weiß auf weiß, Darstellungsart 3, blass — Abstand zum
+  Grund ≤ `KONTRAST` 32), es ist winzig (< 1,5 pt) oder liegt außerhalb der Seite. Dieselbe Idee wie `tinteIm` im Prüfkern, aber
+  ohne Texterkennung — daher schnell genug für jede gesendete Seite.
+- **Zwei Wege zur KI, beide gereinigt:**
+  · **Übersetzen über die KI:** `UE.lauf` hat einen Haken `opt.reinigen(roh, bild, scale, seite)` vor dem Gruppieren; was er
+  herausnimmt, geht nicht in den Text an die KI (und wird auch nicht abgedeckt — es bleibt unsichtbar im Original stehen).
+  `false` heißt: anhalten, nichts senden. ⚠ `uebersetzung.js` ist byte-1:1 in die WorkFlohs kopiert — dort neu kopieren und die
+  Pins nachziehen; ohne den Haken ändert sich dort nichts.
+  · **Felder erkennen mit KI:** `kiSeitenBild` deckt versteckte Stücke in einer KOPIE des Seitenbilds zu (`zudecken`, Farbe des
+  Grundes) — gemeint ist blasser Text, den eine KI im Bild lesen könnte — und nimmt Bild-Metadaten aus dem JPEG (`jpegOhneMeta`:
+  EXIF/XMP, IPTC, Hersteller-Segmente und Kommentar heraus, alles andere Byte für Byte). ⚠ **ICC-Farbprofil (APP2) und Adobe
+  (APP14) bleiben**: Chromium hängt an JEDES JPEG aus einer Leinwand ein ICC-Profil (474 Byte, gemessen) — als Metadaten gezählt,
+  hielt die Reinigung bei jedem Formular an (`tests/e2e.mjs` war daran rot). Ein Farbprofil sagt nichts über Gerät, Ort oder Person.
+- **Einmal je Sendevorgang** fragt „Versteckten Text gefunden" (`kiReiniger`, `[data-ki-halt]`): die Stücke mit Grund und Seite,
+  „Ohne ihn senden" / „Abbrechen". Abbrechen sendet NICHTS und vermerkt nichts (ohne Senden ist nichts entfernt).
+- **Der Vermerk** steht am Dokument: `d.kiEntfernt = [{zeit, weg, seite, text, grund}]` (je Weg, Seite, Grund und Text einmal,
+  höchstens 300, Text ≤ 400 Zeichen). Er reist mit Datenbank, Sicherung und Arbeitsstand und steht im Prüfbericht
+  (`[data-ki-entfernt]`, „Vor dem Senden an eine KI entfernt") und in dessen Textdatei. Das Dokument selbst bleibt unverändert.
+- ⚠ **Benannte Grenzen:** nur der KI-Weg wird gereinigt — **„Mit Chrome übersetzen" schickt den Text an Googles Übersetzer und
+  wird NICHT gereinigt** (offene Frage an Klaus), der Übersetzer im Browser bleibt auf dem Gerät · Text über einem Foto oder über
+  sichtbarer Schrift hat dort Tinte und bleibt drin · schräger Text wird nicht beurteilt · gescannte Seiten (Texterkennung) lesen
+  ohnehin nur, was zu sehen ist · der Vermerk steht im Prüfbericht, den es erst nach einer Prüfung gibt · „Mit ChatGPT übersetzen"
+  im Scanner teilt ein Bild aus einer Leinwand: es trägt keine Metadaten, Text darin ist sichtbar — nicht angefasst.
+  ⚠ `KONTRAST` 32, `ANTEIL` 0,4 %, `WINZIG_PT` 1,5 sind gewählt, nicht an echten Dokumenten gemessen.
+- **Originale in der Sicherung** (Klaus: „die Originale mitnehmen, die können später ja wieder geprüft werden … ein Vermerk im
+  Dateinamen, dass sie original sind, also ‚ungeprüft‘"): `inhaltBauen` nimmt `<id>~original` mit (`originale`), Zurückholen legt
+  es neben das zurückgeholte Dokument. Der Name trägt vor der Endung **„ (Original, „ungeprüft“)"** (`originalName`, nie doppelt).
+  Fassung bleibt 1: eine Sicherung ohne `originale` (von vorher) liest sich weiter.
+- Proben: `tests/reinigung.mjs` (in `npm test`; A ohne Browser, B im Browser mit gestellter KI und erfundenem PDF mit weißem,
+  winzigem, unsichtbar gesetztem und blassem Text) · `node tests/gegenprobe_reinigung.mjs` (`NUR_ANKER=1`, `NUR_FALL="…"`) ·
+  `tests/sicherung.mjs` und `gegenprobe_sicherung.mjs` um die Originale ergänzt.
+- ⚠ Nicht gemessen: am Tablet · an echten Dokumenten aus Klaus' Alltag · mit einer echten KI (die Anfragen sind abgefangen).

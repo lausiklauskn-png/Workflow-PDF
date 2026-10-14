@@ -718,6 +718,13 @@
           if (ocrWorker) { r.bloecke = await ocrBloecke(ocrWorker, bild, scale); ocr = true; ocrSeiten++; }
         }
         const pr = seitenPruefer(bild, scale);
+        // Reinigung vor der KI (Klaus 2026-10-14): wer opt.reinigen gibt, bekommt die Stücke der Seite
+        // samt gezeichnetem Bild und gibt die bereinigten zurück — false heißt: hier anhalten, nichts senden.
+        if (!ocr && r.roh && opt.reinigen) {
+          const rr = await opt.reinigen(r.roh, bild, scale, i + 1);
+          if (rr === false) { abgebrochen = true; try { page.cleanup(); } catch (_) {} break; }
+          if (rr) r.roh = rr;
+        }
         if (!ocr && r.roh) { r.bloecke = []; for (const o of Object.keys(r.roh).map(Number)) r.bloecke.push(...gruppieren(r.roh[o].map(t => ({ ...t })), o, pr)); }
         // Bilder auf einer Seite mit Text: den Bildausschnitt groß rendern und lesen.
         // Was schon als echter Text über dem Bild liegt, wird nicht doppelt übernommen.

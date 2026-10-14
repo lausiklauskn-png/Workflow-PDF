@@ -66,6 +66,24 @@
         (d, zu) => { d.querySelector('[data-j]').onclick = () => { zu(); res(true); }; d.querySelector('[data-n]').onclick = () => { zu(); res(false); }; d.querySelector('[data-j]').focus(); });
     });
   }
+  /* Reinigung vor der KI (Klaus 2026-10-14, Vorbild Sende-Prüfer): was ein Mensch auf der Seite nicht
+     sieht, geht nicht mit. EINMAL je Sendevorgang wird angehalten und gezeigt, was fehlen wird;
+     danach läuft er mit der sicheren Fassung weiter. Was entfernt wurde, steht am Dokument
+     (d.kiEntfernt) und im Prüfbericht — erst NACH dem „Ja", denn ohne Senden ist nichts entfernt. */
+  function kiReiniger(weg) {
+    const RE = WFP.Reinigung, st = { gefragt: false, ok: true, n: 0 };
+    async function halt(d, liste) {
+      if (!liste.length) return st.ok;
+      if (!st.gefragt) {
+        st.gefragt = true;
+        const zeig = liste.slice(0, 8).map(e => `<li data-ki-entfernt-stueck><b data-g>${h(RE.grundSatz(e.grund))}</b>${e.seite ? ` · <span data-s>Seite ${h(e.seite)}</span>` : ''}<br><span data-kein-ue>„${h(String(e.text).slice(0, 120))}“</span></li>`).join('');
+        st.ok = await frage('Versteckten Text gefunden', `<div data-ki-halt><p>In <b><span data-kein-ue>${h(d.name)}</span></b> steht Text, den man auf der Seite nicht sieht. Eine KI würde ihn trotzdem lesen.</p><ul>${zeig}</ul>${liste.length > 8 ? `<p class="hinweis">… und weitere Stellen.</p>` : ''}<p>Gesendet wird die sichere Fassung: <b>ohne</b> diesen Text. Was entfernt wurde, wird mit dem Dokument gespeichert und steht im Prüfbericht. Das Dokument selbst bleibt unverändert.</p></div>`, 'Ohne ihn senden', 'Abbrechen');
+      }
+      if (st.ok) { RE.vermerken(d, liste, weg); st.n += liste.length; }
+      return st.ok;
+    }
+    return { halt, st };
+  }
   function eingabe(titel, label, wert) {
     return new Promise(res => {
       dialog(`<h2>${h(titel)}</h2><label>${h(label)}</label><input type="text" data-e value="${h(wert || '')}"><div class="zeile"><button class="knopf" data-n>Abbrechen</button><button class="knopf rot" data-j>OK</button></div>`,
@@ -1025,9 +1043,21 @@
       p.angaben.forEach(f => z.push('- ' + (E.ANGABE_NAME[f.kennung] || f.kennung) + ': ' + f.satz));
       z.push('');
     }
+    if (Array.isArray(d.kiEntfernt) && d.kiEntfernt.length) {
+      z.push('Vor dem Senden an eine KI entfernt (das Dokument selbst ist unverändert):');
+      d.kiEntfernt.forEach(v => z.push('- ' + (v.seite ? 'Seite ' + v.seite + ', ' : '') + WFP.Reinigung.grundSatz(v.grund) + ' (' + (v.weg === 'erkennung' ? 'Felder erkennen' : v.weg === 'uebersetzung' ? 'Übersetzen' : v.weg) + ', ' + String(v.zeit || '').slice(0, 10) + '): „' + v.text + '“'));
+      z.push('');
+    }
     if (p.hinweise && p.hinweise.length) { z.push('Was geprüft wurde:'); p.hinweise.forEach(x => z.push('- ' + x)); z.push(''); }
     z.push('Das ist keine Virenprüfung. Gesucht wird nach versteckten Anweisungen und Tarnungen.');
     return z.join('\n');
+  }
+  /* Was vor dem Senden an eine KI herausgenommen wurde (assets/reinigung.js) — damit man weiß, woher es kam. */
+  function kiEntferntHtml(d) {
+    const l = Array.isArray(d.kiEntfernt) ? d.kiEntfernt : [];
+    if (!l.length) return '';
+    const wegName = w => w === 'erkennung' ? 'Felder erkennen' : w === 'uebersetzung' ? 'Übersetzen' : w;
+    return `<div class="pruef-angaben" data-ki-entfernt><p><b>Vor dem Senden an eine KI entfernt</b></p><p class="hinweis">Dieser Text steht im Dokument, ist auf der Seite aber nicht zu sehen. Er ging nicht mit. Das Dokument selbst ist unverändert.</p><ul>${l.map(v => `<li data-grund="${h(v.grund)}"><b data-g>${h(WFP.Reinigung.grundSatz(v.grund))}</b><br><span data-w>${h(wegName(v.weg))}</span>${v.seite ? ` · <span data-s>Seite ${h(v.seite)}</span>` : ''}<br><span data-kein-ue>„${h(v.text)}“</span></li>`).join('')}</ul></div>`;
   }
   async function pruefDialog(id) {
     const d = (S.doc && S.doc.id === id) ? S.doc : S.docs.find(x => x.id === id) || await DB.get('docs', id);
@@ -1047,6 +1077,7 @@
       ${p.stand === 'warnung' ? '<p class="hinweis" data-pruef-original>Nichts wurde entfernt: das Dokument steht unverändert in der Bibliothek. Vor dem Übersetzen oder dem Erkennen mit KI: beim Absender nachfragen, was es mit dieser Stelle auf sich hat.</p>' : ''}
       ${p.herkunft && p.herkunft.length ? `<div class="pruef-herkunft" data-herkunft><p><b>ℹ Herkunftsnachweis</b></p><p class="hinweis">Das ist eine Angabe, keine Gefahr: in der Datei steht, womit sie entstanden ist. Ob die Unterschrift echt ist, rechnet diese Prüfung nicht nach.</p>${p.herkunft.map(x => `<p data-kein-ue>${h(x.satz)}</p>${x.daten && x.daten.length ? `<details data-herkunft-details><summary>Details anzeigen</summary><dl>${x.daten.map(z => `<dt data-kein-ue>${h(z[0])}</dt><dd data-kein-ue>${h(z[1])}</dd>`).join('')}</dl></details>` : ''}`).join('')}</div>` : ''}
       ${Array.isArray(p.angaben) ? (p.angaben.length ? `<div class="pruef-angaben" data-angaben><p><b>Was sonst in der Datei steht</b></p><p class="hinweis">Angaben, keine Gefahr: in Formularen und Fotos ist das normal. Sie stehen hier, damit Sie wissen, was die Datei über sich mitträgt, bevor Sie sie weitergeben.</p><ul>${p.angaben.map(f => `<li data-kennung="${h(f.kennung)}"><b>${h(WFP.Eingang.ANGABE_NAME[f.kennung] || f.kennung)}</b><br><span data-kein-ue>${h(f.satz)}</span></li>`).join('')}</ul></div>` : '<p class="hinweis" data-angaben="0">Weitere Angaben (Metadaten, frühere Speicherstände) wurden in der Datei nicht gefunden.</p>') : '<p class="hinweis" data-angaben-alt>Diese Prüfung stammt aus einer älteren Fassung der App und hat die weiteren Angaben (Metadaten, frühere Speicherstände) nicht aufgehoben. Wer sie sehen will, liest die Datei noch einmal ein.</p>'}
+      ${kiEntferntHtml(d)}
       ${p.hinweise && p.hinweise.length ? `<details class="pruef-grenzen"><summary>Was geprüft wurde</summary><ul>${p.hinweise.map(x => '<li data-kein-ue>' + h(x) + '</li>').join('')}</ul></details>` : ''}
       <p class="hinweis">Geprüft <span data-kein-ue>${h(zeit)}</span> auf diesem Gerät, ohne Netz. Die Sätze der Prüfung stehen auf Deutsch.</p>
       <div class="zeile"><button class="knopf" data-bericht-laden>⬇ Prüfbericht als Textdatei</button>${p.markiert ? '<button class="knopf" data-markiert-laden>⬇ Markierte Kopie speichern</button>' : ''}<button class="knopf rot" data-x>OK</button></div>`,
@@ -1720,11 +1751,12 @@
   async function erkenneViele(ids, mitKi) {
     const fb = fortschritt(mitKi ? 'KI erkennt Felder …' : 'Felder werden erkannt …');
     let gesamt = 0; const fehler = [];
+    const rein = mitKi ? kiReiniger('erkennung') : null;
     for (let k = 0; k < ids.length; k++) {
       const offen = S.doc && S.doc.id === ids[k];
       try {
         const d = offen ? S.doc : await DB.get('docs', ids[k]); const b = offen ? S.bytes : await DB.getFile(ids[k]);
-        const r = await erkenneDok(d, b, mitKi, (a, t, b) => fb.setze((k + a) / ids.length, (ids.length > 1 ? `Dokument ${k + 1}/${ids.length} · ` : '') + t, b == null ? undefined : (k + b) / ids.length));
+        const r = await erkenneDok(d, b, mitKi && rein.st.ok, (a, t, b) => fb.setze((k + a) / ids.length, (ids.length > 1 ? `Dokument ${k + 1}/${ids.length} · ` : '') + t, b == null ? undefined : (k + b) / ids.length), rein);
         gesamt += r.neu; if (r.fehler) fehler.push(d.name + ': ' + r.fehler);
         if (!offen) await DB.put('docs', d);
       } catch (e) { fehler.push(String(e.message || e)); }
@@ -1779,7 +1811,31 @@
     }
   }
 
-  async function erkenneDok(d, bytes, mitKi, melde) {
+  /* Das Bild, das zur KI geht: eine KOPIE der Seite, versteckter Text darin zugedeckt (blasser Text
+     wäre für die KI lesbar), Bild-Metadaten heraus. Gibt {url, liste} — liste für den Vermerk. */
+  async function kiSeitenBild(p, vp, c, kand, seite) {
+    const RE = WFP.Reinigung, liste = [];
+    const k = document.createElement('canvas'); k.width = c.width; k.height = c.height;
+    const kx = k.getContext('2d', { willReadFrequently: true }); kx.drawImage(c, 0, 0);
+    try {
+      const img = kx.getImageData(0, 0, k.width, k.height);
+      const tc = await p.getTextContent();
+      for (const t of tc.items) {
+        if (!t.str || !t.str.trim()) continue;
+        const tr = pdfjsLib.Util.transform(vp.transform, t.transform);
+        if (Math.abs(Math.atan2(tr[1], tr[0])) > 0.05) continue;   // schräger Text: nicht beurteilt (Grenze)
+        const st = { s: t.str, x: tr[4] / vp.scale, y: tr[5] / vp.scale, w: t.width, fh: Math.hypot(tr[2], tr[3]) / vp.scale };
+        const g = RE.versteckt(st, img, vp.scale);
+        if (g) { liste.push({ seite, text: t.str, grund: g }); RE.zudecken(img, st, vp.scale); }
+      }
+      if (liste.length) kx.putImageData(img, 0, 0);
+    } catch (_) {}
+    const m = RE.datenAdresseOhneMeta(ER.markiertesBild(k, kand));
+    m.entfernt.forEach(e => liste.push({ seite, text: e.art + ' (' + e.bytes + ' Byte)', grund: 'meta' }));
+    k.width = k.height = 0;
+    return { url: m.url, liste };
+  }
+  async function erkenneDok(d, bytes, mitKi, melde, rein) {
     const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
     d.fields = d.fields.filter(f => f.geprueft);           // alte, ungeprüfte Vorschläge ersetzen
     let neu = 0, fehler = '';
@@ -1800,7 +1856,9 @@
           const kand = (EINST.linien !== false ? felder : ER.linienErkennung(x.getImageData(0, 0, c.width, c.height)))
             .filter(k => !alt.some(v => iouV(v, k) > 0.25)).slice(0, 150);
           melde((i + 0.1) / seiten, `Seite ${i + 1} von ${pdf.numPages} · KI liest die Seite …`, (i + 0.95) / seiten);
-          const antwort = await ER.kiAnfrage(kiCfg(), ER.markiertesBild(c, kand), ER.promptMitKandidaten(kand));
+          const sicher = await kiSeitenBild(p, vp, c, kand, i + 1);
+          if (rein && !(await rein.halt(d, sicher.liste))) { mitKi = false; throw new Error('Senden abgebrochen — versteckter Text gefunden, nichts ging an die KI'); }
+          const antwort = await ER.kiAnfrage(kiCfg(), sicher.url, ER.promptMitKandidaten(kand));
           const r = ER.kiAuswerten(antwort, { w: c.width, h: c.height });
           if (r.text && d.pages[i]) d.pages[i].text = r.text;
           felder = ER.zusammenfuehren(r.felder, kand, r.kein);
@@ -2500,6 +2558,8 @@
     if (hin) hin.meldeWarten = (ms, v, n) => fb.setze(stand, (standText || 'Erste Seite') + ' · Anbieter bremst (Tempo-Limit), warte ' + Math.round(ms / 1000) + ' s — Versuch ' + v + ' von ' + n);   // „⏹ Abbrechen" auf der Chrome-Fläche
     const fb = fortschritt('Übersetzung ' + von.toUpperCase() + ' → ' + nach.toUpperCase(), stopp);
     const bericht = []; const t0 = Date.now();
+    // Nur der KI-Weg wird gereinigt: Chrome und der Übersetzer im Browser sind keine KI des Nutzers (offene Frage an Klaus)
+    const rein = weg !== 'chrome' && weg !== 'browser' ? kiReiniger('uebersetzung') : null;
     let schrift = null;
     try { schrift = await UE.schriftLaden('vendor/'); } catch (e) { fb.zu(); toast('⚠️ ' + (e.message || e)); return; }
     for (let k = 0; k < ids.length && !abbruch; k++) {
@@ -2512,9 +2572,21 @@
         const alt = await jobLesen(jid);
         const ohneVor = (hin.stat && hin.stat.ohne) || 0;
         const neuVor = (hin.stat && hin.stat.neustarts) || 0, zerVor = (hin.stat && hin.stat.zerlegt) || 0;
-        const r = await UE.lauf({ bytes, uebersetzer: hin, stand: alt, abbruch: () => abbruch, ocr: { basis: 'vendor/', von, bilder: !!EINST.ueBilder },
+        const vorN = rein ? rein.st.n : 0;
+        const reinigen = rein ? async (roh, bild, scale, seite) => {
+          const img = bild.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, bild.width, bild.height);
+          const g = WFP.Reinigung.reinigeRoh(roh, img, scale);
+          if (!g.entfernt.length) return g.roh;
+          if (!(await rein.halt(d, g.entfernt.map(e => Object.assign({ seite }, e))))) { abbruch = true; return false; }
+          return g.roh;
+        } : null;
+        const r = await UE.lauf({ bytes, uebersetzer: hin, stand: alt, abbruch: () => abbruch, reinigen, ocr: { basis: 'vendor/', von, bilder: !!EINST.ueBilder },
           speichere: st => DB.put('files', { id: jid, job: st }),
           melde: (i, n, info) => { stand = (k + i / n) / ids.length; standText = info.text ? vor + info.text : `${vor}Seite ${i} von ${n}${info.neu ? ' · ' + (info.ms / info.neu / 1000).toFixed(1) + ' s je Seite' : ''}`; fb.setze(stand, standText); } });
+        if (rein && rein.st.n > vorN) {
+          await DB.put('docs', d);
+          zeile.hinweise.push((rein.st.n - vorN) + ' Stück(e) versteckter Text gingen nicht an die KI — sie stehen im Prüfbericht des Dokuments.');
+        }
         zeile.ocr = r.ocrSeiten;
         if (r.ocrFehler) zeile.hinweise.push('Texterkennung für gescannte Seiten nicht verfügbar (' + r.ocrFehler + ') — diese Seiten bleiben unübersetzt.');
         zeile.ms = r.ms; zeile.neu = r.neu; zeile.fertig = r.fertig;
@@ -2668,7 +2740,7 @@
     const SI = WFP.Sicherung;
     const zuletzt = lsLies(SICH_ZULETZT);
     dialog(`<h2>🔐 Bibliothek sichern</h2>
-      <p class="hinweis">Alle Ordner, Dokumente (mit Feldern und Einträgen) und PDF-Dateien in <b>eine Datei</b>, verschlüsselt mit einem eigenen Passwort. In der Datei steht kein lesbarer Text. Nicht mit dabei: KI-Schlüssel und Einstellungen.</p>
+      <p class="hinweis">Alle Ordner, Dokumente (mit Feldern und Einträgen) und PDF-Dateien in <b>eine Datei</b>, verschlüsselt mit einem eigenen Passwort. In der Datei steht kein lesbarer Text. Mit dabei: die Originalfotos noch ungeprüfter Dokumente, im Namen als „Original, ungeprüft“ vermerkt. Nicht mit dabei: KI-Schlüssel und Einstellungen.</p>
       <p class="hinweis" data-sich-zuletzt>${zuletzt ? 'Letzte Sicherung: ' + h(new Date(zuletzt).toLocaleDateString('de-DE')) + '.' : 'Noch keine Sicherung erstellt.'}</p>
       <h3 style="margin:12px 0 0;font-size:1rem">Sicherung erstellen</h3>
       <label>Passwort (mindestens ${SI ? SI.MIN_PW : 8} Zeichen)</label><input type="password" id="siPw1" autocomplete="new-password">
@@ -3018,7 +3090,7 @@
     if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
     bedeutungZeichnen();
     ladeBibliothek().then(() => { if (EINST.bedeutung) bedeutungStarten(); }).then(chromeTabRueckweg).then(geteiltUebernehmen).then(oeffnenMitEmpfangen).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
-    window.__wfpdf = { eingang: { PRUEF, pruefDialog, eingangPruefen, pruefungNachholen }, beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner, geteiltUebernehmen,
+    window.__wfpdf = { eingang: { PRUEF, pruefDialog, eingangPruefen, pruefungNachholen }, kiReiniger, beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner, geteiltUebernehmen,
       // für tests/sprache.mjs: jeden Dialog einmal öffnen und seine Texte nachschlagen
       dlg: { neuerOrdner, verschieben, teilenDocs, wahlEnde, WAHL, wahlUmschalten, loeschen, speichernDialog, scanStarten, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, erklaervideo, videoFuer, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe, bedeutungDialog, sicherungDialog, sicherungErinnerung } };   // für die Probe
   }
