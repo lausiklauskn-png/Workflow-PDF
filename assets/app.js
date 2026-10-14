@@ -978,11 +978,14 @@
   async function pruefungNachholen(ids) {
     for (const id of ids) {
       if (PRUEF.laufend.has(id)) continue;
-      const d = S.docs.find(x => x.id === id) || await DB.get('docs', id); if (!d) continue;
-      const o = await DB.get('files', id + ORIGINAL);
-      const b = o && o.bytes ? o.bytes : await DB.getFile(id); if (!b) continue;
+      // Sofort „wird geprüft" zeigen, noch vor dem Lesen aus der Datenbank: sonst stand nach dem Tipp
+      // einen Augenblick lang weiter „jetzt prüfen" da (gemessen von der Gegenprobe, 2026-10-14).
+      PRUEF.laufend.add(id); markeErneuern(id);
+      const d = S.docs.find(x => x.id === id) || await DB.get('docs', id);
+      const o = d ? await DB.get('files', id + ORIGINAL) : null;
+      const b = !d ? null : o && o.bytes ? o.bytes : await DB.getFile(id);
+      if (!b || !window.WFP || !WFP.Eingang) { PRUEF.laufend.delete(id); markeErneuern(id); continue; }
       eingangPruefen(id, o && o.bytes ? o.name : d.name + '.pdf', b, !!o);
-      edPruefungZeigen();
     }
   }
   function pruefMarke(d) {

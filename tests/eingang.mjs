@@ -306,11 +306,15 @@ try {
     const nachLaden = await page.evaluate(() => ({ laufend: window.__wfpdf.eingang.PRUEF.laufend.size, offen: [...document.querySelectorAll('[data-pruef-nachholen]')].filter(b => b.checkVisibility()).length }));
     ok('MANUELL: nach dem Neuladen prüft nichts von selbst', nachLaden.laufend === 0, nachLaden);
     ok('MANUELL: … ältere Dokumente ohne Befund tragen „jetzt prüfen"', nachLaden.offen === 2, nachLaden);
+    // ob das Dokument aufging und was geprüft wurde, wird erst NACH der Prüfung gemessen —
+    // Tipp und Öffnen sind asynchron, ein Blick direkt danach sähe noch nichts (Gegenprobe 2026-10-14)
     await page.evaluate(() => { const k = [...document.querySelectorAll('.dok')].find(d => d.querySelector('.dok-name').textContent.trim() === 'Antrag'); k.querySelector('[data-pruef-nachholen]').click(); });
-    const geoeffnet = await page.evaluate(() => !!window.__wfpdf.S.doc);
-    ok('MANUELL: der Knopf prüft, statt das Dokument zu öffnen', !geoeffnet);
-    ok('MANUELL: … und nur dieses eine', await page.evaluate(() => window.__wfpdf.eingang.PRUEF.laufend.size === 1));
+    await page.waitForFunction(() => window.__wfpdf.eingang.PRUEF.laufend.size > 0 || window.__wfpdf.S.docs.some(d => d.pruefung), null, { timeout: 30000 });
     await warteFertig(page);
+    const nur = await page.evaluate(() => window.__wfpdf.S.docs.filter(d => d.pruefung).map(d => d.name));
+    ok('MANUELL: … und nur dieses eine', nur.length === 1 && nur[0] === 'Antrag', nur);
+    const geoeffnet = await page.evaluate(() => !!window.__wfpdf.S.doc || !!document.querySelector('#sc-ed.on'));
+    ok('MANUELL: der Knopf prüft, statt das Dokument zu öffnen', !geoeffnet);
     const a = await stand(page, 'Antrag');
     ok('MANUELL: … das Dokument trägt danach seinen Befund', a && a.stand === 'sauber', a);
     // Löschen nimmt das aufgehobene Original mit
