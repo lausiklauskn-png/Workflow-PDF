@@ -934,7 +934,12 @@
   "Bei 1 Seite waren sich die Verfahren beim Zuschnitt nicht einig. Trotzdem so übernehmen?": "For 1 page the methods disagreed on the crop. Use it anyway?",
   "Bei {} Seiten waren sich die Verfahren beim Zuschnitt nicht einig. Trotzdem so übernehmen?": "For {1} pages the methods disagreed on the crop. Use them anyway?",
   "Trotzdem übernehmen": "Use anyway",
-  "Zurück und prüfen": "Go back and check"
+  "Zurück und prüfen": "Go back and check",
+  "ℹ Herkunft": "ℹ Origin",
+  "<b>ℹ Herkunftsnachweis</b>": "<b>ℹ Content credentials</b>",
+  "ℹ Herkunftsnachweis": "ℹ Content credentials",
+  "Das ist eine Angabe, keine Gefahr: in der Datei steht, womit sie entstanden ist. Ob die Unterschrift echt ist, rechnet diese Prüfung nicht nach.": "This is information, not a danger: the file states what it was made with. Whether the signature is genuine is not checked here.",
+  "Details anzeigen": "Show details"
  },
  "ru": {
   "lebt": "жив",
@@ -1867,7 +1872,12 @@
   "Bei 1 Seite waren sich die Verfahren beim Zuschnitt nicht einig. Trotzdem so übernehmen?": "Для 1 страницы методы не согласились насчёт обрезки. Всё равно принять?",
   "Bei {} Seiten waren sich die Verfahren beim Zuschnitt nicht einig. Trotzdem so übernehmen?": "Для страниц ({1}) методы не согласились насчёт обрезки. Всё равно принять?",
   "Trotzdem übernehmen": "Всё равно принять",
-  "Zurück und prüfen": "Назад и проверить"
+  "Zurück und prüfen": "Назад и проверить",
+  "ℹ Herkunft": "ℹ Происхождение",
+  "<b>ℹ Herkunftsnachweis</b>": "<b>ℹ Сведения о происхождении</b>",
+  "ℹ Herkunftsnachweis": "ℹ Сведения о происхождении",
+  "Das ist eine Angabe, keine Gefahr: in der Datei steht, womit sie entstanden ist. Ob die Unterschrift echt ist, rechnet diese Prüfung nicht nach.": "Это сведения, а не опасность: в файле указано, чем он создан. Подлинность подписи эта проверка не устанавливает.",
+  "Details anzeigen": "Показать подробности"
  },
  "ar": {
   "lebt": "حيّ",
@@ -2800,6 +2810,11 @@
   "Bei 1 Seite waren sich die Verfahren beim Zuschnitt nicht einig. Trotzdem so übernehmen?": "في صفحة واحدة اختلفت الطرق حول القص. هل تريد القبول رغم ذلك؟",
   "Bei {} Seiten waren sich die Verfahren beim Zuschnitt nicht einig. Trotzdem so übernehmen?": "في {1} صفحات اختلفت الطرق حول القص. هل تريد القبول رغم ذلك؟",
   "Trotzdem übernehmen": "القبول رغم ذلك",
-  "Zurück und prüfen": "العودة والتحقق"
+  "Zurück und prüfen": "العودة والتحقق",
+  "ℹ Herkunft": "ℹ المصدر",
+  "<b>ℹ Herkunftsnachweis</b>": "<b>ℹ بيانات المصدر</b>",
+  "ℹ Herkunftsnachweis": "ℹ بيانات المصدر",
+  "Das ist eine Angabe, keine Gefahr: in der Datei steht, womit sie entstanden ist. Ob die Unterschrift echt ist, rechnet diese Prüfung nicht nach.": "هذه معلومة وليست خطرًا: يذكر الملف الأداة التي أُنشئ بها. هذا الفحص لا يتحقق من صحة التوقيع.",
+  "Details anzeigen": "عرض التفاصيل"
  }
 }; })();

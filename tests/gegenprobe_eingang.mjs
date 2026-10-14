@@ -24,7 +24,13 @@ const FAELLE = [
   { name: 'die Karte bekommt nach der Prüfung keine Marke', datei: A, anker: "      markeErneuern(id);\n      // Ein Fenster genügt", ersatz: "      // Ein Fenster genügt", trifft: /Marke/ },
   { name: 'der Satz „Nichts wurde entfernt" fehlt', datei: A, anker: '<p class="hinweis" data-pruef-original>Nichts wurde entfernt:', ersatz: '<p class="hinweis">Nichts wurde entfernt:', trifft: /Nichts wurde entfernt|Absender/ },
   { name: 'der Hilfe-Knopf holt die Testdatei, liest sie aber nicht ein', datei: A, anker: "await importDateien([new File([await r.blob()], name, { type: typ })], 'Beispiele', { still: true });", ersatz: 'await r.blob();', trifft: /Hilfe → 🧪/ },
-  { name: 'eingang.js fehlt im Offline-Vorrat', datei: 'sw.js', anker: "'./assets/eingang.js?v=3', ", ersatz: '', trifft: /Offline-Vorrat/ }
+  // Herkunftsnachweis (C2PA, Klaus 2026-10-14): eine Angabe, nie eine Warnung
+  { name: 'HERKUNFT: der Nachweis landet in der Warnliste', datei: E, anker: "'BILD-LSB-VERDACHT', 'PDF-ANHANG', 'ANHANG-PROGRAMM', 'ANHANG-TARNUNG'];", ersatz: "'BILD-LSB-VERDACHT', 'PDF-ANHANG', 'ANHANG-PROGRAMM', 'ANHANG-TARNUNG', 'PDF-HERKUNFT', 'BILD-HERKUNFT'];", trifft: /Warnung|Warnliste/ },
+  { name: 'HERKUNFT: das Ergebnis trägt keine Herkunft mehr', datei: E, anker: 'markiert: m, art: r.art, zeit, herkunft };', ersatz: 'markiert: m, art: r.art, zeit };', trifft: /HERKUNFT|Herkunft/ },
+  { name: 'HERKUNFT: die Daten (Programm, Unterzeichner) fallen weg', datei: E, anker: 'daten: Array.isArray(x.daten) ? x.daten.map(z => [String(z[0]), String(z[1])]) : null', ersatz: 'daten: null', trifft: /Programm|Unterzeichner/ },
+  { name: 'HERKUNFT: bei „sauber" fehlt die Marke', datei: A, anker: "if (p.herkunft && p.herkunft.length) return '<button", ersatz: "if (false) return '<button", trifft: /Marke „ℹ Herkunft"/ },
+  { name: 'HERKUNFT: die Details stehen schon aufgeklappt', datei: A, anker: '<details data-herkunft-details>', ersatz: '<details data-herkunft-details open>', trifft: /zugeklappt/ },
+  { name: 'eingang.js fehlt im Offline-Vorrat', datei: 'sw.js', anker: "'./assets/eingang.js?v=4', ", ersatz: '', trifft: /Offline-Vorrat/ }
 ];
 
 let gefangen = 0, durch = 0, falsch = 0, tot = 0;

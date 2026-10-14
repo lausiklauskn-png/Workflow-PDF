@@ -963,6 +963,8 @@
     if (!p) return '';
     if (p.stand === 'warnung') return '<button class="dok-pruefung warn" data-pruef data-pruefung="warnung">⚠ Verdächtiger Inhalt — ansehen</button>';
     if (p.stand === 'ungeprueft') return '<button class="dok-pruefung" data-pruef data-pruefung="ungeprueft">? Nicht ganz geprüft</button>';
+    // Herkunftsnachweis (C2PA, Klaus 2026-10-14): eine Angabe, keine Warnung — auch bei „sauber" erreichbar
+    if (p.herkunft && p.herkunft.length) return '<button class="dok-pruefung info" data-pruef data-pruefung="herkunft">ℹ Herkunft</button>';
     return '';
   }
   async function pruefDialog(id) {
@@ -981,6 +983,7 @@
       ${p.markiert ? `<figure class="pruef-markiert" data-pruef-markiert><img alt="Die Stelle im Bild, rot umrandet" src="${h(p.markiert)}"><figcaption>Die Stelle im Bild, rot umrandet. Das ist eine Kopie — das Original bleibt unverändert.</figcaption></figure>` : ''}
       ${tun.length ? `<div class="pruef-tun" data-was-tun><p><b>Was jetzt tun</b></p><ol>${tun.map(x => '<li data-kein-ue>' + h(x) + '</li>').join('')}</ol></div>` : ''}
       ${p.stand === 'warnung' ? '<p class="hinweis" data-pruef-original>Nichts wurde entfernt: das Dokument steht unverändert in der Bibliothek. Vor dem Übersetzen oder dem Erkennen mit KI: beim Absender nachfragen, was es mit dieser Stelle auf sich hat.</p>' : ''}
+      ${p.herkunft && p.herkunft.length ? `<div class="pruef-herkunft" data-herkunft><p><b>ℹ Herkunftsnachweis</b></p><p class="hinweis">Das ist eine Angabe, keine Gefahr: in der Datei steht, womit sie entstanden ist. Ob die Unterschrift echt ist, rechnet diese Prüfung nicht nach.</p>${p.herkunft.map(x => `<p data-kein-ue>${h(x.satz)}</p>${x.daten && x.daten.length ? `<details data-herkunft-details><summary>Details anzeigen</summary><dl>${x.daten.map(z => `<dt data-kein-ue>${h(z[0])}</dt><dd data-kein-ue>${h(z[1])}</dd>`).join('')}</dl></details>` : ''}`).join('')}</div>` : ''}
       ${p.hinweise && p.hinweise.length ? `<details class="pruef-grenzen"><summary>Was geprüft wurde</summary><ul>${p.hinweise.map(x => '<li data-kein-ue>' + h(x) + '</li>').join('')}</ul></details>` : ''}
       <p class="hinweis">Geprüft <span data-kein-ue>${h(zeit)}</span> auf diesem Gerät, ohne Netz. Die Sätze der Prüfung stehen auf Deutsch.</p>
       <div class="zeile">${p.markiert ? '<button class="knopf" data-markiert-laden>⬇ Markierte Kopie speichern</button>' : ''}<button class="knopf rot" data-x>OK</button></div>`,

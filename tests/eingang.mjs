@@ -18,6 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import * as M from './c2pa-muster.mjs';
 
 const WURZEL = process.env.WURZEL || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 let gruen = 0, rot = 0;
@@ -26,9 +27,9 @@ console.log('Workfloh PDF — Prüfung beim Einlesen');
 
 /* 1 · der Kern, byte-1:1 */
 const PINS = {
-  'pruefer-anhang.js': 'd249fd665af2f112e9c330eac6ca948a24481fee2df23df62214d4102be6d9d9',
+  'pruefer-anhang.js': 'c31ddb5cebc293b542e781a5d1f3bca6d558da227db997822c73b2b8a4c1ea17',
   'pruefer-mail.js': 'cdf3ca7881bfa68763a2c0be7436d35a65bea4dbd03f606e02eaec5c613632d7',
-  'pruefer-formate.js': 'b057aa084f4b7821fce96f2b717ae51d183a0d8e3bcb67a08edc9fdfa3862a98'
+  'pruefer-formate.js': 'c7206f163521fd3cf1b09845a7e547e912564838ff1bf899c2575366764d15cd'
 };
 const sha = f => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
 for (const [n, s] of Object.entries(PINS)) ok('Kern byte-1:1 aus dem Auslieferungsprüfer: ' + n, sha(path.join(WURZEL, 'assets', n)) === s, sha(path.join(WURZEL, 'assets', n)));
@@ -180,6 +181,46 @@ try {
     const f2 = await stand(c.page, 'Fremder Stand ohne Prüfung');
     ok('ohne Prüfung bleibt ein „sauber" aus einem fremden Arbeitsstand nicht stehen (verworfen)', !f2 || f2.stand !== 'sauber', f2);
     await c.ctx.close();
+  }
+  /* 8 · Herkunftsnachweis (C2PA, Klaus 2026-10-14): eine ANGABE, nie eine Warnung.
+     Die Dateien sind erfunden (tests/c2pa-muster.mjs). Ein Nachweis im PDF ist keine „weitere Datei". */
+  {
+    const { ctx, page, fehler } = await neueSeite();
+    const B = { 'Herkunft.pdf': M.pdfC2paSeite().toString('base64'), 'Herkunft.png': M.pngC2pa().toString('base64'), 'OhneNachweis.pdf': M.pdfC2paSeite({ nachweis: false }).toString('base64') };
+    const neu = await page.evaluate(async (B) => {
+      const files = Object.keys(B).map(n => { const s = atob(B[n]); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
+        return new File([u], n, { type: n.endsWith('.pdf') ? 'application/pdf' : 'image/png' }); });
+      const fehlschlag = [];
+      for (const f of files) { try { await window.__wfpdf.importDateien([f], null, { still: true }); } catch (e) { fehlschlag.push(f.name + ': ' + e); } }
+      return fehlschlag;
+    }, B);
+    await warteFertig(page);
+    await page.evaluate(() => document.querySelectorAll('.dlg-grund').forEach(g => g.remove()));
+    const hk = await page.evaluate(() => Object.fromEntries(['Herkunft', 'OhneNachweis'].flatMap(n => window.__wfpdf.S.docs.filter(d => d.name === n).map(d => [n + (d.quelle === 'foto' ? '-png' : '-pdf'), d.pruefung ? { stand: d.pruefung.stand, arten: d.pruefung.funde.map(f => f.kennung), herkunft: d.pruefung.herkunft || null } : null]))));
+    const pdf = hk['Herkunft-pdf'], bild = hk['Herkunft-png'], ohne = hk['OhneNachweis-pdf'];
+    const datenText = x => x && x.herkunft ? x.herkunft.map(z => z.satz + ' ' + (z.daten || []).map(d => d.join(': ')).join(' | ')).join(' ') : '';
+    ok('Herkunft: die Testdateien lassen sich einlesen', neu.length === 0 && pdf && bild, { neu, keys: Object.keys(hk) });
+    ok('Herkunft: PDF mit Nachweis → PDF-HERKUNFT, samt Programm in den Daten', pdf && pdf.herkunft && pdf.herkunft.some(z => z.kennung === 'PDF-HERKUNFT' && (z.daten || []).some(d => /Bildwerk Beispiel/.test(d[1]))), pdf);
+    ok('… und der Nachweis gilt NICHT als „weitere Datei im PDF" (kein PDF-ANHANG)', pdf && !pdf.arten.includes('PDF-ANHANG'), pdf);
+    ok('… und macht den Stand nicht zur Warnung', pdf && pdf.stand !== 'warnung', pdf);
+    ok('Herkunft: Bild (PNG, caBX) → BILD-HERKUNFT mit Unterzeichner', bild && bild.herkunft && bild.herkunft.some(z => z.kennung === 'BILD-HERKUNFT') && /Beispiel Werkstatt GmbH/.test(datenText(bild)), bild);
+    ok('… ohne Warnung', bild && bild.stand !== 'warnung', bild);
+    ok('Herkunft: dasselbe PDF OHNE Nachweis trägt keine Herkunft (Gegenrichtung)', ohne && Array.isArray(ohne.herkunft) && ohne.herkunft.length === 0, ohne);
+    ok('Herkunft steht nicht in der Warnliste', await page.evaluate(() => WFP.Eingang.HERKUNFT.every(k => !WFP.Eingang.WARN.includes(k))));
+    // ein Dokument, das sonst sauber ist: Marke „ℹ Herkunft", ein Tipp öffnet die Angabe, Details zu
+    await page.evaluate(() => { const d = window.__wfpdf.S.docs.find(x => x.name === 'Herkunft' && x.quelle !== 'foto'); d.pruefung = Object.assign({}, d.pruefung, { stand: 'sauber', funde: [], markiert: null }); window.__wfpdf.suche.zeichneBibliothek(); });
+    const mk = await page.evaluate(() => { const k = [...document.querySelectorAll('.dok')].find(d => d.querySelector('.dok-name').textContent.trim() === 'Herkunft' && d.querySelector('[data-pruefung="herkunft"]')); const b = k && k.querySelector('[data-pruefung="herkunft"]'); return b ? { text: b.textContent, sicht: b.checkVisibility(), warn: b.classList.contains('warn') } : null; });
+    ok('Herkunft bei „sauber": die Karte trägt die ruhige Marke „ℹ Herkunft"', mk && mk.sicht && /Herkunft/.test(mk.text) && !mk.warn, mk);
+    await page.evaluate(() => { const k = [...document.querySelectorAll('.dok')].find(d => d.querySelector('[data-pruefung="herkunft"]')); k.querySelector('[data-pruef]').click(); });
+    const dlh = await page.waitForSelector('.dlg [data-herkunft]', { timeout: 10000 }).then(() => page.evaluate(() => { const d = document.querySelector('.dlg'), det = d.querySelector('[data-herkunft-details]');
+      const vor = det ? det.open : null; const innenSicht = det ? det.querySelector('dl').checkVisibility() : null; if (det) det.open = true;
+      return { vor, innenSicht, sum: det ? det.querySelector('summary').textContent : '', dl: det ? det.querySelector('dl').textContent : '', tun: !!d.querySelector('[data-was-tun]'), warn: !!d.querySelector('[data-pruef-original]'), kopf: d.querySelector('h2').textContent }; }), () => null);
+    ok('… ein Tipp öffnet die Angabe mit „Details anzeigen", zuerst zugeklappt', dlh && dlh.vor === false && dlh.innenSicht === false && /Details anzeigen/.test(dlh.sum), dlh);
+    ok('… aufgeklappt stehen Programm und Unterzeichner', dlh && /Bildwerk Beispiel/.test(dlh.dl) && /Beispiel Werkstatt GmbH/.test(dlh.dl), dlh && dlh.dl.slice(0, 300));
+    ok('… ohne „Was jetzt tun" und ohne Warnsatz (eine Angabe, keine Gefahr)', dlh && !dlh.tun && !dlh.warn && /nichts Verdächtiges/.test(dlh.kopf), dlh);
+    await page.evaluate(() => document.querySelectorAll('.dlg-grund').forEach(g => g.remove()));
+    ok('keine Seitenfehler (Herkunft)', fehler.length === 0, fehler);
+    await ctx.close();
   }
   /* 9 · Hilfe → Testdateien (Klaus 2026-10-01): ein Tipp liest sie ein, die Warnung erscheint */
   {

@@ -24,7 +24,7 @@
 (function () {
   'use strict';
   const WFP = window.WFP = window.WFP || {};
-  const KERN = ['assets/pruefer-formate.js?v=1', 'assets/pruefer-mail.js?v=2', 'assets/pruefer-anhang.js?v=3'];
+  const KERN = ['assets/pruefer-formate.js?v=2', 'assets/pruefer-mail.js?v=2', 'assets/pruefer-anhang.js?v=4'];
   const WARN = ['KI-ANWEISUNG', 'PDF-KI-ANWEISUNG', 'BILD-KI-ANWEISUNG', 'PDF-VERSTECKTER-TEXT', 'VERSTECKTER-TEXT',
     'BILD-LSB-VERDACHT', 'PDF-ANHANG', 'ANHANG-PROGRAMM', 'ANHANG-TARNUNG'];
   const NAME = {
@@ -38,6 +38,10 @@
     'ANHANG-PROGRAMM': 'Das ist ein Programm',
     'ANHANG-TARNUNG': 'Die Endung passt nicht zum Inhalt'
   };
+  /* Herkunftsnachweis (C2PA, „Content Credentials"): womit eine Datei entstanden ist. Eine ANGABE,
+     keine Gefahr — steht deshalb NIE in WARN und ändert den Stand nicht. Die Unterschrift prüft
+     niemand nach; es ist die eigene Aussage des Programms. */
+  const HERKUNFT = ['PDF-HERKUNFT', 'BILD-HERKUNFT'];
   const MARKE_KANTE = 1600;   // die markierte Kopie liegt am Dokument — klein halten
 
   function skript(src) {
@@ -90,14 +94,16 @@
       const funde = alle.filter(x => WARN.includes(x.kennung)).map(x => ({ kennung: x.kennung, satz: x.satz }));
       const stand = funde.length ? 'warnung' : (r.bildUngeprueft ? 'ungeprueft' : 'sauber');
       const m = funde.length ? await markiert(A, b, alle.filter(x => WARN.includes(x.kennung))) : null;
-      return { stand, funde, hinweise, markiert: m, art: r.art, zeit };
+      // Herkunftsnachweis (C2PA, Klaus 2026-10-14): eine ANGABE, nie ein Befund — ändert den Stand nicht.
+      const herkunft = alle.filter(x => HERKUNFT.includes(x.kennung)).map(x => ({ kennung: x.kennung, satz: x.satz, daten: Array.isArray(x.daten) ? x.daten.map(z => [String(z[0]), String(z[1])]) : null }));
+      return { stand, funde, hinweise, markiert: m, art: r.art, zeit, herkunft };
     } catch (e) {
-      return { stand: 'ungeprueft', funde: [], hinweise: ['Die Prüfung lief nicht: ' + (e && e.message || e)], markiert: null, art: '', zeit };
+      return { stand: 'ungeprueft', funde: [], hinweise: ['Die Prüfung lief nicht: ' + (e && e.message || e)], markiert: null, art: '', zeit, herkunft: [] };
     }
   }
   function wasTun(kennung) {
     const A = window.PrueferAnhang;
     return A && A.wasTun ? A.wasTun(kennung) : [];
   }
-  WFP.Eingang = { pruefen, bereit, wasTun, WARN, NAME };
+  WFP.Eingang = { pruefen, bereit, wasTun, WARN, NAME, HERKUNFT };
 })();

@@ -22,7 +22,7 @@
   var BEFUNDE_TEXT = ["SCHLUESSEL", "PERSONENBEZUG", "RECHNUNGSDATEN",
                       "FREMDE-ADRESSE", "FUELLTEXT"];
   var BEFUNDE_PDF  = ["PDF-VERWEIS", "PDF-AKTION", "PDF-ANHANG",
-                      "PDF-METADATEN", "PDF-ALTFASSUNG"];
+                      "PDF-METADATEN", "PDF-ALTFASSUNG", "PDF-HERKUNFT"];
 
   /* ══ FREIGESTELLTE PFADE ══════════════════════════════════════════════════
    * Neunzehn von Klaus' Seiten tragen ein Impressum mit echter Anschrift und
@@ -427,6 +427,232 @@
             .replace(/&amp;/g, "&");
   }
 
+  /* ══ HERKUNFTSNACHWEIS (C2PA, „Content Credentials") ═════════════════════
+   * Klaus 2026-10-14, an einer PDF aus ChatGPT: Workflow PDF meldete „weitere
+   * Datei (Salat-Name)". Die „weitere Datei" war ein Herkunftsnachweis nach
+   * C2PA — Programme wie ChatGPT, Photoshop oder eine Kamera hängen ihn an,
+   * damit man sieht, WOMIT etwas gemacht wurde. Der Salat-Name kam aus den
+   * Bilddaten daneben, nicht aus dem Nachweis.
+   *
+   * Gelesen wird: Boxen (JUMBF) → CBOR → die wenigen Felder, die ein Mensch
+   * versteht (Programm, Aktion, KI ja/nein, wer unterschrieben hat, wann).
+   * ⚠ DIE UNTERSCHRIFT WIRD NICHT NACHGERECHNET. Wer sie liest, liest eine
+   * ANGABE. Das steht in jedem Satz, der daraus entsteht.
+   * Nie ausgeführt, nur gelesen; jede Länge wird gegen die Datei geprüft. */
+  function jumbf(b, von, bis, tiefe, aus) {
+    var i = von;
+    while (i + 8 <= bis && aus.length < 400) {
+      var L = ((b[i] << 24) >>> 0) + (b[i + 1] << 16) + (b[i + 2] << 8) + b[i + 3];
+      var typ = String.fromCharCode(b[i + 4], b[i + 5], b[i + 6], b[i + 7]);
+      var kopf = 8;
+      if (L === 0) L = bis - i;
+      if (L === 1) {
+        if (i + 16 > bis) break;
+        L = 0;
+        for (var k = 8; k < 16; k++) L = L * 256 + b[i + k];
+        kopf = 16;
+      }
+      if (L < kopf || i + L > bis) break;
+      var knoten = { typ: typ, von: i + kopf, bis: i + L, kinder: [] };
+      if (typ === "jumb" && tiefe < 8) {
+        jumbf(b, i + kopf, i + L, tiefe + 1, knoten.kinder);
+        var d = knoten.kinder[0];
+        if (d && d.typ === "jumd" && d.bis - d.von > 17) {
+          var lab = "", p = d.von + 17;
+          if (b[d.von + 16] & 2) while (p < d.bis && b[p] !== 0 && lab.length < 200) lab += String.fromCharCode(b[p++]);
+          knoten.label = lab;
+        }
+      }
+      aus.push(knoten);
+      i += L;
+    }
+    return aus;
+  }
+
+  /* Ein kleiner CBOR-Leser (RFC 8949): genug für die Felder oben, mit Deckeln
+     für Tiefe und Länge. Bytefolgen bleiben Uint8Array. */
+  function cbor(b, start) {
+    var i = start, schritte = 0;
+    function zahl(info) {
+      if (info < 24) return info;
+      var n = info === 24 ? 1 : info === 25 ? 2 : info === 26 ? 4 : info === 27 ? 8 : -1;
+      if (n < 0 || i + n > b.length) throw new Error("cbor");
+      var v = 0;
+      for (var k = 0; k < n; k++) v = v * 256 + b[i++];
+      return v;
+    }
+    function lies(tiefe) {
+      if (tiefe > 24 || ++schritte > 20000 || i >= b.length) throw new Error("cbor");
+      var kopf = b[i++], art = kopf >> 5, info = kopf & 31;
+      if (art === 7) {
+        if (info === 20) return false;
+        if (info === 21) return true;
+        if (info === 22 || info === 23) return null;
+        if (info === 25 || info === 26 || info === 27) { zahl(info); return 0; }
+        return null;
+      }
+      if (info === 31) throw new Error("cbor");
+      var n = zahl(info);
+      if (art === 0) return n;
+      if (art === 1) return -1 - n;
+      if (art === 2 || art === 3) {
+        if (i + n > b.length) throw new Error("cbor");
+        var s = b.subarray(i, i + n); i += n;
+        return art === 2 ? s : utf8(s);
+      }
+      if (art === 4) {
+        var a = [];
+        for (var k = 0; k < n; k++) a.push(lies(tiefe + 1));
+        return a;
+      }
+      if (art === 5) {
+        var o = {};
+        for (var m = 0; m < n; m++) { var key = lies(tiefe + 1); o[String(key)] = lies(tiefe + 1); }
+        return o;
+      }
+      return lies(tiefe + 1);   /* art 6: Tag — der Inhalt zählt */
+    }
+    try { return lies(0); } catch (e) { return undefined; }
+  }
+
+  /* Aus einem X.509-Zertifikat (DER): Organisation und Name von Aussteller
+     und Unterzeichner. Kein ASN.1-Leser — die Felder stehen hinter festen
+     Kennungen (2.5.4.10 = O, 2.5.4.3 = CN); der Aussteller steht vor der
+     ersten Zeitangabe, der Unterzeichner danach. */
+  function zertNamen(der) {
+    var aus = { aussteller: {}, inhaber: {} }, zeit = -1;
+    for (var i = 0; i + 2 < der.length; i++) {
+      if ((der[i] === 0x17 || der[i] === 0x18) && der[i + 1] >= 13 && der[i + 1] <= 15 && zeit === -1) {
+        var z = alsLatin1(der.subarray(i + 2, i + 2 + der[i + 1]));
+        if (/^\d{12,14}Z$/.test(z)) zeit = i;
+      }
+      if (der[i] === 0x06 && der[i + 1] === 3 && der[i + 2] === 0x55 && der[i + 3] === 0x04 &&
+          (der[i + 4] === 0x0A || der[i + 4] === 0x03)) {
+        var p = i + 5, typ = der[p], len = der[p + 1];
+        if ((typ === 0x0C || typ === 0x13 || typ === 0x14) && len < 128 && p + 2 + len <= der.length) {
+          var feld = der[i + 4] === 0x0A ? "O" : "CN";
+          var ziel = zeit === -1 ? aus.aussteller : aus.inhaber;
+          if (!ziel[feld]) ziel[feld] = sauberZk(utf8(der.subarray(p + 2, p + 2 + len)));
+        }
+      }
+    }
+    return aus;
+  }
+
+  var KI_QUELLEN = {
+    trainedAlgorithmicMedia: "von einer KI erzeugt",
+    compositeWithTrainedAlgorithmicMedia: "teilweise mit einer KI erzeugt",
+    algorithmicMedia: "von einem Programm erzeugt (ohne KI-Training)",
+    compositeSynthetic: "aus erzeugten Teilen zusammengesetzt",
+    digitalCapture: "eine Kamera-Aufnahme",
+    negativeFilm: "ein eingescannter Film", positiveFilm: "ein eingescanntes Dia",
+    print: "ein eingescannter Ausdruck",
+    minorHumanEdits: "mit kleinen Änderungen von Hand",
+    humanEdits: "von Hand bearbeitet",
+    composite: "aus mehreren Quellen zusammengesetzt",
+    screenCapture: "ein Bildschirmfoto"
+  };
+  var AKTIONEN = {
+    "c2pa.created": "erstellt", "c2pa.opened": "geöffnet", "c2pa.edited": "bearbeitet",
+    "c2pa.converted": "umgewandelt", "c2pa.placed": "eingefügt", "c2pa.resized": "in der Größe geändert",
+    "c2pa.cropped": "zugeschnitten", "c2pa.filtered": "gefiltert", "c2pa.color_adjustments": "Farben geändert",
+    "c2pa.drawing": "gezeichnet", "c2pa.published": "veröffentlicht", "c2pa.transcoded": "umgerechnet",
+    "c2pa.repackaged": "neu verpackt", "c2pa.removed": "etwas entfernt", "c2pa.translated": "übersetzt"
+  };
+
+  function nameVon(x) {
+    if (!x) return "";
+    if (typeof x === "string") return sauberZk(x).slice(0, 120);
+    if (typeof x === "object" && typeof x.name === "string")
+      return sauberZk(x.name + (typeof x.version === "string" && x.version !== x.name ? " " + x.version : "")).slice(0, 120);
+    return "";
+  }
+
+  /**
+   * Liest einen C2PA-Herkunftsnachweis (JUMBF-Bytes).
+   * @returns {null | {satz:string, daten:string[][]}}
+   */
+  function c2paLesen(b) {
+    b = b instanceof Uint8Array ? b : new Uint8Array(b || []);
+    var wurzel = jumbf(b, 0, b.length, 0, [])[0];
+    if (!wurzel) {
+      /* abgeschnitten: die Wurzel passt nicht in die Bytes. Steht vorn trotzdem
+         „c2pa" als Etikett, ist es ein Nachweis — kaputt, nicht „keiner". */
+      var vorn = "";
+      for (var q = 33; q < Math.min(b.length, 38) && b[q] !== 0; q++) vorn += String.fromCharCode(b[q]);
+      var t1 = String.fromCharCode(b[4], b[5], b[6], b[7]), t2 = String.fromCharCode(b[12], b[13], b[14], b[15]);
+      return (t1 === "jumb" && t2 === "jumd" && vorn === "c2pa") ? { satz: "", daten: [], kaputt: true } : null;
+    }
+    if (wurzel.label !== "c2pa") return null;
+    var manifeste = wurzel.kinder.filter(function (k) { return k.typ === "jumb" && /^urn:/.test(k.label || ""); });
+    if (!manifeste.length) return { satz: "", daten: [], kaputt: true };
+    var akt = manifeste[manifeste.length - 1];   /* der aktive Nachweis steht zuletzt */
+    function kind(k, re) { return (k.kinder || []).filter(function (c) { return re.test(c.label || ""); })[0]; }
+    function inhalt(k) {
+      var c = (k && k.kinder || []).filter(function (x) { return x.typ === "cbor"; })[0];
+      return c ? cbor(b.subarray(c.von, c.bis), 0) : undefined;
+    }
+    var claim = inhalt(kind(akt, /^c2pa\.claim(\.v\d+)?$/)) || {};
+    var behauptungen = kind(akt, /^c2pa\.assertions$/);
+    var aktionen = inhalt(behauptungen && kind(behauptungen, /^c2pa\.actions(\.v\d+)?$/)) || {};
+    var sig = inhalt(kind(akt, /^c2pa\.signature$/));
+
+    var gi = claim.claim_generator_info;
+    var programm = nameVon(Array.isArray(gi) ? gi[0] : gi) ||
+                   nameVon(claim.claim_generator);
+    var titel = typeof claim["dc:title"] === "string" ? sauberZk(claim["dc:title"]).slice(0, 120) :
+                typeof claim.title === "string" ? sauberZk(claim.title).slice(0, 120) : "";
+    var taten = [], quellen = [], werkzeuge = [], zeit = "";
+    (Array.isArray(aktionen.actions) ? aktionen.actions : []).slice(0, 20).forEach(function (a) {
+      if (!a || typeof a !== "object") return;
+      var was = AKTIONEN[a.action] || (typeof a.action === "string" ? sauberZk(a.action).slice(0, 60) : "");
+      if (was && taten.indexOf(was) === -1) taten.push(was);
+      var q = typeof a.digitalSourceType === "string" ? a.digitalSourceType.split("/").pop() : "";
+      if (q && quellen.indexOf(KI_QUELLEN[q] || q) === -1) quellen.push(KI_QUELLEN[q] || sauberZk(q).slice(0, 60));
+      var w = nameVon(a.softwareAgent);
+      if (w && werkzeuge.indexOf(w) === -1) werkzeuge.push(w);
+      if (!zeit && typeof a.when === "string") zeit = sauberZk(a.when).slice(0, 40);
+    });
+    /* COSE_Sign1: [geschützt, ungeschützt, Nutzlast, Unterschrift];
+       das Zertifikat steht unter Schlüssel 33 (x5chain). */
+    var zert = null;
+    if (Array.isArray(sig)) {
+      var kopfe = [sig[1]];
+      if (sig[0] instanceof Uint8Array) kopfe.unshift(cbor(sig[0], 0));
+      kopfe.forEach(function (h) {
+        if (zert || !h || typeof h !== "object") return;
+        var x = h["33"];
+        if (Array.isArray(x)) x = x[0];
+        if (x instanceof Uint8Array) zert = zertNamen(x);
+      });
+    }
+    var unterschrieben = zert && (zert.inhaber.O || zert.inhaber.CN) || "";
+    var aussteller = zert && (zert.aussteller.O || zert.aussteller.CN) || "";
+
+    var teile = [];
+    if (programm) teile.push("erstellt mit " + programm);
+    else if (werkzeuge.length) teile.push("erstellt mit " + werkzeuge[0]);
+    quellen.forEach(function (q) { teile.push(q); });
+    if (unterschrieben) teile.push("unterschrieben von " + unterschrieben);
+    var satz = "Herkunftsnachweis (Content Credentials)" +
+               (teile.length ? ": laut Angabe " + teile.join(", ") : "") +
+               ". Die Unterschrift wird hier nicht nachgerechnet.";
+
+    var daten = [];
+    if (titel) daten.push(["Titel", titel]);
+    if (programm) daten.push(["Programm", programm]);
+    werkzeuge.forEach(function (w) { if (w !== programm) daten.push(["Werkzeug", w]); });
+    if (taten.length) daten.push(["Was gemacht wurde", taten.join(", ")]);
+    if (quellen.length) daten.push(["Woher der Inhalt stammt", quellen.join(", ")]);
+    if (zeit) daten.push(["Zeitpunkt", zeit]);
+    if (unterschrieben) daten.push(["Unterschrieben von", unterschrieben]);
+    if (aussteller) daten.push(["Zertifikat ausgestellt von", aussteller]);
+    daten.push(["Nachweise in der Datei", String(manifeste.length) +
+                (manifeste.length > 1 ? " (frühere Bearbeitungen stehen davor)" : "")]);
+    daten.push(["Geprüft", "Nur gelesen. Ob die Unterschrift echt ist, rechnet dieser Prüfer nicht nach."]);
+    return { satz: satz, daten: daten };
+  }
+
   var PDF_METAFELDER = ["Author", "Creator", "Producer", "Title", "Subject", "Keywords"];
 
   /**
@@ -457,10 +683,19 @@
                      kennung: kennung, satz: satz });
     }
 
+    /* Strom-Inhalte ausgeblendet, gleich lang (Stellen bleiben gleich).
+     * Klaus 2026-10-14: in den Bilddaten einer PDF aus ChatGPT stand zufällig
+     * „/JS" und „/AA" — gemeldet wurde „eingebettetes JavaScript". Wörterbücher
+     * werden im ausgeblendeten Text gelesen; gepackte Ströme prüft die
+     * Schleife unten nach dem Entpacken. */
+    var ohneStr = roh.replace(/(>>\s*stream(?:\r\n|\n|\r))([\s\S]*?)(endstream)/g, function (g, a, mitte, c) {
+      return a + mitte.replace(/[^\r\n]/g, " ") + c;
+    });
+
     /* -- Verweise nach außen --------------------------------------------- */
     var ure = /\/URI\s*\(\s*([^)]{1,400})\)/g, um;
     var wirteGesehen = {};
-    while ((um = ure.exec(roh)) !== null) {
+    while ((um = ure.exec(ohneStr)) !== null) {
       var adr = um[1].replace(/\\([()\\])/g, "$1").trim();
       var wm = /^(?:https?:)?\/\/([A-Za-z0-9._\-]+)/.exec(adr);
       if (!wm) continue;
@@ -482,20 +717,73 @@
               "Das Dokument enthält " + PDF_AKTIONEN[a].was + herkunft + ".");
       }
     }
-    aktionenIn(roh, 0, "");
+    aktionenIn(ohneStr, 0, "");
 
-    /* -- Anhänge ---------------------------------------------------------- */
-    if (/\/EmbeddedFile\b|\/FileAttachment\b|\/Filespec\b/.test(roh)) {
-      var ap = roh.search(/\/EmbeddedFile\b|\/FileAttachment\b|\/Filespec\b/);
-      var namen = [], nre = /\/(?:UF|F)\s*(?=[(<])/g, nm, zaehler = 0;
-      while ((nm = nre.exec(roh)) !== null && zaehler < 6) {
-        var nw = zkWert(roh, nm);
-        if (nw === null || !sauberZk(nw) || namen.indexOf(sauberZk(nw)) !== -1) continue;
-        namen.push(sauberZk(nw).slice(0, 200)); zaehler++;
+    /* -- Anhänge ---------------------------------------------------------- *
+     * Klaus 2026-10-14: „weitere Datei (Salat-Name)" an einer PDF aus ChatGPT.
+     * Zwei Fehler: die Namen wurden in der GANZEN Datei gesucht — auch in den
+     * Bilddaten, und dort steht zufällig „/F(" —, und ein Herkunftsnachweis
+     * (C2PA) wurde wie ein beliebiger Anhang gemeldet. Jetzt: Ströme werden vor
+     * der Namenssuche ausgeblendet, gelesen wird nur in einem /Filespec-Objekt,
+     * und ein Nachweis wird GELESEN und als PDF-HERKUNFT gemeldet. */
+    var herkunftLesen = [];
+    if (/\/EmbeddedFile\b|\/FileAttachment\b|\/Filespec\b/.test(ohneStr)) {
+      var ap = ohneStr.search(/\/EmbeddedFile\b|\/FileAttachment\b|\/Filespec\b/);
+      var namen = [], andere = 0, nachweise = 0;
+      var fre = /\/Type\s*\/Filespec\b/g, fm;
+      function objektText(pos) {
+        var a = ohneStr.lastIndexOf(" obj", pos), z = ohneStr.indexOf("endobj", pos);
+        return ohneStr.slice(a === -1 ? Math.max(0, pos - 2000) : a, z === -1 ? pos + 2000 : z);
       }
-      melde(ap, "PDF-ANHANG", "An der Datei hängt eine weitere Datei" +
-            (namen.length ? " (" + namen.join(", ") + ")" : "") +
-            " — sie wird mit ausgeliefert, ohne im Dokument sichtbar zu sein.");
+      while ((fm = fre.exec(ohneStr)) !== null && namen.length + nachweise < 20) {
+        var ot = objektText(fm.index);
+        var efm = /\/EF\s*<<[^>]*?\/(?:UF|F)\s+(\d+)\s+0\s+R/.exec(ot);
+        var istC2pa = /\/AFRelationship\s*\/C2PA_Manifest\b/.test(ot);
+        var efText = "";
+        if (efm) {
+          var ore = new RegExp("(?:^|[^0-9])" + efm[1] + "\\s+0\\s+obj\\b", "g"), om, letzt = -1;
+          while ((om = ore.exec(ohneStr)) !== null) letzt = om.index;
+          if (letzt !== -1) {
+            efText = ohneStr.slice(letzt, ohneStr.indexOf("stream", letzt) + 1 || letzt + 2000);
+            if (/\/Subtype\s*\/application#2Fc2pa\b/i.test(efText)) istC2pa = true;
+          }
+        }
+        if (istC2pa) {
+          nachweise++;
+          if (efm && letzt !== -1) herkunftLesen.push({ pos: fm.index, obj: letzt });
+          else melde(fm.index, "PDF-HERKUNFT", "Herkunftsnachweis (Content Credentials) vorhanden, aber nicht lesbar — ungeprüft.");
+          continue;
+        }
+        andere++;
+        var nre = /\/(?:UF|F)\s*(?=[(<])/g, nm;
+        while ((nm = nre.exec(ot)) !== null) {
+          var nw = zkWert(ot, nm);
+          if (nw === null || !sauberZk(nw)) continue;
+          if (namen.indexOf(sauberZk(nw).slice(0, 200)) === -1) namen.push(sauberZk(nw).slice(0, 200));
+          break;
+        }
+      }
+      if (andere || (!nachweise && /\/EmbeddedFile\b|\/FileAttachment\b/.test(ohneStr))) {
+        melde(ap, "PDF-ANHANG", "An der Datei hängt eine weitere Datei" +
+              (namen.length ? " (" + namen.slice(0, 6).join(", ") + ")" : "") +
+              " — sie wird mit ausgeliefert, ohne im Dokument sichtbar zu sein.");
+      }
+    }
+    /* Den Strom eines Nachweises öffnen: /Length direkt, sonst bis endstream. */
+    function nachweisLesen(n) {
+      var sm2 = />>\s*stream(?:\r\n|\n|\r)/g; sm2.lastIndex = n.obj;
+      var s = sm2.exec(roh);
+      if (!s) return Promise.resolve(null);
+      var beginn = s.index + s[0].length, wb = roh.slice(n.obj, s.index + 2);
+      var lm = /\/Length\s+(\d+)(?!\s+\d+\s+R)/.exec(wb), ende = -1;
+      if (lm && /^\s*endstream/.test(roh.slice(beginn + (+lm[1]), beginn + (+lm[1]) + 16))) ende = beginn + (+lm[1]);
+      if (ende === -1) ende = roh.indexOf("endstream", beginn);
+      if (ende === -1) return Promise.resolve(null);
+      var teil = bytes.subarray(beginn, ende);
+      var gepackt = /\/Filter\s*(?:\[\s*)?\/FlateDecode/.test(wb);
+      return (gepackt ? entpacke(teil) : Promise.resolve(ohneEndzeile(teil))).then(function (aus) {
+        return aus ? c2paLesen(aus) : null;
+      }, function () { return null; });
     }
 
     /* -- Metadaten -------------------------------------------------------- */
@@ -581,6 +869,15 @@
     }
 
     var nichtLesbar = 0;
+    var start = herkunftLesen.reduce(function (kette, n) {
+      return kette.then(function () {
+        return nachweisLesen(n).then(function (r) {
+          if (r && r.satz) treffer.push({ stelle: objektVor(roh, n.pos) ? "Objekt " + objektVor(roh, n.pos) : "Byte " + n.pos,
+                                          kennung: "PDF-HERKUNFT", satz: r.satz, daten: r.daten });
+          else melde(n.pos, "PDF-HERKUNFT", "Herkunftsnachweis (Content Credentials) vorhanden, aber nicht lesbar — ungeprüft.");
+        });
+      });
+    }, Promise.resolve());
     return stroeme.reduce(function (kette, s) {
       return kette.then(function () {
         return entpacke(bytes.subarray(s.von, s.bis)).then(function (aus) {
@@ -590,7 +887,7 @@
           aktionenIn(text, s.von, " (in einem gepackten Strom)");
         }, function () { nichtLesbar++; });
       });
-    }, Promise.resolve()).then(function () {
+    }, start).then(function () {
       if (stroeme.length) {
         hinweise.push(stroeme.length + " gepackte Ströme geöffnet" +
           (nichtLesbar ? ", " + nichtLesbar + " davon NICHT lesbar — die sind ungeprüft, nicht sauber" : "") + ".");
@@ -615,11 +912,12 @@
   welt.PrueferFormate = {
     pruefeText: pruefeText,
     pruefePdf: pruefePdf,
+    c2paLesen: c2paLesen,
     istFreigestellt: istFreigestellt,
     istIban: istIban,
     BEFUNDE_TEXT: BEFUNDE_TEXT,
     BEFUNDE_PDF: BEFUNDE_PDF,
     FREI_PFADE: FREI_PFADE,
-    _meta: { herkunft: "PWA Toolpoint 2026-08-23", fassung: "2" }
+    _meta: { herkunft: "PWA Toolpoint 2026-08-23", fassung: "3" }
   };
 })(typeof window !== "undefined" ? window : globalThis);

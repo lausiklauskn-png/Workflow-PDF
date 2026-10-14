@@ -811,3 +811,20 @@ Freibrief · frisch von `origin/main` · Ton · kein PII · Ehrlichkeit:
   eigenständige Datei. Für Geräte, deren PDF-Anzeige keine Formulare kann (Google
   Drive/Files). Kästchen sind durchsichtig, damit gedruckte Haken sichtbar bleiben —
   dasselbe gilt für die Kästchen-Widgets im ausfüllbaren PDF.
+
+## 🏷 Herkunftsnachweis (C2PA) beim Einlesen (Klaus 2026-10-14)
+
+„… eine genauere Ausgabe der Informationen, die im Hintergrund einer Datei stehen, kurz und verständlich … genauere
+Ausgabe auf Knopfdruck." `pruefer-formate.js` und `pruefer-anhang.js` sind neu byte-1:1 aus dem Auslieferungsprüfer
+(Pins in `tests/eingang.mjs`): sie lesen C2PA („Content Credentials") in PDF (`PDF-HERKUNFT`), JPEG, PNG und WebP
+(`BILD-HERKUNFT`) und melden einen PDF-Nachweis nicht mehr als „weitere Datei im PDF".
+- **Eine Angabe, nie ein Befund:** `HERKUNFT` steht in `eingang.js` nie in `WARN` und ändert den Stand nicht.
+  `pruefen()` liefert `herkunft: [{kennung, satz, daten}]`.
+- Im Prüfbefund-Dialog steht der Abschnitt `[data-herkunft]` ruhig, ohne „Was jetzt tun"; die Einzelheiten
+  stehen in `<details data-herkunft-details>` „Details anzeigen", zuerst zu, nur escapt. Bei „sauber" trägt die
+  Karte die Marke „ℹ Herkunft" (`data-pruefung="herkunft"`).
+- ⚠ Die Unterschrift wird nicht nachgerechnet; der Satz im Dialog sagt das.
+- Proben: `tests/eingang.mjs` § 8 (erfundene Dateien aus `tests/c2pa-muster.mjs`, PDF mit einer Seite, PNG mit
+  caBX, Gegenrichtung ohne Nachweis) · Gegenprobe `NUR_FALL="HERKUNFT:"` (5 Fälle). Cache v84, `app.js?v=61`,
+  `eingang.js?v=4`, `style.css?v=39`, `sprache-texte.js?v=41`.
+- ⚠ Nicht gemessen: echte C2PA-Dateien (Klaus' Kaffee-Eule-PDF liegt nur bei ihm), das Tablet.

@@ -547,3 +547,8 @@ div.dok-pruefung{cursor:default;font-weight:600;opacity:.8}
  .lamp::before{width:8px;height:8px}
  .netz-mehr{top:100%;right:-2px}
 }
+/* Herkunftsnachweis (C2PA, Klaus 2026-10-14): ruhig, keine Warnfarbe */
+.dok-pruefung.info{background:#eef5fb;border-color:#7aa7cf;color:#1d4f7a}
+.pruef-herkunft{margin:10px 0;padding:8px 10px;border:1px solid #7aa7cf;border-radius:8px;background:#f4f8fc}
+.pruef-herkunft dl{display:grid;grid-template-columns:max-content 1fr;gap:2px 10px;margin:6px 0 0;font-size:.86rem}
+.pruef-herkunft dt{font-weight:700}.pruef-herkunft dd{margin:0;overflow-wrap:anywhere}
