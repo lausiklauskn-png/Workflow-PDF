@@ -120,8 +120,27 @@ try {
   await page.evaluate(() => document.querySelectorAll('.dlg-grund').forEach(g => g.remove()));
   const marke = await page.evaluate(() => { const k = [...document.querySelectorAll('.dok')].find(d => d.querySelector('.dok-name').textContent.trim() === '0D'); const b = k && k.querySelector('[data-pruefung="warnung"]'); return b ? { text: b.textContent, sicht: b.checkVisibility() } : null; });
   ok('die Karte von 0D trägt die Marke „Verdächtiger Inhalt", sichtbar', marke && marke.sicht && /Verdächtig/.test(marke.text), marke);
-  const sauberMarke = await page.evaluate(() => { const k = [...document.querySelectorAll('.dok')].find(d => d.querySelector('.dok-name').textContent.trim() === 'Antrag'); return k ? k.querySelectorAll('[data-pruefung]').length : -1; });
-  ok('die Karte eines sauberen Dokuments trägt keine Marke', sauberMarke === 0, sauberMarke);
+  /* ⚠ Tafel-Evolution (Klaus 2026-10-14): hier stand „die Karte eines sauberen Dokuments trägt keine Marke".
+     Seitdem trägt sie eine RUHIGE Marke, die zum Prüfbericht führt — sonst sah man nicht, dass geprüft wurde. */
+  const sauberMarke = await page.evaluate(() => { const k = [...document.querySelectorAll('.dok')].find(d => d.querySelector('.dok-name').textContent.trim() === 'Antrag'); const b = k && k.querySelector('[data-pruefung]'); return b ? { art: b.dataset.pruefung, text: b.textContent, sicht: b.checkVisibility(), warn: b.classList.contains('warn'), knopf: b.tagName === 'BUTTON' } : null; });
+  ok('die Karte eines sauberen Dokuments trägt eine ruhige Marke „Geprüft · Prüfbericht"', sauberMarke && sauberMarke.art === 'sauber' && sauberMarke.sicht && !sauberMarke.warn && sauberMarke.knopf && /Geprüft/.test(sauberMarke.text), sauberMarke);
+  ok('… und die Prüfung hebt die Angaben auf (Liste, auch wenn leer)', await page.evaluate(() => { const d = window.__wfpdf.S.docs.find(x => x.name === 'Antrag'); return Array.isArray(d.pruefung.angaben); }));
+  ok('… H2 (Foto mit GPS) trägt seine Metadaten als Angabe, nicht als Fund', await page.evaluate(() => { const d = window.__wfpdf.S.docs.find(x => x.name === 'H2'); const a = (d.pruefung.angaben || []).map(x => x.kennung); return a.includes('BILD-METADATEN') && !d.pruefung.funde.some(f => f.kennung === 'BILD-METADATEN') ? true : { a, funde: d.pruefung.funde.map(f => f.kennung) }; }) === true);
+  await page.evaluate(() => { const k = [...document.querySelectorAll('.dok')].find(d => d.querySelector('.dok-name').textContent.trim() === 'H2'); k.querySelector('[data-pruef]').click(); });
+  const ber = await page.waitForSelector('.dlg [data-pruefbericht]', { timeout: 10000 }).then(() => page.evaluate(() => { const d = document.querySelector('.dlg'); return { angaben: [...d.querySelectorAll('[data-angaben] li')].map(li => li.dataset.kennung), namen: (d.querySelector('[data-angaben]') || {}).textContent || '', tun: !!d.querySelector('[data-was-tun]'), knopf: !!d.querySelector('[data-bericht-laden]') }; }), () => null);
+  ok('Prüfbericht: ein Tipp auf die ruhige Marke öffnet den Bericht', !!ber, ber);
+  ok('… mit „Was sonst in der Datei steht" und den Bild-Metadaten, benannt', ber && ber.angaben.includes('BILD-METADATEN') && /Was sonst in der Datei steht/.test(ber.namen) && /Metadaten/.test(ber.namen), ber);
+  ok('… ohne „Was jetzt tun" (Angaben sind keine Gefahr)', ber && !ber.tun, ber);
+  await page.evaluate(() => { window.__berichtLaden = null; const a = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = function () { if (/Pruefbericht\.txt$/.test(this.download)) { window.__berichtLaden = { name: this.download, url: this.href }; return; } return a.call(this); }; const b = document.querySelector('.dlg [data-bericht-laden]'); if (b) b.click(); });
+  const btxt = await page.evaluate(async () => { const x = window.__berichtLaden; if (!x) return null; return { name: x.name, text: await (await fetch(x.url)).text() }; });
+  ok('… „⬇ Prüfbericht als Textdatei" gibt eine Datei <Name>-Pruefbericht.txt', btxt && btxt.name === 'H2-Pruefbericht.txt', btxt && btxt.name);
+  ok('… und darin stehen Kopf, Angaben und der Satz „keine Virenprüfung"', btxt && /Prüfbericht/.test(btxt.text) && /Was sonst in der Datei steht/.test(btxt.text) && /Bild-Metadaten|Metadaten/.test(btxt.text) && /keine Virenprüfung/.test(btxt.text), btxt && btxt.text.slice(0, 400));
+  await page.evaluate(() => document.querySelectorAll('.dlg-grund').forEach(g => g.remove()));
+  // eine Prüfung aus einer älteren Fassung (ohne angaben) sagt das, statt still „keine Angaben" zu melden
+  await page.evaluate(() => { const d = window.__wfpdf.S.docs.find(x => x.name === 'Antrag'); delete d.pruefung.angaben; window.__wfpdf.suche.zeichneBibliothek(); const k = [...document.querySelectorAll('.dok')].find(x => x.querySelector('.dok-name').textContent.trim() === 'Antrag'); k.querySelector('[data-pruef]').click(); });
+  const alt = await page.waitForSelector('.dlg [data-pruefbericht]', { timeout: 10000 }).then(() => page.evaluate(() => !!document.querySelector('.dlg [data-angaben-alt]')), () => null);
+  ok('Prüfbericht aus älterer Fassung: benannt, nicht als „keine Angaben" ausgegeben', alt === true, alt);
+  await page.evaluate(() => document.querySelectorAll('.dlg-grund').forEach(g => g.remove()));
   await page.evaluate(() => { const k = [...document.querySelectorAll('.dok')].find(d => d.querySelector('.dok-name').textContent.trim() === '0D'); k.querySelector('[data-pruef]').click(); });
   await page.waitForSelector('.dlg [data-pruef-funde]');
   const dl = await page.evaluate(() => { const d = document.querySelector('.dlg'); return { funde: d.querySelectorAll('[data-pruef-funde] li').length, tun: d.querySelectorAll('[data-was-tun] li').length, tunText: (d.querySelector('[data-was-tun]') || {}).textContent || '', original: !!d.querySelector('[data-pruef-original]'), text: d.textContent }; });

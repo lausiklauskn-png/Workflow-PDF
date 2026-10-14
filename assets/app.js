@@ -959,13 +959,35 @@
   }
   function pruefMarke(d) {
     const p = d.pruefung;
-    if (PRUEF.laufend.has(d.id)) return '<div class="dok-pruefung" data-pruefung="laeuft">⏳ Wird auf versteckte Anweisungen geprüft …</div>';
+    if (PRUEF.laufend.has(d.id)) return '<div class="dok-pruefung laeuft" data-pruefung="laeuft" role="status"><span class="pruef-dreh" aria-hidden="true"></span>Wird gelesen und geprüft …</div>';
     if (!p) return '';
     if (p.stand === 'warnung') return '<button class="dok-pruefung warn" data-pruef data-pruefung="warnung">⚠ Verdächtiger Inhalt — ansehen</button>';
     if (p.stand === 'ungeprueft') return '<button class="dok-pruefung" data-pruef data-pruefung="ungeprueft">? Nicht ganz geprüft</button>';
     // Herkunftsnachweis (C2PA, Klaus 2026-10-14): eine Angabe, keine Warnung — auch bei „sauber" erreichbar
-    if (p.herkunft && p.herkunft.length) return '<button class="dok-pruefung info" data-pruef data-pruefung="herkunft">ℹ Herkunft</button>';
-    return '';
+    if (p.herkunft && p.herkunft.length) return '<button class="dok-pruefung info" data-pruef data-pruefung="herkunft">ℹ Herkunft · Prüfbericht</button>';
+    /* Auch ohne Fund ein Weg zum Bericht (Klaus 2026-10-14: „man kann danach auch keine Analyse erkennen").
+       ⚠ Tafel-Evolution: bis dahin trug ein sauberes Dokument gar keine Marke. */
+    return '<button class="dok-pruefung ok" data-pruef data-pruefung="sauber">✓ Geprüft · Prüfbericht</button>';
+  }
+  /* Der Prüfbericht als Text — dieselben Sätze wie im Dialog, in derselben Reihenfolge. */
+  function pruefBerichtText(d, kopf, zeit, tun) {
+    const p = d.pruefung, E = WFP.Eingang, z = [];
+    z.push('Workfloh PDF · Prüfbericht', d.name, kopf.replace(/^[^A-Za-zÄÖÜäöü]+/, ''), 'Geprüft ' + zeit + ' auf diesem Gerät, ohne Netz.', '');
+    if (p.funde.length) { z.push('Gefunden:'); p.funde.forEach(f => z.push('- ' + (E.NAME[f.kennung] || f.kennung) + ': ' + f.satz)); z.push(''); }
+    if (tun.length) { z.push('Was jetzt tun:'); tun.forEach((x, i) => z.push((i + 1) + '. ' + x)); z.push(''); }
+    if (p.herkunft && p.herkunft.length) {
+      z.push('Herkunftsnachweis (eine Angabe, keine Gefahr; die Unterschrift wird nicht nachgerechnet):');
+      p.herkunft.forEach(x => { z.push('- ' + x.satz); (x.daten || []).forEach(q => z.push('    ' + q[0] + ': ' + q[1])); });
+      z.push('');
+    }
+    if (Array.isArray(p.angaben)) {
+      z.push(p.angaben.length ? 'Was sonst in der Datei steht (Angaben, keine Gefahr):' : 'Weitere Angaben: keine gefunden.');
+      p.angaben.forEach(f => z.push('- ' + (E.ANGABE_NAME[f.kennung] || f.kennung) + ': ' + f.satz));
+      z.push('');
+    }
+    if (p.hinweise && p.hinweise.length) { z.push('Was geprüft wurde:'); p.hinweise.forEach(x => z.push('- ' + x)); z.push(''); }
+    z.push('Das ist keine Virenprüfung. Gesucht wird nach versteckten Anweisungen und Tarnungen.');
+    return z.join('\n');
   }
   async function pruefDialog(id) {
     const d = (S.doc && S.doc.id === id) ? S.doc : S.docs.find(x => x.id === id) || await DB.get('docs', id);
@@ -977,18 +999,20 @@
     for (const k of arten) for (const x of WFP.Eingang.wasTun(k)) if (!tun.includes(x)) tun.push(x);
     const zeit = p.zeit ? new Date(p.zeit).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '';
     const kopf = p.stand === 'warnung' ? '⚠ Verdächtiger Inhalt' : p.stand === 'ungeprueft' ? '? Nicht ganz geprüft' : '✓ Beim Einlesen nichts Verdächtiges gefunden';
-    dialog(`<h2>${h(kopf)}</h2>
+    dialog(`<p class="pruef-titel" data-pruefbericht>Prüfbericht</p><h2>${h(kopf)}</h2>
       <p class="pruef-name" data-kein-ue>${h(d.name)}</p>
       ${p.funde.length ? `<p>Beim Einlesen geprüft. Gefunden:</p><ul class="pruef-funde" data-pruef-funde>${p.funde.map(f => `<li data-kennung="${h(f.kennung)}"><b>${h(WFP.Eingang.NAME[f.kennung] || f.kennung)}</b><br><span data-kein-ue>${h(f.satz)}</span></li>`).join('')}</ul>` : ''}
       ${p.markiert ? `<figure class="pruef-markiert" data-pruef-markiert><img alt="Die Stelle im Bild, rot umrandet" src="${h(p.markiert)}"><figcaption>Die Stelle im Bild, rot umrandet. Das ist eine Kopie — das Original bleibt unverändert.</figcaption></figure>` : ''}
       ${tun.length ? `<div class="pruef-tun" data-was-tun><p><b>Was jetzt tun</b></p><ol>${tun.map(x => '<li data-kein-ue>' + h(x) + '</li>').join('')}</ol></div>` : ''}
       ${p.stand === 'warnung' ? '<p class="hinweis" data-pruef-original>Nichts wurde entfernt: das Dokument steht unverändert in der Bibliothek. Vor dem Übersetzen oder dem Erkennen mit KI: beim Absender nachfragen, was es mit dieser Stelle auf sich hat.</p>' : ''}
       ${p.herkunft && p.herkunft.length ? `<div class="pruef-herkunft" data-herkunft><p><b>ℹ Herkunftsnachweis</b></p><p class="hinweis">Das ist eine Angabe, keine Gefahr: in der Datei steht, womit sie entstanden ist. Ob die Unterschrift echt ist, rechnet diese Prüfung nicht nach.</p>${p.herkunft.map(x => `<p data-kein-ue>${h(x.satz)}</p>${x.daten && x.daten.length ? `<details data-herkunft-details><summary>Details anzeigen</summary><dl>${x.daten.map(z => `<dt data-kein-ue>${h(z[0])}</dt><dd data-kein-ue>${h(z[1])}</dd>`).join('')}</dl></details>` : ''}`).join('')}</div>` : ''}
+      ${Array.isArray(p.angaben) ? (p.angaben.length ? `<div class="pruef-angaben" data-angaben><p><b>Was sonst in der Datei steht</b></p><p class="hinweis">Angaben, keine Gefahr: in Formularen und Fotos ist das normal. Sie stehen hier, damit Sie wissen, was die Datei über sich mitträgt, bevor Sie sie weitergeben.</p><ul>${p.angaben.map(f => `<li data-kennung="${h(f.kennung)}"><b>${h(WFP.Eingang.ANGABE_NAME[f.kennung] || f.kennung)}</b><br><span data-kein-ue>${h(f.satz)}</span></li>`).join('')}</ul></div>` : '<p class="hinweis" data-angaben="0">Weitere Angaben (Metadaten, frühere Speicherstände) wurden in der Datei nicht gefunden.</p>') : '<p class="hinweis" data-angaben-alt>Diese Prüfung stammt aus einer älteren Fassung der App und hat die weiteren Angaben (Metadaten, frühere Speicherstände) nicht aufgehoben. Wer sie sehen will, liest die Datei noch einmal ein.</p>'}
       ${p.hinweise && p.hinweise.length ? `<details class="pruef-grenzen"><summary>Was geprüft wurde</summary><ul>${p.hinweise.map(x => '<li data-kein-ue>' + h(x) + '</li>').join('')}</ul></details>` : ''}
       <p class="hinweis">Geprüft <span data-kein-ue>${h(zeit)}</span> auf diesem Gerät, ohne Netz. Die Sätze der Prüfung stehen auf Deutsch.</p>
-      <div class="zeile">${p.markiert ? '<button class="knopf" data-markiert-laden>⬇ Markierte Kopie speichern</button>' : ''}<button class="knopf rot" data-x>OK</button></div>`,
+      <div class="zeile"><button class="knopf" data-bericht-laden>⬇ Prüfbericht als Textdatei</button>${p.markiert ? '<button class="knopf" data-markiert-laden>⬇ Markierte Kopie speichern</button>' : ''}<button class="knopf rot" data-x>OK</button></div>`,
       (dl, zu) => {
         dl.querySelector('[data-x]').onclick = zu;
+        dl.querySelector('[data-bericht-laden]').onclick = () => laden(dateiName(d.name).replace(/\.[a-z0-9]{2,5}$/i, '') + '-Pruefbericht.txt', new Blob(['\ufeff' + pruefBerichtText(d, kopf, zeit, tun)], { type: 'text/plain;charset=utf-8' }), 'text/plain');
         const ml = dl.querySelector('[data-markiert-laden]');
         if (ml) ml.onclick = () => fetch(p.markiert).then(r => r.blob()).then(b => laden(dateiName(d.name) + '-markiert.jpg', b, 'image/jpeg'));
       });

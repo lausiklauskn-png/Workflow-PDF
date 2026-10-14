@@ -26,11 +26,14 @@ const FAELLE = [
   { name: 'der Hilfe-Knopf holt die Testdatei, liest sie aber nicht ein', datei: A, anker: "await importDateien([new File([await r.blob()], name, { type: typ })], 'Beispiele', { still: true });", ersatz: 'await r.blob();', trifft: /Hilfe → 🧪/ },
   // Herkunftsnachweis (C2PA, Klaus 2026-10-14): eine Angabe, nie eine Warnung
   { name: 'HERKUNFT: der Nachweis landet in der Warnliste', datei: E, anker: "'BILD-LSB-VERDACHT', 'PDF-ANHANG', 'ANHANG-PROGRAMM', 'ANHANG-TARNUNG'];", ersatz: "'BILD-LSB-VERDACHT', 'PDF-ANHANG', 'ANHANG-PROGRAMM', 'ANHANG-TARNUNG', 'PDF-HERKUNFT', 'BILD-HERKUNFT'];", trifft: /Warnung|Warnliste/ },
-  { name: 'HERKUNFT: das Ergebnis trägt keine Herkunft mehr', datei: E, anker: 'markiert: m, art: r.art, zeit, herkunft };', ersatz: 'markiert: m, art: r.art, zeit };', trifft: /HERKUNFT|Herkunft/ },
+  { name: 'HERKUNFT: das Ergebnis trägt keine Herkunft mehr', datei: E, anker: 'markiert: m, art: r.art, zeit, herkunft, angaben };', ersatz: 'markiert: m, art: r.art, zeit, angaben };', trifft: /HERKUNFT|Herkunft/ },
   { name: 'HERKUNFT: die Daten (Programm, Unterzeichner) fallen weg', datei: E, anker: 'daten: Array.isArray(x.daten) ? x.daten.map(z => [String(z[0]), String(z[1])]) : null', ersatz: 'daten: null', trifft: /Programm|Unterzeichner/ },
   { name: 'HERKUNFT: bei „sauber" fehlt die Marke', datei: A, anker: "if (p.herkunft && p.herkunft.length) return '<button", ersatz: "if (false) return '<button", trifft: /Marke „ℹ Herkunft"/ },
   { name: 'HERKUNFT: die Details stehen schon aufgeklappt', datei: A, anker: '<details data-herkunft-details>', ersatz: '<details data-herkunft-details open>', trifft: /zugeklappt/ },
-  { name: 'eingang.js fehlt im Offline-Vorrat', datei: 'sw.js', anker: "'./assets/eingang.js?v=4', ", ersatz: '', trifft: /Offline-Vorrat/ }
+  { name: 'BERICHT: ein sauberes Dokument hat wieder keine Marke', datei: A, anker: `return '<button class="dok-pruefung ok" data-pruef data-pruefung="sauber">✓ Geprüft · Prüfbericht</button>';`, ersatz: "return '';", trifft: /ruhige Marke/ },
+  { name: 'BERICHT: die Angaben werden nicht mehr aufgehoben', datei: E, anker: 'const angaben = alle.filter(x => !WARN.includes(x.kennung) && !HERKUNFT.includes(x.kennung))', ersatz: 'const angaben = [].filter(x => x)', trifft: /Metadaten als Angabe|Was sonst in der Datei steht/ },
+  { name: 'BERICHT: der Knopf „als Textdatei" fehlt', datei: A, anker: '<button class="knopf" data-bericht-laden>⬇ Prüfbericht als Textdatei</button>', ersatz: '', trifft: /Pruefbericht\.txt|Prüfbericht als Textdatei/ },
+  { name: 'eingang.js fehlt im Offline-Vorrat', datei: 'sw.js', anker: "'./assets/eingang.js?v=5', ", ersatz: '', trifft: /Offline-Vorrat/ }
 ];
 
 let gefangen = 0, durch = 0, falsch = 0, tot = 0;

@@ -552,3 +552,12 @@ div.dok-pruefung{cursor:default;font-weight:600;opacity:.8}
 .pruef-herkunft{margin:10px 0;padding:8px 10px;border:1px solid #7aa7cf;border-radius:8px;background:#f4f8fc}
 .pruef-herkunft dl{display:grid;grid-template-columns:max-content 1fr;gap:2px 10px;margin:6px 0 0;font-size:.86rem}
 .pruef-herkunft dt{font-weight:700}.pruef-herkunft dd{margin:0;overflow-wrap:anywhere}
+/* Prüfbericht für jedes geprüfte Dokument (Klaus 2026-10-14): ruhig, keine Warnfarbe */
+.dok-pruefung.ok{background:#eef7ef;border-color:#7fb38a;color:#235c31}
+.dok-pruefung.laeuft{display:flex;align-items:center;gap:7px}
+.pruef-dreh{width:12px;height:12px;flex:0 0 12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:pruefDreh .9s linear infinite}
+@keyframes pruefDreh{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.pruef-dreh{animation:none;border-right-color:currentColor;opacity:.6}}
+.pruef-titel{margin:0 0 2px;font-size:.78rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.7}
+.pruef-angaben{margin:10px 0;padding:8px 10px;border:1px solid #c9c9c9;border-radius:8px;background:#fafafa}
+.pruef-angaben ul{margin:6px 0 0;padding-left:18px}.pruef-angaben li{margin:4px 0;overflow-wrap:anywhere}

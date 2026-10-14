@@ -42,6 +42,22 @@
      keine Gefahr — steht deshalb NIE in WARN und ändert den Stand nicht. Die Unterschrift prüft
      niemand nach; es ist die eigene Aussage des Programms. */
   const HERKUNFT = ['PDF-HERKUNFT', 'BILD-HERKUNFT'];
+  /* Alles Übrige, was der Kern findet (Metadaten, frühere Speicherstände, Personenbezug …), ist in einem
+     Formular normal und wird NICHT gemeldet — es steht aber im Prüfbericht (Klaus 2026-10-14: „man kann
+     danach auch keine Analyse erkennen … so dass man weiß, Zertifikat und was nicht alles"). */
+  const ANGABE_NAME = {
+    'PDF-METADATEN': 'Angaben im Dateikopf (Verfasser, Programm …)',
+    'PDF-ALTFASSUNG': 'Frühere Speicherstände in der Datei',
+    'PDF-AKTION': 'Aktion im PDF (wird hier nicht ausgeführt)',
+    'PDF-VERWEIS': 'Verweis nach außen',
+    'BILD-METADATEN': 'Angaben im Bild (Kamera, Programm, Ort …)',
+    'BILD-ANHAENGSEL': 'Daten hinter dem Bildende',
+    'PERSONENBEZUG': 'Personenbezogene Angaben',
+    'RECHNUNGSDATEN': 'Rechnungsdaten',
+    'KI-BEGRIFF': 'Fachbegriff zu KI-Angriffen (keine Anweisung)',
+    'FREMDE-ADRESSE': 'Adresse eines fremden Rechners',
+    'UNSICHTBARE-ZEICHEN': 'Unsichtbare Zeichen im Text'
+  };
   const MARKE_KANTE = 1600;   // die markierte Kopie liegt am Dokument — klein halten
 
   function skript(src) {
@@ -96,14 +112,15 @@
       const m = funde.length ? await markiert(A, b, alle.filter(x => WARN.includes(x.kennung))) : null;
       // Herkunftsnachweis (C2PA, Klaus 2026-10-14): eine ANGABE, nie ein Befund — ändert den Stand nicht.
       const herkunft = alle.filter(x => HERKUNFT.includes(x.kennung)).map(x => ({ kennung: x.kennung, satz: x.satz, daten: Array.isArray(x.daten) ? x.daten.map(z => [String(z[0]), String(z[1])]) : null }));
-      return { stand, funde, hinweise, markiert: m, art: r.art, zeit, herkunft };
+      const angaben = alle.filter(x => !WARN.includes(x.kennung) && !HERKUNFT.includes(x.kennung)).map(x => ({ kennung: x.kennung, satz: x.satz }));
+      return { stand, funde, hinweise, markiert: m, art: r.art, zeit, herkunft, angaben };
     } catch (e) {
-      return { stand: 'ungeprueft', funde: [], hinweise: ['Die Prüfung lief nicht: ' + (e && e.message || e)], markiert: null, art: '', zeit, herkunft: [] };
+      return { stand: 'ungeprueft', funde: [], hinweise: ['Die Prüfung lief nicht: ' + (e && e.message || e)], markiert: null, art: '', zeit, herkunft: [], angaben: [] };
     }
   }
   function wasTun(kennung) {
     const A = window.PrueferAnhang;
     return A && A.wasTun ? A.wasTun(kennung) : [];
   }
-  WFP.Eingang = { pruefen, bereit, wasTun, WARN, NAME, HERKUNFT };
+  WFP.Eingang = { pruefen, bereit, wasTun, WARN, NAME, HERKUNFT, ANGABE_NAME };
 })();
