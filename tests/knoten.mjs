@@ -23,7 +23,7 @@ const PIN = {
   'sbkim/01_storage.js': '5a5a4bf64dfcc107da7ed70fb755d7db5cce7d80e963b3e2fbc2004537747820',
   'sbkim/02_spore.js': '6789fe6e903ad2e53f39b2dee576c640698555ef71ef4e9134eb75573fdb7d68',
   'vendor/sbkim/03_embedding.js': 'a6ac64d7536da3fa5cc426d0f7db9440fdaf5ab4460f0bdc66a10eb8203b1b68',
-  'vendor/sbkim/04_match.js': '5de95923c3f62f141e94f576feebcac0eecc55c60e40b564540a56420436a4cd',
+  'vendor/sbkim/04_match.js': '721eecc3c0d6ea4c259259e6071215ec1cd16f1c43c87b42ce9e72e9a0b5e41c',
   'sbkim/05_anastomose.js': '255ac79aeb3b0203e92f0cebd0a905e47c488b43efe18f41332a7d35520bbf23',
   'sbkim/05b_nostr_relay.js': '37eee5b196b3efad57131edd1cc3c0ee23acb97b5ca40740d6a0771db4b4a421',
   'sbkim/07_apoptose.js': '0acdd6ab2d95e131fa6953061cc0e95a2396e05fff091a7dc690b2668a4c035a',
@@ -65,7 +65,7 @@ ok('… und dem Platz für die Mycel-Blase', !!leiste && /data-sbkim-mycel-platz
 const init = lies('assets/sbkim-init.js');
 const kette = init.slice(init.indexOf('var KANON = ['), init.indexOf('];', init.indexOf('var KANON = [')) + 2);
 const glieder = [...kette.matchAll(/\[\s*"(module|)"\s*,\s*"([^"]+)"\s*\]/g)].map(m => m[2]);
-const SOLL = ['sbkim/01_storage.js', 'sbkim/02_spore.js', 'vendor/sbkim/04_match.js', 'sbkim/05_anastomose.js', 'sbkim/07_apoptose.js', 'sbkim/15_membran.js', 'sbkim/16_siegel.js', 'sbkim/05b_nostr_relay.js', 'sbkim/23_rendezvous.js', 'sbkim/23_rendezvous_ui.js', 'assets/siegel-inhalt.js', 'sbkim/16b_andock_wizard.js'];
+const SOLL = ['sbkim/01_storage.js', 'sbkim/02_spore.js', 'vendor/sbkim/04_match.js', 'assets/pruefer-mail.js' /* Prüfliste vor dem KI-Richter, Sage Bau 04.J (2026-10-14) */, 'sbkim/05_anastomose.js', 'sbkim/07_apoptose.js', 'sbkim/15_membran.js', 'sbkim/16_siegel.js', 'sbkim/05b_nostr_relay.js', 'sbkim/23_rendezvous.js', 'sbkim/23_rendezvous_ui.js', 'assets/siegel-inhalt.js', 'sbkim/16b_andock_wizard.js'];
 ok('die Kette trägt alle Glieder in der Kanon-Reihenfolge', JSON.stringify(glieder.map(g => g.split('?')[0])) === JSON.stringify(SOLL), glieder);
 const zeilen = kette.split('\n').filter(l => /^\s*\[/.test(l));
 ok('… zwischen den Gliedern steht jedes Komma (sonst wird [..] [..] ein Index-Zugriff)', zeilen.length === SOLL.length && zeilen.slice(0, -1).every(l => /\]\s*,/.test(l)), zeilen);
