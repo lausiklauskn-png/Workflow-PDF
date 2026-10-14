@@ -77,6 +77,7 @@ const einlesen = (page, namen, still = true) => page.evaluate(async ({ namen, B,
   const neu = await window.__wfpdf.importDateien(files, null, { still });
   return neu.map(d => ({ id: d.id, name: d.name }));
 }, { namen, B: Object.fromEntries(namen.map(n => [n, DATEIEN[n]])), still });
+const allePruefen = page => page.evaluate(() => window.__wfpdf.eingang.pruefungNachholen(window.__wfpdf.S.docs.filter(d => !d.pruefung).map(d => d.id)));
 const warteFertig = page => page.waitForFunction(() => window.__wfpdf.eingang.PRUEF.laufend.size === 0, null, { timeout: 240000 });
 const stand = (page, name) => page.evaluate(n => { const d = window.__wfpdf.S.docs.find(x => x.name === n); return d && d.pruefung ? { stand: d.pruefung.stand, arten: d.pruefung.funde.map(f => f.kennung), markiert: !!d.pruefung.markiert, hinweise: d.pruefung.hinweise } : null; }, name);
 
@@ -85,6 +86,9 @@ try {
   const { ctx, page, fehler } = await neueSeite();
   const t0 = Date.now();
   await einlesen(page, Object.keys(DATEIEN));
+  const vorher = await page.evaluate(() => ({ laufend: window.__wfpdf.eingang.PRUEF.laufend.size, offen: document.querySelectorAll('[data-pruefung="offen"]').length }));
+  ok('MANUELL: nach dem Einlesen läuft KEINE Prüfung, jede Karte trägt „jetzt prüfen"', vorher.laufend === 0 && vorher.offen === Object.keys(DATEIEN).length, vorher);
+  await allePruefen(page);
   const laeuft = await page.evaluate(() => document.querySelectorAll('[data-pruefung="laeuft"]').length);
   ok('während der Prüfung trägt die Karte „wird geprüft"', laeuft > 0, laeuft);
   await warteFertig(page);
@@ -164,6 +168,7 @@ try {
     return true;
   }, DATEIEN['0D.pdf']);
   await page.evaluate(() => document.querySelectorAll('.dlg-grund').forEach(g => g.remove()));
+  await allePruefen(page);
   await warteFertig(page);
   const fremd = await stand(page, 'Fremder Stand');
   ok('ein „sauber" in einer fremden Arbeitsstand-Datei wird nicht geglaubt: neu geprüft → Warnung', stand2 && fremd && fremd.stand === 'warnung', fremd);
@@ -172,6 +177,7 @@ try {
   /* 6 · offen im Editor: Speichern überschreibt den Befund nicht */
   await einlesen(page, ['0D.pdf'], false);
   await page.waitForFunction(() => window.__wfpdf.S.doc);
+  await allePruefen(page);
   await warteFertig(page);
   const ed = await page.evaluate(async () => { const id = window.__wfpdf.S.doc.id; window.__wfpdf.S.doc.name = window.__wfpdf.S.doc.name; await window.__wfpdf.speichernJetzt?.(); const d = await WFP.DB.get("docs", id); return { amDoc: window.__wfpdf.S.doc.pruefung && window.__wfpdf.S.doc.pruefung.stand, inDb: d.pruefung && d.pruefung.stand }; });
   ok('im offenen Editor bekommt das Dokument den Befund, und gespeichert bleibt er', ed.amDoc === 'warnung' && ed.inDb === 'warnung', ed);
@@ -180,6 +186,7 @@ try {
   /* 7 · ohne Prüfkern: nie still sauber */
   const b = await neueSeite(/pruefer-anhang\.js/);
   await einlesen(b.page, ['Antrag.pdf']);
+  await allePruefen(b.page);
   await warteFertig(b.page);
   const ohne = await stand(b.page, 'Antrag');
   ok('fehlt der Prüfkern, heißt es „nicht ganz geprüft" mit Grund, nie sauber', ohne && ohne.stand === 'ungeprueft' && ohne.hinweise.some(x => /lief nicht/.test(x)), ohne);
@@ -213,6 +220,7 @@ try {
       for (const f of files) { try { await window.__wfpdf.importDateien([f], null, { still: true }); } catch (e) { fehlschlag.push(f.name + ': ' + e); } }
       return fehlschlag;
     }, B);
+    await allePruefen(page);
     await warteFertig(page);
     await page.evaluate(() => document.querySelectorAll('.dlg-grund').forEach(g => g.remove()));
     const hk = await page.evaluate(() => Object.fromEntries(['Herkunft', 'OhneNachweis'].flatMap(n => window.__wfpdf.S.docs.filter(d => d.name === n).map(d => [n + (d.quelle === 'foto' ? '-png' : '-pdf'), d.pruefung ? { stand: d.pruefung.stand, arten: d.pruefung.funde.map(f => f.kennung), herkunft: d.pruefung.herkunft || null } : null]))));
@@ -260,6 +268,59 @@ try {
     const st = await stand(page, 'Testdatei unsichtbarer Text');
     ok('Hilfe → 🧪 PDF: unsichtbarer Text wird gemeldet', st && st.stand === 'warnung' && st.arten.includes('PDF-VERSTECKTER-TEXT'), st);
     ok('keine Seitenfehler (Testdateien)', fehler.length === 0, fehler);
+    await ctx.close();
+  }
+  /* 10 · Klaus 2026-10-14: „Die Prüfung einer Datei soll manuell initiiert werden können … erst auf
+     Knopfdruck … Und so auch bei älteren Dateien." Nichts prüft beim Einlesen oder Laden von selbst. */
+  {
+    const { ctx, page, fehler } = await neueSeite();
+    await einlesen(page, ['H2.jpg'], false);
+    await page.waitForSelector('#sc-ed.on #edPruefung:not([hidden])', { timeout: 30000 }).catch(() => {});
+    const ed0 = await page.evaluate(() => { const m = document.querySelector('#edPruefung [data-pruef-nachholen]'); return { laufend: window.__wfpdf.eingang.PRUEF.laufend.size, knopf: m ? { sicht: m.checkVisibility(), text: m.textContent } : null }; });
+    ok('MANUELL: ein einzelnes Bild öffnet den Editor — keine Prüfung läuft', ed0.laufend === 0, ed0);
+    ok('MANUELL: … der Editor zeigt „jetzt prüfen" als Knopf', ed0.knopf && ed0.knopf.sicht && /jetzt prüfen/.test(ed0.knopf.text), ed0);
+    const orig = await page.evaluate(async () => !!(await WFP.DB.get('files', window.__wfpdf.S.doc.id + '~original')));
+    ok('MANUELL: das Originalfoto wird bis zur Prüfung aufgehoben', orig);
+    await page.evaluate(() => { const k = document.querySelector('#edPruefung [data-pruef-nachholen]'); if (k) k.click(); });
+    const lauf = await page.evaluate(() => { const m = document.querySelector('#edPruefung [data-pruefung]'); return m ? m.dataset.pruefung : null; });
+    ok('MANUELL: ein Tipp im Editor startet die Prüfung („wird geprüft")', lauf === 'laeuft', lauf);
+    await warteFertig(page);
+    const fertig = await page.evaluate(async () => { const m = document.querySelector('#edPruefung [data-pruef]'); const d = window.__wfpdf.S.doc; return { art: m && m.dataset.pruefung, stand: d.pruefung && d.pruefung.stand, h: d.pruefung && d.pruefung.angaben.map(a => a.kennung), orig: !!(await WFP.DB.get('files', d.id + '~original')) }; });
+    ok('MANUELL: … danach steht dort der Befund als Knopf', fertig.art && fertig.art === fertig.stand, fertig);
+    ok('MANUELL: … geprüft wurde das ORIGINALFOTO (Bild-Metadaten gelesen), nicht das PDF daraus', fertig.h && fertig.h.includes('BILD-METADATEN'), fertig);
+    ok('MANUELL: … und das Original ist danach weg', fertig.orig === false, fertig);
+    await page.evaluate(() => { const k = document.querySelector('#edPruefung [data-pruef]'); if (k) k.click(); });
+    const ber = await page.waitForSelector('.dlg [data-pruefbericht]', { timeout: 10000 }).then(() => true, () => false);
+    ok('MANUELL: … und ein Tipp öffnet den Prüfbericht', ber);
+    await page.evaluate(() => document.querySelectorAll('.dlg-grund').forEach(g => g.remove()));
+    ok('keine Seitenfehler (Editor)', fehler.length === 0, fehler);
+    await ctx.close();
+  }
+  {
+    const { ctx, page, fehler } = await neueSeite();
+    await einlesen(page, ['Antrag.pdf', 'H0.jpg']);
+    // ein älteres Dokument ohne Befund nachstellen
+    await page.evaluate(async () => { for (const d of window.__wfpdf.S.docs) { const x = await WFP.DB.get('docs', d.id); x.createdAt = '2026-09-01T10:00:00.000Z'; await WFP.DB.put('docs', x); } });
+    await page.reload(); await page.waitForFunction(() => window.__wfpdf);
+    await page.waitForFunction(() => document.querySelectorAll('.dok').length >= 2);
+    const nachLaden = await page.evaluate(() => ({ laufend: window.__wfpdf.eingang.PRUEF.laufend.size, offen: [...document.querySelectorAll('[data-pruef-nachholen]')].filter(b => b.checkVisibility()).length }));
+    ok('MANUELL: nach dem Neuladen prüft nichts von selbst', nachLaden.laufend === 0, nachLaden);
+    ok('MANUELL: … ältere Dokumente ohne Befund tragen „jetzt prüfen"', nachLaden.offen === 2, nachLaden);
+    // ob das Dokument aufging und was geprüft wurde, wird erst NACH der Prüfung gemessen —
+    // Tipp und Öffnen sind asynchron, ein Blick direkt danach sähe noch nichts (Gegenprobe 2026-10-14)
+    await page.evaluate(() => { const k = [...document.querySelectorAll('.dok')].find(d => d.querySelector('.dok-name').textContent.trim() === 'Antrag'); k.querySelector('[data-pruef-nachholen]').click(); });
+    await page.waitForFunction(() => window.__wfpdf.eingang.PRUEF.laufend.size > 0 || window.__wfpdf.S.docs.some(d => d.pruefung), null, { timeout: 30000 });
+    await warteFertig(page);
+    const nur = await page.evaluate(() => window.__wfpdf.S.docs.filter(d => d.pruefung).map(d => d.name));
+    ok('MANUELL: … und nur dieses eine', nur.length === 1 && nur[0] === 'Antrag', nur);
+    const geoeffnet = await page.evaluate(() => !!window.__wfpdf.S.doc || !!document.querySelector('#sc-ed.on'));
+    ok('MANUELL: der Knopf prüft, statt das Dokument zu öffnen', !geoeffnet);
+    const a = await stand(page, 'Antrag');
+    ok('MANUELL: … das Dokument trägt danach seinen Befund', a && a.stand === 'sauber', a);
+    // Löschen nimmt das aufgehobene Original mit
+    const weg = await page.evaluate(async () => { const d = window.__wfpdf.S.docs.find(x => x.name === 'H0'); const vor = !!(await WFP.DB.get('files', d.id + '~original')); await WFP.DB.del('files', d.id); return { vor, nach: !!(await WFP.DB.get('files', d.id + '~original')) }; });
+    ok('MANUELL: Löschen der Datei nimmt das aufgehobene Original mit', weg.vor && !weg.nach, weg);
+    ok('keine Seitenfehler (Knopf)', fehler.length === 0, fehler);
     await ctx.close();
   }
 } catch (e) { ok('Probe lief durch', false, String(e && e.stack || e)); }

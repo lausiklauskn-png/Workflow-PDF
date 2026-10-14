@@ -88,7 +88,7 @@
       const b = inhalt.dateien.get(d.id);
       if (!b) { ohneDatei++; continue; }
       const k = Object.assign({}, d);
-      delete k.pruefung;                                 // ein Befund aus einer Datei wird nicht geglaubt — neu prüfen
+      delete k.pruefung;                                 // ein Befund aus einer Datei wird nicht geglaubt — geprüft wird auf Knopfdruck
       if (k.folderId && !daO.has(k.folderId)) k.folderId = null;
       await db.putFile(k.id, b); await db.put('docs', k);
       daD.add(k.id); dazu++; neu.push({ doc: k, bytes: b });
