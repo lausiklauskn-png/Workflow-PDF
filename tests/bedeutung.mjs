@@ -29,7 +29,7 @@ await import(pathToFileURL(path.join(WURZEL, 'assets/bedeutung.js')).href);
 const BD = globalThis.__WFP_BEDEUTUNG;
 
 // Sage-Module sind byte-1:1 — dort pflegen, hier neu kopieren (Stand Sage 4fe124d)
-const PIN = { '03_embedding.js': 'a6ac64d7536da3fa5cc426d0f7db9440fdaf5ab4460f0bdc66a10eb8203b1b68', '04_match.js': '721eecc3c0d6ea4c259259e6071215ec1cd16f1c43c87b42ce9e72e9a0b5e41c' };
+const PIN = { '03_embedding.js': '2e31baa09a2959c95efff8eecd224e8343e75695b4b293aa35209d8f96d1f3b5', '04_match.js': '721eecc3c0d6ea4c259259e6071215ec1cd16f1c43c87b42ce9e72e9a0b5e41c' };
 for (const [f, sha] of Object.entries(PIN)) {
   const p = path.join(WURZEL, 'vendor/sbkim', f);
   const ist = fs.existsSync(p) ? crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex') : 'fehlt';
