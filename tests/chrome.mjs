@@ -149,11 +149,16 @@ try {
   await page.waitForSelector('#wfp-chrome [data-tab] button');
   await page.waitForTimeout(600);
   ok('… auch auf der Fläche, und der Wartesatz nennt den Knopf', await page.evaluate(() => /In Chrome öffnen/.test(document.querySelector('#wfp-chrome [data-tab]').textContent) && /In Chrome öffnen/.test(document.querySelector('#wfp-chrome [data-st]').textContent)));
+  // Die Netz-Sperre gilt für den ganzen Kontext und steht VOR dem Klick. Kam sie erst am
+  // geöffneten Tab dazu (tab.route), schaltete Chromium das Abfangen mitten im Laden ein:
+  // gelegentlich blieb eine laufende Anfrage (vendor/qrcode.js) liegen, die defer-Kette
+  // wartete, app.js lief nie, und der Dialog blieb aus. Gemessen 2026-10-15: vorher 3 von 17
+  // Läufen rot, danach 0 von 40 (Sage PFLEGE-LISTE § 14).
+  await ctx.route(/^https?:\/\/(?!127\.0\.0\.1)/, r => r.abort());
   const tabP = ctx.waitForEvent('page', { timeout: 15000 });
   await page.click('#wfp-chrome [data-tab] button');
   const tab = await tabP;
   tab.on('pageerror', e => konsole.push('Tab: ' + e)); tab.on('console', m => { if (m.type() === 'error') konsole.push('Tab: ' + m.text()); });
-  await tab.route(/^https?:\/\/(?!127\.0\.0\.1)/, r => r.abort());
   const adr = await page.evaluate(() => window.__wfpdfChromeTab);
   const docId = await page.evaluate(async () => (await WFP.DB.all('docs')).find(d => d.name === 'Chrome').id);
   const u = new URL(adr.url);
