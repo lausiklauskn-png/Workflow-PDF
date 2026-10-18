@@ -563,3 +563,6 @@ div.dok-pruefung{cursor:default;font-weight:600;opacity:.8}
 .pruef-titel{margin:0 0 2px;font-size:.78rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.7}
 .pruef-angaben{margin:10px 0;padding:8px 10px;border:1px solid #c9c9c9;border-radius:8px;background:#fafafa}
 .pruef-angaben ul{margin:6px 0 0;padding-left:18px}.pruef-angaben li{margin:4px 0;overflow-wrap:anywhere}
+/* Installieren in der Kopfleiste (Klaus 2026-10-18): steht schon im HTML, damit die Leiste nicht springt; als App weg — vor dem ersten Anstrich */
+#btnInstall[hidden]{display:none!important}
+@media (display-mode:standalone){#btnInstall{display:none!important}}

@@ -932,3 +932,15 @@ Dialog, vor „Abbrechen / Speichern". Er erscheint nur, wenn der Kopf-Knopf sic
 Cache v102, `app.js?v=66`. Gemessen (Playwright, `/Workflow-PDF/`): beide Knöpfe sichtbar · als App beide weg · Tipp
 ohne Angebot öffnet die Anleitung · keine Installierbarkeits-Fehler, AppId `/Workflow-PDF/` · 360 px ohne Querlaufen ·
 `npm test` Rückgabe 0. ⚠ Am Tablet nicht gemessen.
+
+## ⬇ Installieren oben: steht schon im HTML (Klaus 2026-10-18)
+
+Klaus: *„… setze den Installationsbutton oben in die Navi-Leiste zusätzlich. Da soll er aber verschwinden, wenn die App
+installiert ist."* `#btnInstall` stand schon in der Kopfleiste und kam auch ohne `beforeinstallprompt` — aber das HTML
+trug `hidden`, und `app.js` nahm es erst nach dem Laden weg: die Kopfleiste sprang (gemessen: Layout-Verschiebung an
+`.kopf-rechts`, 0,005–0,009 bei 320–1280 px). Jetzt steht der Knopf ohne `hidden` im HTML; als App weg über
+`@media (display-mode:standalone)` vor dem ersten Anstrich und `hidden = installiert()` für `navigator.standalone`.
+Danach keine Verschiebung mehr an der Kopfleiste. Cache v103, `app.js?v=67`, `style.css?v=42`.
+Gemessen (Playwright, `/Workflow-PDF/`, `beforeinstallprompt` geschluckt): sichtbar und obenauf bei 320 · 360 · 412 · 1280 px,
+Kopfhöhe mit/ohne Knopf gleich, kein Querlaufen, Tipp zeigt die Anleitung, `getInstallabilityErrors` leer, nach
+`appinstalled` und als App weg (auch `#stInstall`). `npm test` Rückgabe 0. ⚠ Am Tablet nicht gemessen.

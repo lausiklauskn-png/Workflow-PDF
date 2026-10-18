@@ -3033,7 +3033,8 @@
     // Läuft die App schon installiert (eigenes Fenster), bleibt er verborgen.
     const installiert = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
     let _inst = null;
-    if (!installiert()) $('btnInstall').hidden = false;
+    // Klaus 2026-10-18: der Knopf steht schon im HTML (kein Sprung der Kopfleiste); als App weg.
+    $('btnInstall').hidden = installiert();
     window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); _inst = e; if (!installiert()) $('btnInstall').hidden = false; });
     window.addEventListener('appinstalled', () => { _inst = null; $('btnInstall').hidden = true; installHinweis(true); });
     // ⟳ Hard-Reload: Vorrat des Service-Workers weg, Worker abmelden, mit geänderter Adresse neu laden.
