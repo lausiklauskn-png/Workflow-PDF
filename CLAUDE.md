@@ -921,3 +921,14 @@ Dokument gespeichert, damit man weiß, woher er kam." Vorbild ist der Sende-Prü
 
 Modul 04 kommt neu aus dem Kanon (Sage #1082). Der Richter prüft die Suchfrage und jede fremde Antwort mit der Prüfliste (`pruefer-mail.js`). Fehlt die Liste, läuft er nicht. Eine Antwort, in der eine Anweisung an eine KI steht, geht nicht an die KI. Sie bekommt „gefahr“ und `ausgeschlossen: "ki-anweisung"`.
 In der Kette steht `assets/pruefer-mail.js?v=2` direkt nach 04, unter derselben Adresse wie in `eingang.js`. `tests/knoten.mjs` verlangt diese Stelle. Gemessen: `npm test` Rückgabe 0; im Browser ist `prueflisteGeladen` true. Cache v90. Am Tablet nicht gemessen.
+
+## 📲 Installieren auch in den Einstellungen (Klaus 2026-10-18)
+
+Klaus: *„… unter Einstellungen, Installier-Button hinten. So wie bei meinem Rezeptbuch … Sobald die Installation
+stattgefunden hat … verschwindet der Installations-Button."* Der Knopf `#btnInstall` stand schon in der Kopfleiste
+(verborgen als App). Neu: **📲 Als App installieren** (`#stInstall`, `[data-einst-install]`) hinten im Einstellungen-
+Dialog, vor „Abbrechen / Speichern". Er erscheint nur, wenn der Kopf-Knopf sichtbar ist, und ruft denselben Weg
+(`$('btnInstall').click()` nach dem Schließen des Dialogs). Kein neuer Text (die Übersetzung gibt es schon).
+Cache v102, `app.js?v=66`. Gemessen (Playwright, `/Workflow-PDF/`): beide Knöpfe sichtbar · als App beide weg · Tipp
+ohne Angebot öffnet die Anleitung · keine Installierbarkeits-Fehler, AppId `/Workflow-PDF/` · 360 px ohne Querlaufen ·
+`npm test` Rückgabe 0. ⚠ Am Tablet nicht gemessen.
