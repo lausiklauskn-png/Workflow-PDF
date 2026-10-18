@@ -15,7 +15,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1">
 <!-- SBKIM-Knoten (2026-10-13): Modul 01 liest die Schublade BEIM LADEN — deshalb steht sie hier, vor allem anderen. Nie ändern. -->
 <script>window.SBKIM_DB_SUFFIX = "workflowpdf";</script>
-<link rel="stylesheet" href="assets/style.css?v=41">
+<link rel="stylesheet" href="assets/style.css?v=42">
 <!-- Lighthouse 2026-10-11: Skripte laufen mit defer, die Seite malt vorher. Wer eine andere Sprache als Deutsch
      gewählt hat, sieht die Seite erst nach der Übersetzung (sprache.js nimmt die Marke weg) — kein deutsches Aufblitzen. -->
 <script>try{var l=JSON.parse(localStorage.getItem('wfpdf_sprache_v1')||'{}').lang;if(l&&l!=='de'){var h=document.documentElement;h.setAttribute('data-ue-wartet','');if(l==='ar')h.dir='rtl';setTimeout(function(){h.removeAttribute('data-ue-wartet')},4000)}}catch(e){}</script>
@@ -45,7 +45,7 @@
     </span>
   </div>
   <div class="kopf-rechts">
-    <button class="knopf klein rot" id="btnInstall" hidden title="Als App auf dieses Gerät legen">📲<span class="lang"> Installieren</span></button>
+    <button class="knopf klein rot" id="btnInstall" title="Als App auf dieses Gerät legen">📲<span class="lang"> Installieren</span></button>
     <button class="ikon sprache-k" id="btnSprache" title="Sprache der App"><span data-kein-ue>DE</span></button>
     <button class="ikon" id="btnNeu" title="Neueste Fassung laden (Hard-Reload) — deine Dokumente bleiben">⟳</button>
     <button class="ikon" id="btnVideo" title="Erklärvideo" aria-label="Erklärvideo">🎬</button>
@@ -151,7 +151,7 @@
 <script defer src="assets/reinigung.js?v=1"></script>
 <script defer src="assets/schluesseltresor.js?v=1"></script>
 <script defer src="assets/sicherung.js?v=3"></script>
-<script defer src="assets/app.js?v=66"></script>
+<script defer src="assets/app.js?v=67"></script>
 <!-- pdf-lib erst NACH app.js: die App wird nur zum Ausgeben gebraucht (kein Aufruf beim Start), so steht die Bibliothek früher da -->
 <script defer src="vendor/pdf-lib.min.js"></script>
 <!-- SBKIM-Knoten (2026-10-13): Lampen, Siegel, Mycel-Blase. Die Module lädt sbkim-init.js erst nach dem Laden in einer Leerlauf-Pause; beim Laden geht nichts ins Netz. -->
