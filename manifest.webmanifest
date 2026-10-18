@@ -2,7 +2,7 @@
   "name": "Workfloh PDF",
   "short_name": "Workfloh PDF",
   "description": "Workflow PDF: PDFs und fotografierte Formulare einlesen, Formularfelder erkennen oder setzen, als festes oder ausfüllbares PDF ausgeben.",
-  "id": "./",
+  "id": "/Workflow-PDF/",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

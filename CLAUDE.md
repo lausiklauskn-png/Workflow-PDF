@@ -42,6 +42,10 @@ npm install && npm test     # Syntax + Probe im echten Browser
   (ohne gzip): FCP 3,1–11,5 s → 0,9 s; LCP bleibt (der Leer-Satz kommt aus app.js, wartet also auf alle
   Skripte). Cache-TTL 10 Min. setzt GitHub Pages, nicht änderbar — der Service-Worker deckt Wiederbesuche.
 - **DB-Name `WorkflohPDF1` nie ändern** — github.io ist eine geteilte Adresse.
+- **Manifest-`id` ist `/Workflow-PDF/`, nie `./`** (Klaus 2026-10-18, chrome://webapks): Chrome löst `id` gegen den
+  URSPRUNG auf — `./` wird zu `https://lausiklauskn-png.github.io/`, für jede App dort gleich. Chrome hielt dann zehn
+  Apps für eine („bereits installiert", danach „App konnte nicht geöffnet werden"). `tests/manifest-id.mjs` rechnet wie
+  Chrome. Eine schon installierte Kopie muss einmal deinstalliert und neu installiert werden. Cache v101.
 - **Resize nur bei Breitenänderung neu zeichnen.** Die Bildschirmtastatur macht das
   Fenster niedriger; ein Neuzeichnen warf das Feld weg, in das getippt wurde
   (Befund Klaus 2026-09-25). Die Probe prüft es.
