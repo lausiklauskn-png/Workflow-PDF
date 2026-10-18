@@ -2819,6 +2819,7 @@
       <p class="hinweis" id="stSpeicher">…</p>
       <div class="zeile" style="justify-content:flex-start"><button class="knopf" id="stSicherung">🔐 Bibliothek sichern und zurückholen …</button></div>
       <p class="hinweis"><a href="impressum.html" target="_blank" rel="noopener">Impressum &amp; Datenschutz</a></p>
+      ${$('btnInstall').hidden ? '' : '<div class="zeile" style="justify-content:flex-start" data-einst-install><button class="knopf rot" id="stInstall">📲 Als App installieren</button></div>'}
       <div class="zeile"><button class="knopf" data-x>Abbrechen</button><button class="knopf rot" data-ok>Speichern</button></div>`, (d, zu) => {
       const anb = d.querySelector('#stAnb'), key = d.querySelector('#stKey'), mod = d.querySelector('#stMod'), kon = d.querySelector('#stKonsole');
       const tmp = { schluessel: Object.assign({}, EINST.schluessel), modell: Object.assign({}, EINST.modell), uebModell: Object.assign({}, EINST.uebModell) };
@@ -2830,6 +2831,9 @@
       zeige();
       d.querySelector('#stSprache').onclick = spracheWaehlen;
       d.querySelector('#stSicherung').onclick = () => { zu(); sicherungDialog(); };
+      /* Installieren auch hier (Klaus 2026-10-18: „unter Einstellungen … so wie bei meinem Rezeptbuch“).
+         Derselbe Weg wie der Knopf oben; als App ist der obere verborgen und dieser fehlt. */
+      const stInst = d.querySelector('#stInstall'); if (stInst) stInst.onclick = () => { zu(); $('btnInstall').click(); };
       d.querySelector('#stTest').onclick = async () => {
         merke(); const e = d.querySelector('#stTestErg'); e.textContent = 'prüfe …';
         try { const m = await ER.kiTest({ anbieter: anb.value, schluessel: tmp.schluessel[anb.value], modell: tmp.modell[anb.value] }); e.textContent = '✅ Verbindung steht (' + m + ')'; }
