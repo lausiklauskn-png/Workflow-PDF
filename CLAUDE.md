@@ -768,6 +768,16 @@ auftauchen … Überall, wo ich Teilen machen kann."
   Browser, launchQueue gestellt) · `node tests/gegenprobe_teilen_empfang.mjs` (13 Fälle; `NUR_ANKER=1`). Cache v73 (v74 nach dem Nachziehen des Prüfkerns),
   `app.js?v=56`, `sprache-texte.js?v=34`.
 
+## 📲 Teilen: „405 Not Allowed" (Klaus 2026-10-21)
+
+Klaus: Teilen → Workfloh PDF zeigte „405 Not Allowed", aus Private Brain Pro (native) und aus der PWA. 405 ist die Antwort
+von GitHub Pages auf den POST an `./teilen-empfang` — er kam also beim Server an statt beim Worker. Der Worker wurde erst am
+Ende von `app.js` angemeldet (nach allen Skripten mit `defer`), und ⟳ meldet ihn ab. Jetzt meldet ihn ein kurzes Skript
+**im Kopf von index.html** an, vor allen anderen Skripten — derselbe Weg wie Mein-WorkFloh #253 und Kim-sync #17.
+`tests/teilen-empfang.mjs` prüft die Stelle (Gegenprobe von Hand mit der alten index.html: genau diese Zeile rot).
+Cache v104, `app.js?v=68`. ⚠ Ob das am Tablet den 405 behebt, ist nicht gemessen: wer die App schon installiert hat, öffnet
+sie nach dem Update einmal, bevor er teilt.
+
 ## 🕸 SBKIM-Knoten mit Netz-Einstellung (2026-10-13)
 
 Workflow PDF ist ein eigener SBKIM-Knoten, nach dem Muster des Sende-Prüfers. Er hat eine feste Leiste in der Kopfzeile

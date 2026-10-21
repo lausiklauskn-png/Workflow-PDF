@@ -3093,7 +3093,7 @@
     document.addEventListener('dragover', e => { if (hatDateien(e)) e.preventDefault(); });
     document.addEventListener('drop', e => { if (!hatDateien(e)) return; e.preventDefault(); tiefe = 0; if (ablage) { ablage.remove(); ablage = null; } if (S.doc) dateienAnhaengen(e.dataTransfer.files); else importDateien(e.dataTransfer.files); });
 
-    if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+    // Der Worker wird schon im Kopf von index.html angemeldet (Teilen braucht ihn sofort, sonst 405).
     bedeutungZeichnen();
     ladeBibliothek().then(() => { if (EINST.bedeutung) bedeutungStarten(); }).then(chromeTabRueckweg).then(geteiltUebernehmen).then(oeffnenMitEmpfangen).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
     window.__wfpdf = { eingang: { PRUEF, pruefDialog, eingangPruefen, pruefungNachholen }, kiReiniger, beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner, geteiltUebernehmen,
