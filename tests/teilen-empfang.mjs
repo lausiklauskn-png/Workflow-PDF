@@ -35,6 +35,13 @@ ok('der Vorrat der geteilten Dateien übersteht ein neues CACHE_VERSION', /BLEIB
 ok('der POST-Empfang steht VOR dem Ausstieg für alles, was nicht GET ist',
   sw.indexOf("r.method === 'POST'") > -1 && sw.indexOf("r.method === 'POST'") < sw.indexOf("if (r.method !== 'GET'"));
 
+// Klaus 2026-10-21 („405 Not Allowed"): fehlt der Worker beim Teilen, antwortet GitHub Pages mit 405.
+// Er muss deshalb im Kopf angemeldet werden, VOR dem ersten Skript mit defer, nicht erst am Ende von app.js.
+const html = fs.readFileSync(path.join(WURZEL, 'index.html'), 'utf8');
+const anmeldung = html.indexOf("navigator.serviceWorker.register('sw.js')"), erstesDefer = html.indexOf('<script defer');
+ok('der Worker wird im Kopf von index.html angemeldet, vor allen Skripten mit defer',
+  anmeldung > -1 && erstesDefer > -1 && anmeldung < erstesDefer && anmeldung < html.indexOf('</head>'), { anmeldung, erstesDefer });
+
 // ===== B. Der ganze Weg im echten Browser =====
 async function blatt(titel) {
   const pdf = await PDFDocument.create(); const f = await pdf.embedFont(StandardFonts.Helvetica);
