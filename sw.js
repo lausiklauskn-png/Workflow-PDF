@@ -4,7 +4,7 @@
    Worker die alte Fassung weiter. */
 const CACHE_VERSION = 'workfloh-pdf-v106';
 // CacheStorage gehört dem gemeinsamen Ursprung: nur eigene alte App-Schalen löschen.
-const SCHALE_PREFIX = 'workfloh-pdf-v';
+const APP_SCHALEN_PREFIX = 'workfloh-pdf-v';
 /* Suche nach Bedeutung: transformers.js (und seine wasm-Dateien) kommt von jsDelivr, in fester
    Fassung. Das bleibt in EIGENEM Vorrat, damit die Suche offline weiterläuft und ein Cache-Bump
    der Schale nicht jedes Mal Megabytes neu holt. Das Modell selbst legt transformers.js in seinem
@@ -28,7 +28,7 @@ self.addEventListener('install', e => {
   self.skipWaiting();
 });
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(k => Promise.all(k.filter(n => n.startsWith(SCHALE_PREFIX) && n !== CACHE_VERSION && !BLEIBT.includes(n)).map(n => caches.delete(n)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then(k => Promise.all(k.filter(n => n.startsWith(APP_SCHALEN_PREFIX) && n !== CACHE_VERSION && !BLEIBT.includes(n)).map(n => caches.delete(n)))).then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', e => {
   const r = e.request;
