@@ -6,6 +6,9 @@
 <title>Workfloh PDF — Formulare einlesen, Felder setzen, als PDF ausgeben</title>
 <meta name="description" content="Workflow PDF: PDFs oder fotografierte Papierformulare einlesen, Formularfelder per KI erkennen lassen oder selbst setzen und als festes oder ausfüllbares PDF ausgeben. Offline, ohne Konto.">
 <meta name="theme-color" content="#E0231B">
+<!-- Versionsnummer (Klaus 2026-10-22): EINE Quelle für Fuß und Einstellungen. data-cache = CACHE_VERSION in sw.js;
+     wer den Cache erhöht, erhöht auch die Version (tests/version.mjs, gleich mit package.json). -->
+<meta name="wfp-version" content="1.1.0" data-cache="workfloh-pdf-v105">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Workfloh PDF">
@@ -19,7 +22,7 @@
      Nur der Worker nimmt sie an; fehlt er, antwortet GitHub Pages mit 405. Deshalb wird er hier SOFORT angemeldet,
      nicht erst am Ende von app.js (nach allen Skripten) — wie Mein-WorkFloh #253 und Kim-sync #17. -->
 <script>if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(function(){});</script>
-<link rel="stylesheet" href="assets/style.css?v=42">
+<link rel="stylesheet" href="assets/style.css?v=43">
 <!-- Lighthouse 2026-10-11: Skripte laufen mit defer, die Seite malt vorher. Wer eine andere Sprache als Deutsch
      gewählt hat, sieht die Seite erst nach der Übersetzung (sprache.js nimmt die Marke weg) — kein deutsches Aufblitzen. -->
 <script>try{var l=JSON.parse(localStorage.getItem('wfpdf_sprache_v1')||'{}').lang;if(l&&l!=='de'){var h=document.documentElement;h.setAttribute('data-ue-wartet','');if(l==='ar')h.dir='rtl';setTimeout(function(){h.removeAttribute('data-ue-wartet')},4000)}}catch(e){}</script>
@@ -92,9 +95,12 @@
     <div class="sicherung-erinnerung" id="sicherungErinnerung" data-sicherung-erinnerung hidden></div>
     <div class="ordner-aktionen" id="ordnerAktionen"></div>
     <div class="wahl-leiste" id="wahlLeiste" hidden></div>
+    <!-- „Alle prüfen" (Klaus 2026-10-22): nur sichtbar, wenn es ungeprüfte Dokumente gibt -->
+    <div class="pruef-alle" id="pruefAlle" data-pruef-alle hidden></div>
     <div class="dok-gitter" id="dokGitter"></div>
     <!-- Impressum & Datenschutz sichtbar unter der Bibliothek (Klaus 2026-09-27: „damit ich die Apps ausliefern kann") -->
     <p class="rechtfuss" id="rechtFuss"><a href="impressum.html" target="_blank" rel="noopener">Impressum &amp; Datenschutz</a></p>
+    <p class="rechtfuss-version" id="versionFuss" data-wfp-version hidden></p>
   </section>
 
   <!-- Editor -->
@@ -147,7 +153,7 @@
 <script defer src="assets/export.js?v=7"></script>
 <script defer src="assets/html-export.js?v=2"></script>
 <script defer src="assets/uebersetzung.js?v=13"></script>
-<script defer src="assets/sprache-texte.js?v=45"></script>
+<script defer src="assets/sprache-texte.js?v=46"></script>
 <script defer src="assets/sprache.js?v=3"></script>
 <script defer src="assets/sprechen.js?v=3"></script>
 <script defer src="assets/schieber.js?v=1"></script>
@@ -155,7 +161,7 @@
 <script defer src="assets/reinigung.js?v=1"></script>
 <script defer src="assets/schluesseltresor.js?v=1"></script>
 <script defer src="assets/sicherung.js?v=3"></script>
-<script defer src="assets/app.js?v=68"></script>
+<script defer src="assets/app.js?v=69"></script>
 <!-- pdf-lib erst NACH app.js: die App wird nur zum Ausgeben gebraucht (kein Aufruf beim Start), so steht die Bibliothek früher da -->
 <script defer src="vendor/pdf-lib.min.js"></script>
 <!-- SBKIM-Knoten (2026-10-13): Lampen, Siegel, Mycel-Blase. Die Module lädt sbkim-init.js erst nach dem Laden in einer Leerlauf-Pause; beim Laden geht nichts ins Netz. -->

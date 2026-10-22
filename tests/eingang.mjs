@@ -323,6 +323,51 @@ try {
     ok('keine Seitenfehler (Knopf)', fehler.length === 0, fehler);
     await ctx.close();
   }
+  /* 11 · „Alle prüfen" (Klaus 2026-10-22): ein Knopf für alle ungeprüften Dokumente, nacheinander,
+     mit Fortschritt und Abbruch; nur sichtbar, wenn es Ungeprüfte gibt. */
+  {
+    const { ctx, page, fehler } = await neueSeite();
+    const leer = await page.evaluate(() => { const l = document.getElementById('pruefAlle'); return !!l && !l.checkVisibility(); });
+    ok('ALLE: leere Bibliothek → kein Knopf „Alle prüfen"', leer, leer);
+    await einlesen(page, ['Antrag.pdf', '0D.pdf', 'H0.jpg']);
+    const vor = await page.evaluate(() => { const l = document.getElementById('pruefAlle'); const k = l.querySelector('[data-pruef-alle-los]');
+      return { sicht: l.checkVisibility() && !!k && k.checkVisibility(), text: k && k.textContent.trim(), zahl: (l.querySelector('[data-pruef-alle-zahl]') || {}).textContent }; });
+    ok('ALLE: drei ungeprüfte → Knopf „▶ Alle prüfen" mit „3 noch nicht geprüft"', vor.sicht && vor.text === '▶ Alle prüfen' && /^3 noch nicht geprüft/.test(vor.zahl || ''), vor);
+    // Mitschreiben, wie viele zugleich laufen und was die Leiste zeigt
+    await page.evaluate(() => { window.__mit = { max: 0, balken: 0, texte: new Set() }; const t = () => { const P = window.__wfpdf.eingang.PRUEF; window.__mit.max = Math.max(window.__mit.max, P.laufend.size);
+      const b = document.querySelector('[data-pruef-alle-balken]'); if (b) window.__mit.balken = Math.max(window.__mit.balken, +b.value); const l = document.querySelector('[data-pruef-alle-lauf]'); if (l) window.__mit.texte.add(l.textContent.trim()); }; window.__mitT = setInterval(t, 20); });
+    await page.click('[data-pruef-alle-los]');
+    const lauf = await page.evaluate(() => ({ lauf: !!document.querySelector('[data-pruef-alle-lauf]'), stopp: !!document.querySelector('[data-pruef-alle-stopp]'), balken: !!document.querySelector('[data-pruef-alle-balken]') }));
+    ok('ALLE: nach dem Tipp zeigt die Leiste den Lauf, einen Balken und „■ Abbrechen"', lauf.lauf && lauf.stopp && lauf.balken, lauf);
+    await page.waitForFunction(() => !window.__wfpdf.eingang.ALLE.an, null, { timeout: 240000 });
+    const nach = await page.evaluate(() => { clearInterval(window.__mitT); const m = window.__mit; const l = document.getElementById('pruefAlle');
+      return { max: m.max, balken: m.balken, texte: [...m.texte], geprueft: window.__wfpdf.S.docs.filter(d => d.pruefung).length, offen: document.querySelectorAll('[data-pruefung="offen"]').length,
+        ende: (l.querySelector('[data-pruef-alle-ende]') || {}).textContent, warn: !!l.querySelector('[data-pruef-alle-warn]'), los: !!l.querySelector('[data-pruef-alle-los]'), dlg: !!document.querySelector('.dlg') }; });
+    ok('ALLE: alle drei Dokumente tragen danach ihren Befund, keine Karte mehr „jetzt prüfen"', nach.geprueft === 3 && nach.offen === 0, nach);
+    ok('ALLE: … eines nach dem anderen (nie zwei zugleich)', nach.max === 1, nach);
+    ok('ALLE: … der Fortschritt lief sichtbar mit („Prüfe Dokument … von 3")', nach.texte.some(t => /Prüfe Dokument [123] von 3/.test(t)) && nach.balken >= 2, nach.texte);
+    ok('ALLE: am Ende „✓ Fertig: 3 geprüft." und der Fund (0D) gezählt', /Fertig: 3 geprüft/.test(nach.ende || '') && nach.warn, nach);
+    ok('ALLE: … kein Fenster dazwischen, kein Knopf mehr (nichts ungeprüft)', !nach.dlg && !nach.los, nach);
+    await page.click('[data-pruef-alle-zu]');
+    const zu = await page.evaluate(() => !document.getElementById('pruefAlle').checkVisibility());
+    ok('ALLE: ✕ blendet die Leiste aus, wenn nichts mehr offen ist', zu, zu);
+    ok('keine Seitenfehler (Alle prüfen)', fehler.length === 0, fehler);
+    await ctx.close();
+  }
+  {
+    const { ctx, page, fehler } = await neueSeite();
+    await einlesen(page, ['Antrag.pdf', 'H0.jpg', '4C-ohne.png']);
+    await page.click('[data-pruef-alle-los]');
+    await page.click('[data-pruef-alle-stopp]');
+    const halt = await page.evaluate(() => (document.querySelector('[data-pruef-alle-lauf]') || {}).textContent || '');
+    await page.waitForFunction(() => !window.__wfpdf.eingang.ALLE.an, null, { timeout: 240000 });
+    const ab = await page.evaluate(() => { const l = document.getElementById('pruefAlle'); return { geprueft: window.__wfpdf.S.docs.filter(d => d.pruefung).length, laufend: window.__wfpdf.eingang.PRUEF.laufend.size,
+      offen: document.querySelectorAll('[data-pruefung="offen"]').length, ende: (l.querySelector('[data-pruef-alle-ende]') || {}).textContent, los: !!l.querySelector('[data-pruef-alle-los]') }; });
+    ok('ALLE: „Abbrechen" hält nach dem laufenden Dokument an („Hält nach diesem Dokument an …")', /Hält nach diesem Dokument an/.test(halt) && ab.geprueft === 1 && ab.laufend === 0, { halt, ab });
+    ok('ALLE: … die übrigen bleiben „jetzt prüfen", die Leiste sagt „Abgebrochen. Noch offen: 2."', ab.offen === 2 && /Abgebrochen\. Noch offen: 2\./.test(ab.ende || '') && ab.los, ab);
+    ok('keine Seitenfehler (Abbrechen)', fehler.length === 0, fehler);
+    await ctx.close();
+  }
 } catch (e) { ok('Probe lief durch', false, String(e && e.stack || e)); }
 await browser.close(); srv.close();
 console.log(`\n${gruen} grün · ${rot} ROT`);
