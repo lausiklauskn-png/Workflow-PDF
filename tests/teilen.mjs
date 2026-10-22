@@ -151,6 +151,9 @@ try {
   if (offen) { await page.click('#edZurueck'); await page.waitForSelector('#sc-bib.on'); }
 
   // A6 — Mauszug: von A über B auf den Ordner „Erledigt"
+  // Karte und Ordner müssen zugleich zu sehen sein (wie beim Fingerzug unten): erst nach oben rollen.
+  // Seit „Alle prüfen“ (2026-10-22) ist die Seite höher; gerollt lag der Ordner unter der Kopfleiste.
+  await page.evaluate(() => window.scrollTo(0, 0));
   const mitte = async loc => { const r = await loc.boundingBox(); return [r.x + r.width / 2, r.y + r.height / 2]; };
   const [ax, ay] = await mitte(karte(page, 'Musterbrief A').locator('.dok-bild'));
   const [bx, by] = await mitte(karte(page, 'Musterbrief B').locator('.dok-bild'));
