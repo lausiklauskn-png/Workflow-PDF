@@ -20,7 +20,7 @@ const FAELLE = [
   { name: 'geprüft wird das daraus gebaute PDF statt des Fotos', datei: A, anker: "const b = !d ? null : o && o.bytes ? o.bytes : await DB.getFile(id);", ersatz: "const b = !d ? null : await DB.getFile(id);", trifft: /Foto|Bild|ORIGINALFOTO/ },
   { name: 'ein „sauber" aus einer fremden Arbeitsstand-Datei wird geglaubt', datei: A, anker: '        delete d.pruefung;                                  // ein Befund', ersatz: '        // ein Befund', trifft: /fremde[nm] Arbeitsstand/ },
   { name: 'der offene Editor bekommt den Befund nicht', datei: A, anker: 'if (S.doc && S.doc.id === id) S.doc.pruefung = r;', ersatz: ';', trifft: /Editor/ },
-  { name: 'der Dialog öffnet sich nicht mehr von selbst', datei: A, anker: "if (r.stand === 'warnung' && !document.querySelector('.dlg')) pruefDialog(id);", ersatz: ';', trifft: /von selbst/ },
+  { name: 'der Dialog öffnet sich nicht mehr von selbst', datei: A, anker: "if (r.stand === 'warnung' && !ALLE.an && !document.querySelector('.dlg')) pruefDialog(id);", ersatz: ';', trifft: /von selbst/ },
   { name: 'die Karte bekommt nach der Prüfung keine Marke', datei: A, anker: "      markeErneuern(id);\n      // Ein Fenster genügt", ersatz: "      // Ein Fenster genügt", trifft: /Marke/ },
   { name: 'der Satz „Nichts wurde entfernt" fehlt', datei: A, anker: '<p class="hinweis" data-pruef-original>Nichts wurde entfernt:', ersatz: '<p class="hinweis">Nichts wurde entfernt:', trifft: /Nichts wurde entfernt|Absender/ },
   { name: 'der Hilfe-Knopf holt die Testdatei, liest sie aber nicht ein', datei: A, anker: "await importDateien([new File([await r.blob()], name, { type: typ })], 'Beispiele', { still: true, pruefen: true });", ersatz: 'await r.blob();', trifft: /Hilfe → 🧪/ },
@@ -43,6 +43,12 @@ const FAELLE = [
   { name: 'MANUELL: geprüft wird das PDF statt des Originalfotos', datei: A, anker: "const o = d ? await DB.get('files', id + ORIGINAL) : null;", ersatz: 'const o = null;', trifft: /ORIGINALFOTO/ },
   { name: 'MANUELL: das Originalfoto bleibt nach der Prüfung liegen', datei: A, anker: 'if (originalWeg) await DB.del(\'files\', id + ORIGINAL);', ersatz: '', trifft: /Original ist danach weg/ },
   { name: 'MANUELL: Löschen lässt das Originalfoto liegen', datei: 'assets/db.js', anker: "st.delete(id); if (store === 'files' && !String(id).endsWith('~original')) st.delete(id + '~original');", ersatz: 'st.delete(id);', trifft: /Original mit/ },
+  // „Alle prüfen" (Klaus 2026-10-22)
+  { name: 'ALLE: der Knopf fehlt', datei: A, anker: '} else if (offen) {', ersatz: '} else if (false) {', trifft: /Knopf „▶ Alle prüfen"/ },
+  { name: 'ALLE: alle zugleich statt nacheinander', datei: A, anker: 'await PRUEF.kette;                         // erst', ersatz: '//', trifft: /nie zwei zugleich/ },
+  { name: 'ALLE: Abbrechen tut nichts', datei: A, anker: 'if (ALLE.stopp) break;', ersatz: ';', trifft: /Abbrechen|Noch offen/ },
+  { name: 'ALLE: ein Fund öffnet mitten im Lauf ein Fenster', datei: A, anker: "r.stand === 'warnung' && !ALLE.an && ", ersatz: "r.stand === 'warnung' && ", trifft: /kein Fenster/ },
+  { name: 'ALLE: die Leiste wird nach dem Einlesen nicht gezeichnet', datei: A, anker: '    wahlLeiste();\n    pruefLeiste();', ersatz: '    wahlLeiste();', trifft: /3 noch nicht geprüft/ },
   { name: 'eingang.js fehlt im Offline-Vorrat', datei: 'sw.js', anker: "'./assets/eingang.js?v=5', ", ersatz: '', trifft: /Offline-Vorrat/ }
 ];
 

@@ -132,6 +132,22 @@
   }
   const dateiName = s => (String(s || 'Dokument').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'Dokument');
 
+  /* ---------- Versionsnummer (Klaus 2026-10-22) ----------
+     „Damit man prüfen kann, ob es sich um eine ältere oder jüngere Version handelt": unten beim
+     Impressum und hinten in den Einstellungen. EINE Quelle: <meta name="wfp-version"> in index.html
+     (tests/version.mjs hält sie gleich mit package.json und CACHE_VERSION). Die Pro-App setzt dort
+     ihre eigene App-Nummer ein und meldet das mit dem Ereignis „wfp-version". */
+  function versionNummer() {
+    const m = document.querySelector('meta[name="wfp-version"]');
+    return m && /^\d+\.\d+\.\d+$/.test(m.content) ? m.content : '';
+  }
+  function versionZeigen() {
+    const v = versionNummer(), z = 'Version ' + v;
+    const f = $('versionFuss'); if (f) { f.textContent = v ? z : ''; f.hidden = !v; }
+    document.querySelectorAll('[data-einst-version]').forEach(e => { e.textContent = v ? z : ''; e.hidden = !v; });
+  }
+  document.addEventListener('wfp-version', versionZeigen);
+
   /* ---------- Bibliothek ---------- */
   async function ladeBibliothek() {
     S.ordner = (await DB.all('folders')).sort((a, b) => a.name.localeCompare(b.name, 'de'));
@@ -250,6 +266,7 @@
 
     sicherungErinnerung();
     wahlLeiste();
+    pruefLeiste();
     const g = $('dokGitter');
     const nurOrdner = such.length && S.aktOrdner !== 'alle' ? '<div class="hinweis such-ordner" data-suchordner><span>Gesucht nur in diesem Ordner.</span><button class="knopf klein" data-alleordner>In allen Ordnern suchen</button></div>' : '';
     const alleOrdnerKnopf = () => { const b = g.querySelector('[data-alleordner]'); if (b) b.onclick = () => { S.aktOrdner = 'alle'; zeichneBibliothek(); }; };
@@ -963,7 +980,8 @@
       // Ein Fenster genügt: kommen beim Einlesen eines Ordners mehrere Funde, trägt jede Karte ihre Marke
       // Nie über einen offenen Dialog legen (Übersetzen, Ordner …): dort tippt gerade jemand.
       // Der Befund bleibt an der Karte stehen („⚠ Verdächtiger Inhalt — ansehen").
-      if (r.stand === 'warnung' && !document.querySelector('.dlg')) pruefDialog(id);
+      // Während „Alle prüfen" kein Fenster dazwischen: die Funde zählt die Leiste, jede Karte trägt ihre Marke.
+      if (r.stand === 'warnung' && !ALLE.an && !document.querySelector('.dlg')) pruefDialog(id);
     }).catch(e => { PRUEF.laufend.delete(id); markeErneuern(id); console.error(e); });
     markeErneuern(id);
   }
@@ -972,6 +990,7 @@
      und am Tablet spränge sie unter dem Finger. Steht die Karte (noch) nicht da, zeichnet das
      nächste Zeichnen sie ohnehin mit der richtigen Marke. */
   function markeErneuern(id) {
+    pruefLeiste();
     if (S.doc && S.doc.id === id) edPruefungZeigen();
     const k = document.querySelector(`.dok[data-id="${id}"]`), d = S.docs.find(x => x.id === id);
     if (!k || !d) return;
@@ -1004,6 +1023,65 @@
       const b = !d ? null : o && o.bytes ? o.bytes : await DB.getFile(id);
       if (!b || !window.WFP || !WFP.Eingang) { PRUEF.laufend.delete(id); markeErneuern(id); continue; }
       eingangPruefen(id, o && o.bytes ? o.name : d.name + '.pdf', b, !!o);
+    }
+  }
+  /* „Alle prüfen" (Klaus 2026-10-22: „Dafür sollte es noch einen Knopf geben: alle Dokumente prüfen.
+     Bisher muss man unten einzeln anklicken"). Prüft alle noch ungeprüften Dokumente der Bibliothek
+     NACHEINANDER — dieselbe Prüfung wie der Knopf an der Karte, eine nach der anderen, mit einer
+     Atempause dazwischen (ein Buch mit 400 Seiten friert sonst die Seite ein). Abbrechen hält nach dem
+     laufenden Dokument an; die übrigen bleiben „noch nicht geprüft". Der Knopf steht nur da, wenn es
+     Ungeprüfte gibt. */
+  const ALLE = { an: false, stopp: false, gesamt: 0, fertig: 0, geprueft: 0, warn: 0, ende: null };
+  const offenePruefungen = () => S.docs.filter(pruefbar);
+  function pruefLeiste() {
+    const l = $('pruefAlle'); if (!l) return;
+    const offen = offenePruefungen().length;
+    let html = '';
+    if (ALLE.an) {
+      html = `<div class="pruef-alle-lauf" data-pruef-alle-lauf role="status"><span class="pruef-dreh" aria-hidden="true"></span><span>${ALLE.stopp ? 'Hält nach diesem Dokument an …' : `Prüfe Dokument ${Math.min(ALLE.fertig + 1, ALLE.gesamt)} von ${ALLE.gesamt} …`}</span></div>`
+        + `<progress max="${ALLE.gesamt}" value="${ALLE.fertig}" data-pruef-alle-balken></progress>`
+        + (ALLE.stopp ? '' : '<button class="knopf" data-pruef-alle-stopp>■ Abbrechen</button>');
+    } else if (ALLE.ende) {
+      const e = ALLE.ende;
+      html = `<div class="pruef-alle-ende" data-pruef-alle-ende><span>✓ Fertig: ${e.geprueft} geprüft.</span>`
+        + (e.warn ? ` <span class="warn" data-pruef-alle-warn>⚠ Mit Fund: ${e.warn}. Die Karte zeigt ihn.</span>` : '')
+        + (e.abgebrochen ? ` <span data-pruef-alle-abgebrochen>Abgebrochen. Noch offen: ${e.offen}.</span>` : '')
+        + '</div><button class="knopf klein" data-pruef-alle-zu title="Ausblenden" aria-label="Ausblenden">✕</button>'
+        + (offen ? '<button class="knopf pruef-alle-knopf" data-pruef-alle-los>▶ Alle prüfen</button>' : '');
+    } else if (offen) {
+      html = `<button class="knopf pruef-alle-knopf" data-pruef-alle-los>▶ Alle prüfen</button><span class="hinweis" data-pruef-alle-zahl>${offen} noch nicht geprüft</span>`;
+    }
+    if (l.innerHTML !== html) l.innerHTML = html;
+    l.hidden = !html;
+    const q = s => l.querySelector(s);
+    if (q('[data-pruef-alle-los]')) q('[data-pruef-alle-los]').onclick = allePruefen;
+    if (q('[data-pruef-alle-stopp]')) q('[data-pruef-alle-stopp]').onclick = () => { ALLE.stopp = true; pruefLeiste(); };
+    if (q('[data-pruef-alle-zu]')) q('[data-pruef-alle-zu]').onclick = () => { ALLE.ende = null; pruefLeiste(); };
+  }
+  async function allePruefen() {
+    if (ALLE.an) return;
+    const ids = offenePruefungen().map(d => d.id);
+    if (!ids.length) return;
+    Object.assign(ALLE, { an: true, stopp: false, gesamt: ids.length, fertig: 0, geprueft: 0, warn: 0, ende: null });
+    pruefLeiste();
+    try {
+      for (const id of ids) {
+        if (ALLE.stopp) break;
+        const d = S.docs.find(x => x.id === id);
+        // inzwischen gelöscht, schon geprüft oder einzeln gestartet: nicht doppelt
+        if (d && pruefbar(d)) {
+          await pruefungNachholen([id]);
+          await PRUEF.kette;                         // erst dieses Dokument fertig, dann das nächste
+          const e = S.docs.find(x => x.id === id);
+          if (e && e.pruefung) { ALLE.geprueft++; if (e.pruefung.stand === 'warnung') ALLE.warn++; }
+        }
+        ALLE.fertig++; pruefLeiste();
+        await new Promise(r => setTimeout(r, 30));   // Atempause: die Seite bleibt bedienbar
+      }
+    } finally {
+      ALLE.ende = { geprueft: ALLE.geprueft, warn: ALLE.warn, abgebrochen: ALLE.stopp, offen: offenePruefungen().length };
+      ALLE.an = false; ALLE.stopp = false;
+      pruefLeiste();
     }
   }
   function pruefMarke(d) {
@@ -2820,7 +2898,9 @@
       <div class="zeile" style="justify-content:flex-start"><button class="knopf" id="stSicherung">🔐 Bibliothek sichern und zurückholen …</button></div>
       <p class="hinweis"><a href="impressum.html" target="_blank" rel="noopener">Impressum &amp; Datenschutz</a></p>
       ${$('btnInstall').hidden ? '' : '<div class="zeile" style="justify-content:flex-start" data-einst-install><button class="knopf rot" id="stInstall">📲 Als App installieren</button></div>'}
-      <div class="zeile"><button class="knopf" data-x>Abbrechen</button><button class="knopf rot" data-ok>Speichern</button></div>`, (d, zu) => {
+      <div class="zeile"><button class="knopf" data-x>Abbrechen</button><button class="knopf rot" data-ok>Speichern</button></div>
+      <p class="hinweis einst-version" data-einst-version>Version ${h(versionNummer())}</p>`, (d, zu) => {
+      versionZeigen();
       const anb = d.querySelector('#stAnb'), key = d.querySelector('#stKey'), mod = d.querySelector('#stMod'), kon = d.querySelector('#stKonsole');
       const tmp = { schluessel: Object.assign({}, EINST.schluessel), modell: Object.assign({}, EINST.modell), uebModell: Object.assign({}, EINST.uebModell) };
       const umod = d.querySelector('#stUebMod');
@@ -3095,8 +3175,9 @@
 
     // Der Worker wird schon im Kopf von index.html angemeldet (Teilen braucht ihn sofort, sonst 405).
     bedeutungZeichnen();
+    versionZeigen();
     ladeBibliothek().then(() => { if (EINST.bedeutung) bedeutungStarten(); }).then(chromeTabRueckweg).then(geteiltUebernehmen).then(oeffnenMitEmpfangen).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
-    window.__wfpdf = { eingang: { PRUEF, pruefDialog, eingangPruefen, pruefungNachholen }, kiReiniger, beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner, geteiltUebernehmen,
+    window.__wfpdf = { eingang: { PRUEF, pruefDialog, eingangPruefen, pruefungNachholen, ALLE, allePruefen }, versionNummer, kiReiniger, beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner, geteiltUebernehmen,
       // für tests/sprache.mjs: jeden Dialog einmal öffnen und seine Texte nachschlagen
       dlg: { neuerOrdner, verschieben, teilenDocs, wahlEnde, WAHL, wahlUmschalten, loeschen, speichernDialog, scanStarten, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, erklaervideo, videoFuer, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe, bedeutungDialog, sicherungDialog, sicherungErinnerung } };   // für die Probe
   }

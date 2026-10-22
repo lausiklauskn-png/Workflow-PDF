@@ -882,6 +882,29 @@ möchte … Und so auch bei älteren Dateien, die schon importiert wurden."
 - Cache v86, `app.js?v=63`, `db.js?v=6`, `sicherung.js?v=2`, `style.css?v=41`, `sprache-texte.js?v=43`.
 - ⚠ Am Tablet nicht gemessen; ein Buch mit 400 Seiten auch nicht.
 
+## ▶ „Alle prüfen“ und die Versionsnummer (Klaus 2026-10-22)
+
+„Dafür sollte es noch einen Knopf geben: alle Dokumente prüfen. Bisher muss man unten einzeln anklicken."
+- **▶ Alle prüfen** steht über den Karten (`#pruefAlle`, `[data-pruef-alle]`), nur wenn es ungeprüfte Dokumente
+  gibt, mit „N noch nicht geprüft". Ein Tipp prüft ALLE ungeprüften der Bibliothek (`offenePruefungen()` =
+  `S.docs.filter(pruefbar)`) **nacheinander** über denselben Weg wie der Knopf an der Karte (`pruefungNachholen`,
+  dann `await PRUEF.kette`), mit 30 ms Atempause dazwischen. Die Leiste zeigt „Prüfe Dokument X von N …", einen
+  Balken und **■ Abbrechen** (hält nach dem laufenden Dokument an). Am Ende „✓ Fertig: N geprüft.", dazu
+  „⚠ Mit Fund: N. Die Karte zeigt ihn." und bei Abbruch „Abgebrochen. Noch offen: N.". Während des Laufs öffnet
+  ein Fund **kein** Fenster (`!ALLE.an`), die Karte trägt die Marke. `markeErneuern` zeichnet die Leiste mit.
+- **Versionsnummer** unter „Impressum & Datenschutz" (`#versionFuss`) und ganz unten in den Einstellungen
+  (`[data-einst-version]`). **Eine Quelle:** `<meta name="wfp-version" content="1.1.0" data-cache="…">` in
+  `index.html`. `tests/version.mjs` verlangt: gleich `package.json`, und `data-cache` gleich `CACHE_VERSION`.
+  ⚠ **Wer `CACHE_VERSION` erhöht, erhöht auch die Version** (Meta + package.json), sonst ist die Probe rot —
+  so steigt die Nummer mit jeder Auslieferung (Klaus: „ob es sich um eine ältere oder jüngere Version handelt").
+  Klaus' Wahl: die Webversion hat eine **eigene** Nummer, die Pro-App ihre App-Nummer. Die Pro setzt dazu das
+  Meta auf ihre Nummer und sendet `document.dispatchEvent(new Event('wfp-version'))`; Fuß und Einstellungen folgen.
+  Eine falsch geformte Nummer wird nicht angezeigt.
+- Proben: `tests/eingang.mjs` § 11 (ALLE, Abbruch, nie zwei zugleich) · `tests/version.mjs` (in `npm test`) ·
+  Gegenproben `NUR_FALL="ALLE:" node tests/gegenprobe_eingang.mjs` und `node tests/gegenprobe_version.mjs` (7 Fälle).
+- Cache v105, `app.js?v=69`, `style.css?v=43`, `sprache-texte.js?v=46`, Version 1.1.0.
+- ⚠ Am Tablet nicht gemessen; ein Buch mit 400 Seiten in „Alle prüfen" auch nicht.
+
 ## 🧽 Reinigung vor der KI · Originale in der Sicherung (Klaus 2026-10-14)
 
 „Erst wenn etwas an eine KI geht, wird gereinigt: Bild-Metadaten und versteckter Text. Der entfernte Text wird mit dem
