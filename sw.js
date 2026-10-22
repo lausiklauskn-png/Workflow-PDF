@@ -2,7 +2,9 @@
    Cacht die SCHALE (App-Dateien), niemals Dokumente: die liegen in IndexedDB.
    Wer eine Datei aus SCHALE ändert, erhöht CACHE_VERSION — sonst liefert der
    Worker die alte Fassung weiter. */
-const CACHE_VERSION = 'workfloh-pdf-v105';
+const CACHE_VERSION = 'workfloh-pdf-v107';
+// CacheStorage gehört dem gemeinsamen Ursprung: nur eigene alte App-Schalen löschen.
+const APP_SCHALEN_PREFIX = 'workfloh-pdf-v';
 /* Suche nach Bedeutung: transformers.js (und seine wasm-Dateien) kommt von jsDelivr, in fester
    Fassung. Das bleibt in EIGENEM Vorrat, damit die Suche offline weiterläuft und ein Cache-Bump
    der Schale nicht jedes Mal Megabytes neu holt. Das Modell selbst legt transformers.js in seinem
@@ -16,7 +18,7 @@ const GETEILT_VORRAT = 'workfloh-pdf-geteilt';
 const BLEIBT = [MODELL_VORRAT, 'transformers-cache', GETEILT_VORRAT];
 const SCHALE = [
   './', './index.html', './impressum.html', './manifest.webmanifest',
-  './assets/style.css?v=43', './assets/db.js?v=6', './assets/suche.js?v=2', './assets/bedeutung.js?v=2', './assets/zip.js?v=1', './assets/erkennung.js?v=5', './assets/blatt.js?v=1', './assets/scan-bild.js?v=7', './assets/scanner.js?v=13', './assets/export.js?v=7', './assets/html-export.js?v=2', './assets/uebersetzung.js?v=13', './assets/sprache-texte.js?v=46', './assets/sprache.js?v=3', './assets/sprechen.js?v=3', './assets/schieber.js?v=1', './assets/eingang.js?v=5', './assets/reinigung.js?v=1', './assets/pruefer-formate.js?v=2', './assets/pruefer-mail.js?v=2', './assets/pruefer-anhang.js?v=4', './assets/schluesseltresor.js?v=1', './assets/sicherung.js?v=3', './assets/app.js?v=69', './assets/sbkim-init.js?v=1', './assets/siegel-inhalt.js?v=1',
+  './assets/style.css?v=44', './assets/db.js?v=6', './assets/suche.js?v=2', './assets/bedeutung.js?v=2', './assets/zip.js?v=1', './assets/erkennung.js?v=5', './assets/blatt.js?v=1', './assets/scan-bild.js?v=7', './assets/scanner.js?v=13', './assets/export.js?v=7', './assets/html-export.js?v=2', './assets/uebersetzung.js?v=13', './assets/sprache-texte.js?v=46', './assets/sprache.js?v=3', './assets/sprechen.js?v=3', './assets/schieber.js?v=1', './assets/eingang.js?v=5', './assets/reinigung.js?v=1', './assets/pruefer-formate.js?v=2', './assets/pruefer-mail.js?v=2', './assets/pruefer-anhang.js?v=4', './assets/schluesseltresor.js?v=1', './assets/sicherung.js?v=3', './assets/app.js?v=69', './assets/sbkim-init.js?v=1', './assets/siegel-inhalt.js?v=1',
   './vendor/pdfjs/pdf.min.js', './vendor/pdfjs/pdf.worker.min.js', './vendor/pdf-lib.min.js', './vendor/qrcode.js', './vendor/fontkit.umd.min.js', './vendor/fonts/NotoSans-Regular.ttf',
   './icons/w-floh-160.png', './icons/w-floh-120.webp', './icons/favicon-32.png?v=1', './icons/favicon-64.png?v=1',
   './icons/icon-192.png?v=1', './icons/icon-512.png?v=1', './icons/icon-512-maskable.png?v=1', './icons/apple-touch-icon.png?v=1'
@@ -26,7 +28,7 @@ self.addEventListener('install', e => {
   self.skipWaiting();
 });
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(k => Promise.all(k.filter(n => n !== CACHE_VERSION && !BLEIBT.includes(n)).map(n => caches.delete(n)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then(k => Promise.all(k.filter(n => n.startsWith(APP_SCHALEN_PREFIX) && n !== CACHE_VERSION && !BLEIBT.includes(n)).map(n => caches.delete(n)))).then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', e => {
   const r = e.request;
