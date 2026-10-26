@@ -575,3 +575,36 @@ div.dok-pruefung{cursor:default;font-weight:600;opacity:.8}
 /* Installieren in der Kopfleiste (Klaus 2026-10-18): steht schon im HTML, damit die Leiste nicht springt; als App weg — vor dem ersten Anstrich */
 #btnInstall[hidden]{display:none!important}
 @media (display-mode:standalone){#btnInstall{display:none!important}}
+
+/* ---------- Bildbeschreibung (Sitzung 4, 2026-10-26): flache Knöpfe ohne Schatten, Liniensymbole, Hinweise ohne Kasten ---------- */
+.bild-sym{display:block;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.bild-knopf,.bild-info,.bild-mic{display:inline-flex;align-items:center;justify-content:center;gap:5px;box-sizing:border-box;min-height:40px;min-width:40px;margin:0;padding:3px 10px;border:1px solid var(--linie);border-radius:8px;background:var(--flaeche);color:var(--ink);font:inherit;font-size:.85rem;font-weight:600;line-height:1.2;white-space:nowrap;box-shadow:none;cursor:pointer}
+.bild-info,.bild-mic,.bild-knopf-rund{padding:3px;width:40px}
+.bild-knopf:hover,.bild-info:hover,.bild-mic:hover{border-color:var(--rot)}
+.bild-knopf[aria-pressed=true]{border-color:var(--rot);background:var(--rot-h);color:var(--rot-d)}
+.bild-mic.hoert,.bild-mic[aria-pressed=true]{border-color:var(--rot);color:var(--rot-d)}
+@media (any-pointer:fine){.bild-knopf,.bild-info,.bild-mic{min-height:28px;min-width:28px;padding:2px 8px}.bild-info,.bild-mic,.bild-knopf-rund{width:28px;padding:2px}}
+.bild-zeilen{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;margin:-4px 0 8px}
+.bild-filter-zeile{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.bild-hilfe{flex:1 1 100%;font-size:.82rem;color:var(--ink2);margin:0 0 2px}
+.bild-hilfe[hidden]{display:none}
+.bild-leiste{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:0;min-height:28px;font-size:.88rem;flex:1 1 auto;min-width:0}
+.bild-leiste[data-bild-zustand=laedt],.bild-leiste[data-bild-zustand=beschreibt]{flex:1 1 100%}
+.bild-leiste .bild-t{color:var(--ink2)}
+.bild-leiste .bild-fehler{color:#9a1c12}
+.bild-leiste .fortschritt{flex:1 1 100%;margin:2px 0 0}
+.bild-leiste .bild-knopf{white-space:normal;text-align:left;max-width:100%}
+.bild-feld{margin:6px 0 0;padding:4px 0 0;border-top:1px dashed var(--linie)}
+.bild-feld-kopf{display:flex;align-items:center;gap:4px;font-size:.74rem;font-weight:700;color:var(--ink2);margin:0 0 2px}
+.bild-modell{font-size:.78rem;color:var(--ink2);margin:0 0 3px;overflow-wrap:anywhere}
+.bild-modell-wo{font-weight:700}
+.bild-eigen-zeile{display:flex;align-items:flex-start;gap:4px}
+.bild-eigen{flex:1 1 auto;min-width:0;width:100%;box-sizing:border-box;margin:0;padding:4px 7px;border:1px solid var(--linie);border-radius:8px;background:var(--flaeche);color:inherit;font:inherit;font-size:.82rem;line-height:1.25;resize:vertical;min-height:28px;box-shadow:none}
+.bild-eigen:focus{border-color:var(--rot);outline:none}
+.bild-eigen-zeile .wfs-balken{flex:1 1 100%}
+.ed-bild{padding:4px 10px;background:var(--flaeche);border-bottom:1px solid var(--linie)}
+.ed-bild[hidden]{display:none}
+.ed-bild .bild-feld{margin:0;padding:0;border:0;display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}
+.ed-bild .bild-feld-kopf{margin:0}
+.ed-bild .bild-eigen-zeile{flex:1 1 240px}
+.fund-wo[data-art=bild]{color:#0b6b4f}

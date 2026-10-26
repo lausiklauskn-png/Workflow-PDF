@@ -153,6 +153,9 @@ try {
   // A6 — Mauszug: von A über B auf den Ordner „Erledigt"
   // Karte und Ordner müssen zugleich zu sehen sein (wie beim Fingerzug unten): erst nach oben rollen.
   // Seit „Alle prüfen“ (2026-10-22) ist die Seite höher; gerollt lag der Ordner unter der Kopfleiste.
+  // Seit der Bildbeschreibung (2026-10-26, eine Zeile + Erklärung unter der Suche) lagen die Karten bei 900 px Höhe in
+  // der 60-px-Rollzone des Ziehens (ziehRollen) — die Seite rollte beim Zug selbst weg. Mehr Höhe, nicht weniger Prüfung.
+  await page.setViewportSize({ width: 1100, height: 1100 });
   await page.evaluate(() => window.scrollTo(0, 0));
   const mitte = async loc => { const r = await loc.boundingBox(); return [r.x + r.width / 2, r.y + r.height / 2]; };
   const [ax, ay] = await mitte(karte(page, 'Musterbrief A').locator('.dok-bild'));

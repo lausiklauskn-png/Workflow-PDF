@@ -30,7 +30,7 @@
 
   /* ---------- Einstellungen ---------- */
   const EINST_KEY = 'wfpdf_einst_v1';
-  const EINST = Object.assign({ anbieter: 'mistral', schluessel: {}, modell: {}, uebModell: {}, linien: true, kiOk: {}, ueVon: 'de', ueNach: 'ru', ueRueck: true }, lesen(EINST_KEY));
+  const EINST = Object.assign({ anbieter: 'mistral', schluessel: {}, modell: {}, uebModell: {}, linien: true, kiOk: {}, ueVon: 'de', ueNach: 'ru', ueRueck: true, bild: false }, lesen(EINST_KEY));
   if (!EINST.uebModell) EINST.uebModell = {};
   function lesen(k) { try { return JSON.parse(localStorage.getItem(k) || 'null') || {}; } catch (_) { return {}; } }
   function einstSpeichern() { try { localStorage.setItem(EINST_KEY, JSON.stringify(EINST)); } catch (_) {} }
@@ -157,6 +157,7 @@
     zeichneBibliothek();
     texteNachholen();
     if (BED.zustand === 'bereit') vektorenNachholen().then(() => { bedeutungZeichnen(); if (BED.ergebnis === null && $('sc-bib').classList.contains('on')) zeichneBibliothek(); }).catch(() => {});
+    if (window.WFP && WFP.Bild) WFP.Bild.nachziehen();   // neue Fotos beschreiben, solange das Bildmodell bereit ist
   }
   function offeneVorschlaege(d) { return (d.fields || []).filter(f => !f.geprueft).length; }
   /* Sortierung der Bibliothek (Klaus 2026-09-26: „Seite 1 bis 40 als erstes, dann Seite 41 bis 81
@@ -202,7 +203,8 @@
     const FUND = new Map();
     if (such.length) for (const d of S.docs) {
       const ordn = S.ordner.find(x => x.id === d.folderId);
-      const r = SU.sucheDok(Object.assign({}, d, { ordner: ordn ? ordn.name : '' }), TEXTE.get(d.id) || null, such); if (r) FUND.set(d.id, r);
+      // Bildbeschreibung (Sitzung 4): eigene Worte und Modellworte zählen wie Feldinhalte (assets/bildbeschreibung.js)
+      const r = SU.sucheDok(Object.assign({}, d, { ordner: ordn ? ordn.name : '', fields: (d.fields || []).concat(bildFelder(d)) }), TEXTE.get(d.id) || null, such); if (r) FUND.set(d.id, r);
     }
     const imO = (d, id) => id === 'alle' ? true : id === 'ohne' ? !d.folderId || !S.ordner.some(x => x.id === d.folderId) : d.folderId === id;
     const treffO = id => S.docs.reduce((n, d) => n + (FUND.has(d.id) && imO(d, id) ? FUND.get(d.id).treffer : 0), 0);
@@ -220,7 +222,9 @@
     // Ist ein Ordner gewählt, zeigt die Suche NUR ihn (Klaus 2026-09-26) — ein Knopf hebt das auf.
     const imOrdner = d => imO(d, S.aktOrdner);
     S.fund = FUND;
-    const sicht = S.sicht = S.docs.filter(d => imOrdner(d) && (!such.length || FUND.has(d.id)) && imZeitraum(d));
+    // Schalter „Bildbeschreibung" an: nur Fotos, die eine Beschreibung haben (eigene Worte oder vom Modell)
+    const bildFilter = d => !bildFilterAn() || (WFP.Bild && WFP.Bild.beschrieben(d));
+    const sicht = S.sicht = S.docs.filter(d => imOrdner(d) && (!such.length || FUND.has(d.id)) && imZeitraum(d) && bildFilter(d));
     if (such.length) sicht.sort((a, b) => FUND.get(b.id).punkte - FUND.get(a.id).punkte);
     else sortiere(sicht);
     // EIN Kasten für Sortieren UND den Zeitraum (Klaus 2026-09-27: „nicht außerhalb des Containers, weil es
@@ -271,6 +275,7 @@
     const nurOrdner = such.length && S.aktOrdner !== 'alle' ? '<div class="hinweis such-ordner" data-suchordner><span>Gesucht nur in diesem Ordner.</span><button class="knopf klein" data-alleordner>In allen Ordnern suchen</button></div>' : '';
     const alleOrdnerKnopf = () => { const b = g.querySelector('[data-alleordner]'); if (b) b.onclick = () => { S.aktOrdner = 'alle'; zeichneBibliothek(); }; };
     if (!sicht.length) {
+      if (bildFilterAn() && S.docs.some(d => imOrdner(d) && (!such.length || FUND.has(d.id)) && imZeitraum(d))) { g.innerHTML = nurOrdner + `<div class="leer" data-bildleer><b>Kein Foto mit Bildbeschreibung${such.length ? ' passt zu „' + nm(S.suche.trim()) + '"' : ''}.</b><br>Der Schalter „Bildbeschreibung" zeigt nur beschriebene Fotos.<br><button class="knopf klein" data-bildfilterweg>Schalter aus</button></div>`; g.querySelector('[data-bildfilterweg]').onclick = () => WFP.Bild.filterSetzen(false); alleOrdnerKnopf(); return; }
       if ((S.von || S.bis) && S.docs.some(d => imOrdner(d) && (!such.length || FUND.has(d.id)))) { g.innerHTML = nurOrdner + `<div class="leer" data-datumleer><b>${h(zeitraumLeer())}</b>${such.length ? '<br>' + h('Die Suche ist dabei mitgezählt.') : ''}<br><button class="knopf klein" data-datumweg2>✕ jedes Datum</button></div>`; g.querySelector('[data-datumweg2]').onclick = () => { S.von = S.bis = ''; zeichneBibliothek(); }; alleOrdnerKnopf(); return; }
       if (such.length) { const bz = bedeutungZusatz(FUND, imOrdner); g.innerHTML = nurOrdner + `<div class="leer" data-suchleer><b>Kein Dokument passt zu „${nm(S.suche.trim())}".</b>${bz.docs.length ? '<br>Nach Wörtern nicht — nach Bedeutung schon, siehe unten.' : ''}</div>` + bz.html + suchStand(); kartenBinden(g, FUND); alleOrdnerKnopf(); return; }
       g.innerHTML = `<div class="leer"><b>Noch keine Dokumente${o ? ' in diesem Ordner' : ''}.</b><br>Oben ein PDF oder Bild wählen, ein Blatt scannen oder einen ganzen Ordner einlesen. Du kannst Dateien auch einfach hierher ziehen.</div>`;
@@ -320,14 +325,18 @@
       el.querySelector('[data-kopie]').onclick = () => duplizieren(id);
       el.querySelector('[data-loeschen]').onclick = () => loeschen(id);
     });
+    if (window.WFP && WFP.Bild) WFP.Bild.karten(g);
   }
+  const bildFelder = d => (window.WFP && WFP.Bild) ? WFP.Bild.suchFelder(d) : [];
+  const bildFilterAn = () => !!(window.WFP && WFP.Bild && WFP.Bild.filterAn());
   // „gefunden wegen …": woran die Suche das Dokument erkannt hat (höchstens drei Zeilen)
   function fundZeilen(r) {
     const z = [], gesehen = new Set();
     for (const f of r.funde) {
       const key = f.art + '|' + (f.page != null ? f.page : '') + '|' + (f.feldId || '') + '|' + f.text; if (gesehen.has(key)) continue; gesehen.add(key);
-      const wo = f.art === 'name' ? 'Im Namen' : f.art === 'ordner' ? 'Im Ordnernamen' : f.art === 'feld' ? (f.label ? 'Feld' : 'Feld auf Seite ' + (f.page + 1)) : 'Auf Seite ' + (f.page + 1);
-      z.push(`<div class="fund-zeile"><span class="fund-wo" data-art="${f.art}">${h(wo)}</span>${f.art === 'feld' && f.label ? ' ' + nm('„' + f.label + '"') : ''} <span class="fund-text" data-kein-ue>${h(f.text)}</span></div>`);
+      const bild = window.WFP && WFP.Bild && WFP.Bild.istBildFund(f);
+      const wo = bild ? WFP.Bild.fundWo(f) : f.art === 'name' ? 'Im Namen' : f.art === 'ordner' ? 'Im Ordnernamen' : f.art === 'feld' ? (f.label ? 'Feld' : 'Feld auf Seite ' + (f.page + 1)) : 'Auf Seite ' + (f.page + 1);
+      z.push(`<div class="fund-zeile"><span class="fund-wo" data-art="${bild ? 'bild' : f.art}">${h(wo)}</span>${f.art === 'feld' && f.label ? ' ' + nm('„' + f.label + '"') : ''} <span class="fund-text" data-kein-ue>${h(f.text)}</span></div>`);
     }
     const mehr = z.length - 3;
     return `<div class="dok-fund" data-fundzeilen>${z.slice(0, 3).join('')}${mehr > 0 ? `<div class="fund-zeile"><span class="fund-wo" data-art="mehr">${h('und ' + mehr + ' weitere Fundstellen')}</span></div>` : ''}</div>`;
@@ -1309,6 +1318,7 @@
     $('edName').value = d.name; edPruefungZeigen(); $('kopfSub').setAttribute('data-kein-ue', ''); $('kopfSub').textContent = d.name;
     history.pushState({ ed: 1 }, '', '#dok');
     zeichneSeiten(); zeichneModus();
+    if (window.WFP && WFP.Bild) WFP.Bild.editor(d);
     if (fund && fund.bedeutung) {
       // Nach Bedeutung gefunden: kein Wort zum Suchen — markiert wird der Abschnitt, der am nächsten lag
       S.funde = fundMarken(fund); S.fundIdx = S.funde.length ? 0 : -1; funde_neu_zeichnen(); zeichneSuchZahl();
@@ -3176,8 +3186,10 @@
     // Der Worker wird schon im Kopf von index.html angemeldet (Teilen braucht ihn sofort, sonst 405).
     bedeutungZeichnen();
     versionZeigen();
-    ladeBibliothek().then(() => { if (EINST.bedeutung) bedeutungStarten(); }).then(chromeTabRueckweg).then(geteiltUebernehmen).then(oeffnenMitEmpfangen).then(scanDirektstart).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
-    window.__wfpdf = { eingang: { PRUEF, pruefDialog, eingangPruefen, pruefungNachholen, ALLE, allePruefen }, versionNummer, kiReiniger, beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner, geteiltUebernehmen, scanDirektstart,
+    // Bildbeschreibung (Sitzung 4): die Nähte der App hineinreichen; das Modell startet nur, wenn die Wahl gemerkt ist
+    if (window.WFP && WFP.Bild) WFP.Bild.init({ S, EINST, einstSpeichern, DB, dialog, toast, neu: () => { if ($('sc-bib').classList.contains('on')) zeichneBibliothek(); }, sprechen: window.WFSprechen, micSprache: () => MIC_LANG[(WFP.Sprache && WFP.Sprache.lang) || 'de'] || 'de-DE' });
+    ladeBibliothek().then(() => { if (EINST.bedeutung) bedeutungStarten(); if (window.WFP && WFP.Bild) WFP.Bild.start(); }).then(chromeTabRueckweg).then(geteiltUebernehmen).then(oeffnenMitEmpfangen).then(scanDirektstart).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
+    window.__wfpdf = { bild: window.WFP && WFP.Bild, eingang: { PRUEF, pruefDialog, eingangPruefen, pruefungNachholen, ALLE, allePruefen }, versionNummer, kiReiniger, beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner, geteiltUebernehmen, scanDirektstart,
       // für tests/sprache.mjs: jeden Dialog einmal öffnen und seine Texte nachschlagen
       dlg: { neuerOrdner, verschieben, teilenDocs, wahlEnde, WAHL, wahlUmschalten, loeschen, speichernDialog, scanStarten, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, erklaervideo, videoFuer, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe, bedeutungDialog, sicherungDialog, sicherungErinnerung } };   // für die Probe
   }

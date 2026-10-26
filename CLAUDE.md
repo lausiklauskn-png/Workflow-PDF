@@ -5,6 +5,36 @@ ausfüllen → festes / ausfüllbares PDF / leere Vorlage. Kein Build-Schritt.
 Vorlage war der Originaldokument-Modus von Mein-WorkFloh (Felder in Prozent
 über der echten Seite, „bearbeiten" gegen „ausfüllen").
 
+## Bildbeschreibung (Sitzung 4 mit Private Brain Pro, Klaus 2026-10-26)
+
+Klaus: „Die soll Workflow PDF Pro und Workflow PDF bekommen. Auch die Suche … Alle.“ Kurzer Name überall
+**„Bildbeschreibung“**. Keine Emojis (Liniensymbole), flache Knöpfe, Hinweise ohne Kasten, ⓘ anfangs offen und gemerkt.
+- `assets/bildbeschreibung.js` (`WFP.Bild`, Nähte über `init()` aus app.js: `S, EINST, einstSpeichern, DB, dialog, toast,
+  neu, sprechen, micSprache`). Fünf Haken in `app.js`: Suche (`fields: … concat(bildFelder(d))`), Filter (`&& bildFilter(d)`),
+  `kartenBinden` → `WFP.Bild.karten(g)`, `oeffneDok` → `WFP.Bild.editor(d)`, `ladeBibliothek` → `WFP.Bild.nachziehen()`.
+- **Feld an jedem Foto** (Quelle `foto`/`zuschnitt`; Karte und Editor `#edBild`): eigene Worte tippen oder sprechen
+  (`assets/sprechen.js`), am Dokument `d.bild = {eigen, modell, sig}`; die Wortsuche findet beide als Felder
+  `__bild:eigen`/`__bild:modell` mit Fundzeile „Bildbeschreibung“ / „Bildbeschreibung vom Modell“. ⚠ Die Bedeutungssuche
+  ordnet sie nicht ein (nur Seitentext und Felder).
+- **Eine Zeile unter der Suche** (`#bildZeilen`): Schalter „Bildbeschreibung“ (`wfpdf_bildfilter_v1`, an = nur
+  beschriebene Fotos, leere Liste sagt es mit „Schalter aus“), ⓘ (`wfpdf_hilfe_v1`), „Fotos beschreiben lassen“ →
+  Dialog mit den **gemessenen** Zahlen (Pro-Lernlauf 40327837624, Chromium 156: 256 MB Download, 1,2 GB Arbeitsspeicher
+  in der Spitze, rund 3 s je Foto, **nicht am Tablet**). Modell `Xenova/vit-gpt2-image-captioning` (Stand `215b4edc…`)
+  mit transformers.js 2.17.2 aus jsDelivr (derselbe Vorrat `workfloh-pdf-modell-v1` wie die Bedeutungssuche), Modell
+  erst von family-projekt.de, sonst Hugging Face, in `transformers-cache`. Beschrieben wird das Vorschaubild (260 px),
+  Foto für Foto mit Balken, neue Fotos werden nachgezogen; `EINST.bild` merkt die Wahl. „Entfernen“ löscht nur die
+  Einträge mit dem Modellnamen aus `transformers-cache`. ⚠ „Abbrechen“ stoppt Anzeige und Beschreiben, nicht den
+  laufenden Abruf; was ganz da ist, bleibt. ⚠ Das echte Modell lief hier nicht (Netz gesperrt) – die Probe stellt
+  `pipeline()`; ob das Modell auf family-projekt.de liegt, ist nicht geprüft. Das Modell schreibt Englisch.
+- Version **1.1.3**, Cache **v108**, `app.js?v=71`, `style.css?v=45`, `sprache-texte.js?v=48` (34 neue Sätze DE/EN/RU/AR),
+  `bildbeschreibung.js?v=1` im Vorrat; `impressum.html` Abschnitt 4d.
+- Proben: `tests/bildbeschreibung.mjs` (in `npm test`, 50 grün) · `node tests/gegenprobe_bildbeschreibung.mjs` (14 Fälle,
+  Wegwerf-Kopie; `NUR_ANKER=1`, `NUR_FALL="…"`): **14 gefangen · 0 durchgerutscht · 0 aus falschem Grund · 0 tote Anker**.
+  Beim Bau gefunden: ein TDZ-Fehler im Lauf (Kennung vor der Zuweisung gelesen, wenn das Modell schon da ist) – von der
+  Probe, nicht vom Nachdenken. `tests/teilen.mjs` hat für den Mauszug 1100 px Höhe: mit der neuen Zeile lagen die
+  Karten bei 900 px in der 60-px-Rollzone des Ziehens. ⚠ Am Tablet nicht gemessen. **Nicht veröffentlicht** (Entwurfs-PR,
+  Klaus' Wort); die Pro-App zieht den Kern über `upstream/` nach (1.0.5).
+
 ## To-Do-Liste
 
 Klaus' Prüf-Befunde für alle Workflow-Repos (Workflow-PDF · Mein-WorkFloh ·
