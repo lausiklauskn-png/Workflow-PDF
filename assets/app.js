@@ -3176,8 +3176,8 @@
     // Der Worker wird schon im Kopf von index.html angemeldet (Teilen braucht ihn sofort, sonst 405).
     bedeutungZeichnen();
     versionZeigen();
-    ladeBibliothek().then(() => { if (EINST.bedeutung) bedeutungStarten(); }).then(chromeTabRueckweg).then(geteiltUebernehmen).then(oeffnenMitEmpfangen).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
-    window.__wfpdf = { eingang: { PRUEF, pruefDialog, eingangPruefen, pruefungNachholen, ALLE, allePruefen }, versionNummer, kiReiniger, beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner, geteiltUebernehmen,
+    ladeBibliothek().then(() => { if (EINST.bedeutung) bedeutungStarten(); }).then(chromeTabRueckweg).then(geteiltUebernehmen).then(oeffnenMitEmpfangen).then(scanDirektstart).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
+    window.__wfpdf = { eingang: { PRUEF, pruefDialog, eingangPruefen, pruefungNachholen, ALLE, allePruefen }, versionNummer, kiReiniger, beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner, geteiltUebernehmen, scanDirektstart,
       // für tests/sprache.mjs: jeden Dialog einmal öffnen und seine Texte nachschlagen
       dlg: { neuerOrdner, verschieben, teilenDocs, wahlEnde, WAHL, wahlUmschalten, loeschen, speichernDialog, scanStarten, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, erklaervideo, videoFuer, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe, bedeutungDialog, sicherungDialog, sicherungErinnerung } };   // für die Probe
   }
@@ -3206,6 +3206,25 @@
     } catch (_) {}
     if (!dateien.length) { toast('⚠️ Die geteilte Datei kam nicht an. Bitte noch einmal teilen.'); return; }
     await importDateien(dateien);
+  }
+  /* ---------- Direktstart des Scanners aus einer anderen App (Klaus 2026-10-26) ----------
+     BookLedgerPro öffnet Workflow PDF mit ./?scan=1, damit der Scanner sofort aufgeht — und mit
+     „Durchsuchbar" vorbelegt, denn BookLedgerPro liest den erkannten Text aus der Textebene des
+     fertigen PDFs. Der Rückweg ist Teilen: nach „PDF erstellen" 📤 Teilen und die App wählen (Android
+     erlaubt keine Vorauswahl des Ziels). Die Adresse wird sofort geputzt, damit ⟳ den Scanner nicht
+     noch einmal öffnet. Die gemerkte Wahl des Nutzers (`wfpdf_scan_v1`) bleibt unberührt: nur dieser
+     eine Scan ist durchsuchbar. Der Toast sagt, woher der Start kam und wie es zurückgeht. */
+  function scanDirektstart() {
+    const q = new URLSearchParams(location.search);
+    if (q.get('scan') !== '1') return;
+    const von = String(q.get('von') || '').slice(0, 40);
+    ['scan', 'von'].forEach(n => q.delete(n));
+    history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+    scanStarten('neu');
+    const st = WFP.Scanner && WFP.Scanner.zustand && WFP.Scanner.zustand();
+    if (st) st.durchsuchbar = true;
+    toast(von ? `Scan für „${von}" gestartet: nach „PDF erstellen" 📤 Teilen und die App wählen.` : 'Scan aus einer anderen App gestartet: nach „PDF erstellen" 📤 Teilen und die App wählen.');
+    window.__wfpdfDirektstart = { von, durchsuchbar: !!(st && st.durchsuchbar) };   // für die Probe
   }
   function oeffnenMitEmpfangen() {
     if (!('launchQueue' in window)) return;
