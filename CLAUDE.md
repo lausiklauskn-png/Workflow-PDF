@@ -32,8 +32,8 @@ Klaus: „Die soll Workflow PDF Pro und Workflow PDF bekommen. Auch die Suche �
   Wegwerf-Kopie; `NUR_ANKER=1`, `NUR_FALL="…"`): **14 gefangen · 0 durchgerutscht · 0 aus falschem Grund · 0 tote Anker**.
   Beim Bau gefunden: ein TDZ-Fehler im Lauf (Kennung vor der Zuweisung gelesen, wenn das Modell schon da ist) – von der
   Probe, nicht vom Nachdenken. `tests/teilen.mjs` hat für den Mauszug 1100 px Höhe: mit der neuen Zeile lagen die
-  Karten bei 900 px in der 60-px-Rollzone des Ziehens. ⚠ Am Tablet nicht gemessen. **Nicht veröffentlicht** (Entwurfs-PR,
-  Klaus' Wort); die Pro-App zieht den Kern über `upstream/` nach (1.0.5).
+  Karten bei 900 px in der 60-px-Rollzone des Ziehens. ⚠ Am Tablet nicht gemessen. **Auf main seit 2026-10-26** (#134,
+  Klaus' Wort), Pages liefert 1.1.3 aus; die Pro-App hat den Kern über `upstream/` nachgezogen (1.0.5, #26, kein App-Release).
 
 ## To-Do-Liste
 
