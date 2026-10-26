@@ -174,7 +174,10 @@ else {
         const leg = await page.evaluate(() => [...document.querySelectorAll('[data-lampe-kopie]')].map(e => e.checkVisibility() ? e.textContent : ''));
         ok(`${w} px: … aufgeklappt mit den Namen der Lampen, ohne die Seite zu sprengen`, leg.join('|') === 'lebt|verkehr|fremd' && await page.evaluate((w) => document.documentElement.scrollWidth <= w + 1, w), leg);
         ok(`${w} px: … und sagt es dem Vorleser (aria-expanded)`, (await page.getAttribute('#lampen', 'aria-expanded')) === 'true');
-        await page.mouse.click(w / 2, 600);
+        // „Daneben" ist die leere Bibliotheksfläche, nicht eine feste Koordinate: bei (w/2, 600) lag seit der
+        // Bildbeschreibung (2026-10-26) der Knopf „Suche nach Bedeutung einschalten", dessen Dialog die nächsten Tipps verdeckte.
+        const leer = await page.$('#dokGitter .leer');
+        if (leer) await leer.click({ position: { x: 10, y: 10 } }); else await page.mouse.click(w / 2, 600);
         const zu2 = await page.evaluate(() => document.getElementById('netzleiste').getAttribute('data-offen'));
         ok(`${w} px: ein Tipp daneben klappt die Leiste wieder zu`, zu2 === '0', zu2);
         await page.click('#lampen');
