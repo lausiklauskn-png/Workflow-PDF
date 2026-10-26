@@ -4,6 +4,8 @@
    (fail-soft). Geprüft von tests/sprache.mjs. */
 (function(){ (window.WFP=window.WFP||{}).SPRACH_TEXTE = {
  "en": {
+  "Scan aus einer anderen App gestartet: nach „PDF erstellen\" 📤 Teilen und die App wählen.": "Scan started from another app: after “Create PDF” tap 📤 Share and choose the app.",
+  "Scan für „{}\" gestartet: nach „PDF erstellen\" 📤 Teilen und die App wählen.": "Scan for “{1}” started: after “Create PDF” tap 📤 Share and choose the app.",
   "lebt": "alive",
   "verkehr": "traffic",
   "fremd": "foreign",
@@ -979,6 +981,8 @@
   "Details anzeigen": "Show details"
  },
  "ru": {
+  "Scan aus einer anderen App gestartet: nach „PDF erstellen\" 📤 Teilen und die App wählen.": "Сканирование запущено из другого приложения: после «Создать PDF» нажмите 📤 Поделиться и выберите приложение.",
+  "Scan für „{}\" gestartet: nach „PDF erstellen\" 📤 Teilen und die App wählen.": "Сканирование для «{1}» запущено: после «Создать PDF» нажмите 📤 Поделиться и выберите приложение.",
   "lebt": "жив",
   "verkehr": "трафик",
   "fremd": "чужое",
@@ -1954,6 +1958,8 @@
   "Details anzeigen": "Показать подробности"
  },
  "ar": {
+  "Scan aus einer anderen App gestartet: nach „PDF erstellen\" 📤 Teilen und die App wählen.": "بدأ المسح من تطبيق آخر: بعد «إنشاء PDF» اضغط 📤 مشاركة واختر التطبيق.",
+  "Scan für „{}\" gestartet: nach „PDF erstellen\" 📤 Teilen und die App wählen.": "بدأ المسح لصالح «{1}»: بعد «إنشاء PDF» اضغط 📤 مشاركة واختر التطبيق.",
   "lebt": "حيّ",
   "verkehr": "حركة",
   "fremd": "غريب",

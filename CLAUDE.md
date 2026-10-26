@@ -778,6 +778,20 @@ Ende von `app.js` angemeldet (nach allen Skripten mit `defer`), und ⟳ meldet i
 Cache v104, `app.js?v=68`. ⚠ Ob das am Tablet den 405 behebt, ist nicht gemessen: wer die App schon installiert hat, öffnet
 sie nach dem Update einmal, bevor er teilt.
 
+## 📲 Direktstart des Scanners aus BookLedgerPro (Klaus 2026-10-26)
+
+BookLedgerPro öffnet Workflow PDF mit **`./?scan=1&von=BookLedgerPro`**: `scanDirektstart()` (Ende der Startkette, nach
+`oeffnenMitEmpfangen`) öffnet den Scanner sofort, setzt **„Durchsuchbar" nur für diesen Scan** (`WFP.Scanner.zustand().durchsuchbar`,
+die gemerkte Wahl `wfpdf_scan_v1` bleibt), putzt die Adresse (⟳ öffnet nicht noch einmal) und sagt im Toast den Rückweg:
+nach „PDF erstellen" 📤 Teilen und die App wählen (Android erlaubt keine Vorauswahl). BookLedgerPro liest den erkannten
+Text aus der Textebene des geteilten PDFs; die Marke `Producer: Workfloh PDF` / `Creator: Workfloh PDF · Scannen` (pdfBauen)
+kennzeichnet dort den eigenen Scan — **nicht ändern**, ohne BLP nachzuziehen. `scanner.js` ist unverändert (byte-1:1 in den WorkFlohs).
+Probe `tests/direktstart.mjs` (in `npm test`, 16 grün; Gegenprobe: Vorbelegung entfernt → 2 rote Zeilen mit Namen). Toast in EN/RU/AR.
+Version 1.1.1, Cache v106, `app.js?v=70`, `sprache-texte.js?v=47`. Gemessen im Chromium des Behälters: syntax 75 · version 12 ·
+teilen-empfang 23 · sprache 49 · scan 119 · bibliothek 90 · e2e 78 · direktstart 16, alle 0 ROT. ⚠ Am Tablet nicht gemessen; ob
+Android die Pro-App über einen `intent://`-Link öffnet, braucht einen App-Link in Workflow-PDF-Pro (dort offen). Die Pro-App
+bekommt den Kern über `upstream/` (Gleichstand).
+
 ## 🕸 SBKIM-Knoten mit Netz-Einstellung (2026-10-13)
 
 Workflow PDF ist ein eigener SBKIM-Knoten, nach dem Muster des Sende-Prüfers. Er hat eine feste Leiste in der Kopfzeile
