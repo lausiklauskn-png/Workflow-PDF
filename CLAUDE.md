@@ -792,6 +792,26 @@ teilen-empfang 23 · sprache 49 · scan 119 · bibliothek 90 · e2e 78 · direkt
 Android die Pro-App über einen `intent://`-Link öffnet, braucht einen App-Link in Workflow-PDF-Pro (dort offen). Die Pro-App
 bekommt den Kern über `upstream/` (Gleichstand).
 
+## 🧺 Der Worker löscht nur noch eigene Schalen (Klaus 2026-10-26: „darf auf gar keinen Fall passieren“)
+
+Befund (zuerst von Codex in #131 beschrieben, hier nachgemessen): CacheStorage gehört dem GANZEN Ursprung
+`lausiklauskn-png.github.io`. `activate` löschte **jeden** Vorrat außer der eigenen Schale und `BLEIBT` — also auch
+`private-brain-v…`, `blpr-shell-v…`, `blpr-geteilt` (die geteilten Belege von BookLedger!), Sage, Kimboard. Jedes
+Workflow-PDF-Update nahm den Nachbarn ihre Offline-Dateien. Jetzt gilt `EIGENE_SCHALE = 'workfloh-pdf-v'`: gelöscht
+wird nur `workfloh-pdf-v<alt>`; der Präfix trifft weder `workfloh-pdf-modell-v1` noch `workfloh-pdf-geteilt`.
+BookLedger und Private Brain löschen schon lange nur ihren eigenen Präfix (`blpr-`, `private-brain-`).
+- `tests/vorrat-isolation.mjs` (in `npm test`, vorne): echter Worker in Chromium, fünf fremde und drei eigene bleibende
+  Vorräte mit Inhalt angelegt, zwei alte eigene Schalen → nach dem Aktivieren: 14 grün. Gegenprobe mit dem alten
+  Riegel in einer Wegwerf-Kopie: **6 ROT**, jede mit Namen (fremde Vorräte `null`).
+- **Kopfzeile mit breiter Systemschrift** (zweiter Befund aus #131): mit DejaVu Sans war „Workfloh PDF" bei 380 px
+  abgeschnitten (87 px Text in 81 px), weil `#btnInstall` bis 520 px 42,7 px breit war statt 34 px wie die Nachbarn.
+  Regel ergänzt; `tests/kopfzeile-schrift.mjs` setzt DejaVu Sans ausdrücklich (360–520 px, 24 grün; ohne Fix 7 ROT).
+- **CI:** `.github/workflows/quality.yml` fährt `npm test` bei jedem PR und Push auf main (vorher gab es hier keine CI).
+- Cache **v107**, Version **1.1.2**, `style.css?v=44`. Codex' Entwürfe #131 (hier) und Workflow-PDF-Pro #20 bleiben
+  unberührt (Klaus: nur Claude Code); ihr Inhalt ist hier neu gebaut, die Pro-App zieht den Kern über `upstream/` nach.
+- ⚠ Am Tablet nicht gemessen; ob eine SCHON installierte Kopie beim nächsten Update noch einmal mit dem alten Worker
+  aktiviert (und dabei ein letztes Mal löscht), hängt vom Browser ab — der alte Worker läuft bis zu diesem Update.
+
 ## 🕸 SBKIM-Knoten mit Netz-Einstellung (2026-10-13)
 
 Workflow PDF ist ein eigener SBKIM-Knoten, nach dem Muster des Sende-Prüfers. Er hat eine feste Leiste in der Kopfzeile
