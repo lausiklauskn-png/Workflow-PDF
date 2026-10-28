@@ -38,7 +38,7 @@ Leitfaden der Pro-Apps § 3 und § 5 (`BookLedgerPro/docs/design/LEITFADEN-PRO-A
   **0** PDF geöffnet. Vorher öffnete `texteNachholen()` beim Laden jedes PDF ohne gemerkten Seitentext mit pdf.js und las `texte` ganz.
   Jetzt holt erst die Suche den Seitentext (`zeichneBibliothek`, B12: 1 Lesezugriff auf `texte`, 0 PDF); ein Dokument ohne Datei wird
   nicht bei jeder Suche neu versucht. ⚠ Sortieren nach **Dateigröße** liest weiter jede Datei einmal (Größe steht nicht am Dokument).
-- Version **1.1.4**, Cache **v109**, `app.js?v=72`, `style.css?v=46`, `sprache.js?v=4`, `sprache-texte.js?v=49` (28 neue Sätze EN/RU/AR),
+- Version **1.1.4**, Cache **v109**, `app.js?v=72`, `style.css?v=46`, `sprache.js?v=4`, `sprache-texte.js?v=49` (34 neue Sätze je EN/RU/AR),
   `bildbeschreibung.js?v=2`, `strich.js?v=1` (im Vorrat).
 - Proben: `tests/arbeit.mjs` (in `npm test`, 39 grün; Modul 03, Bildmodell und `ProHintergrund` gestellt) · `node tests/gegenprobe_arbeit.mjs`
   (15 Fälle; `NUR_ANKER=1`, `NUR_FALL`). Angepasst: `eingang.mjs` (Frage vor „Prüfen“), `bedeutung.mjs` (nach dem Neuladen erst „Einordnen“),
