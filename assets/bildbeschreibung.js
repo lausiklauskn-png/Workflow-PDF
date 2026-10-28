@@ -300,7 +300,7 @@
     }
   }
   /* Nach dem Start, wenn die Wahl gemerkt ist: NICHTS startet von selbst (Pro-Umbau 5, Klaus 2026-10-28). Die Zeile
-     sagt, wie viele Fotos offen sind, und „Beschreiben" lädt das Modell (aus dem Vorrat) und beschreibt. ⚠ Tafel-
+     sagt, wie viele Fotos offen sind, und „Beschreiben" lädt das Modell (aus dem Vorrat) und beschreibt. Tafel-
      Evolution: bis 1.1.3 lud start() das Modell beim Öffnen (1,2 GB Arbeitsspeicher in der Spitze) und beschrieb
      alle Fotos. */
   function start() { if (A && A.EINST.bild && B.zustand === 'aus' && !B._lauf) { B.zustand = 'wartet'; leiste(); } }

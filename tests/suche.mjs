@@ -142,6 +142,8 @@ else {
     await page.evaluate(async () => { const w = window.__wfpdf; const o = { id: 'o-test', name: 'Betriebsanleitungen', erstellt: Date.now() }; await WFP.DB.put('folders', o);
       const d = w.S.docs.find(x => /Angebot/.test(x.name)); d.folderId = o.id; await WFP.DB.put('docs', d); });
     await page.reload(); await page.waitForFunction(() => window.__wfpdf && window.__wfpdf.S.docs.length === 2 && window.__wfpdf.S.ordner.length === 1);
+    // Seit Pro-Umbau 5 (2026-10-28) liest erst die Suche den Seitentext nach — beim Öffnen öffnet die Bibliothek kein PDF
+    r = await suche('betriebsanleitung');
     await page.waitForFunction(() => window.__wfpdf.S.docs.every(d => window.__wfpdf.suche.TEXTE.has(d.id)), null, { timeout: 30000 });
     r = await suche('betriebsanleitung');
     ok('Ordner: sein Name findet das Dokument darin („Im Ordnernamen")', r.length === 1 && /Angebot/.test(r[0].name) && r[0].fund.some(t => /^Im Ordnernamen/.test(t)), r);

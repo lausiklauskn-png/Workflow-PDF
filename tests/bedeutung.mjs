@@ -323,6 +323,11 @@ else {
     ok('Handbuch: noch nicht fertig, als neu geladen wird (sonst misst das Fortsetzen nichts)', gespeichert < hbN, [gespeichert, hbN]);
     await p4.reload(); await p4.waitForFunction(() => window.__wfpdf && window.__wfpdf.S.docs.length === 1);
     await p4.waitForFunction(() => document.getElementById('bedeutungLeiste').dataset.bedZustand === 'bereit', null, { timeout: 60000 });
+    // Pro-Umbau 5 (Klaus 2026-10-28): nach dem Neuladen wird NICHT von selbst weiter eingeordnet — erst „Einordnen"
+    await p4.waitForTimeout(1000);
+    ok('Handbuch: nach dem Neuladen ordnet nichts von selbst ein; „Einordnen" steht über den Karten', await p4.evaluate(() => window.__stub.passagen === 0) && !!(await p4.$('#pruefAlle [data-einordnen]')));
+    await p4.click('#pruefAlle [data-einordnen]'); await p4.click('.dlg [data-j]');
+    await p4.waitForFunction(() => !window.__wfpdf.bedeutung.BED.einLauf && window.__wfpdf.bedeutung.offeneEinordnen().length === 0, null, { timeout: 60000 });
     const nach = await p4.evaluate(() => window.__stub.passagen);
     ok('Handbuch: nach dem Neuladen geht es an derselben Stelle weiter (nur der Rest wird eingeordnet)', nach === hbN - gespeichert, { nach, rest: hbN - gespeichert });
     ok('Handbuch: am Ende sind ALLE Abschnitte da, im Speicher wie im Vorrat', await p4.evaluate(async ([id, n]) => { const k = await WFP.DB.get('vektoren', id); return k.fertig === n && window.__wfpdf.bedeutung.BED.vek.get(id).st.length === n; }, [hbId, hbN]));

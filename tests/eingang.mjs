@@ -332,11 +332,16 @@ try {
     await einlesen(page, ['Antrag.pdf', '0D.pdf', 'H0.jpg']);
     const vor = await page.evaluate(() => { const l = document.getElementById('pruefAlle'); const k = l.querySelector('[data-pruef-alle-los]');
       return { sicht: l.checkVisibility() && !!k && k.checkVisibility(), text: k && k.textContent.trim(), zahl: (l.querySelector('[data-pruef-alle-zahl]') || {}).textContent }; });
-    ok('ALLE: drei ungeprüfte → Knopf „▶ Alle prüfen" mit „3 noch nicht geprüft"', vor.sicht && vor.text === '▶ Alle prüfen' && /^3 noch nicht geprüft/.test(vor.zahl || ''), vor);
+    ok('ALLE: drei ungeprüfte → Knopf „▶ Prüfen" mit „3 noch nicht geprüft" (seit Pro-Umbau 5, 2026-10-28)', vor.sicht && vor.text === '▶ Prüfen' && /^3 noch nicht geprüft/.test(vor.zahl || ''), vor);
     // Mitschreiben, wie viele zugleich laufen und was die Leiste zeigt
     await page.evaluate(() => { window.__mit = { max: 0, balken: 0, texte: new Set() }; const t = () => { const P = window.__wfpdf.eingang.PRUEF; window.__mit.max = Math.max(window.__mit.max, P.laufend.size);
       const b = document.querySelector('[data-pruef-alle-balken]'); if (b) window.__mit.balken = Math.max(window.__mit.balken, +b.value); const l = document.querySelector('[data-pruef-alle-lauf]'); if (l) window.__mit.texte.add(l.textContent.trim()); }; window.__mitT = setInterval(t, 20); });
     await page.click('[data-pruef-alle-los]');
+    // Pro-Umbau 5: ohne Auswahl fragt „Prüfen" erst „Alle 3 …?"
+    const frage = await page.waitForSelector('.dlg', { timeout: 5000 }).then(e => e.innerText(), () => '');
+    ok('ALLE: vorher die Frage „Alle 3 noch nicht geprüften Dokumente prüfen?"', /Alle 3 noch nicht geprüften Dokumente prüfen\?/.test(frage), frage);
+    await page.click('.dlg [data-j]');
+    await page.waitForSelector('[data-pruef-alle-lauf]', { timeout: 5000 }).catch(() => {});
     const lauf = await page.evaluate(() => ({ lauf: !!document.querySelector('[data-pruef-alle-lauf]'), stopp: !!document.querySelector('[data-pruef-alle-stopp]'), balken: !!document.querySelector('[data-pruef-alle-balken]') }));
     ok('ALLE: nach dem Tipp zeigt die Leiste den Lauf, einen Balken und „■ Abbrechen"', lauf.lauf && lauf.stopp && lauf.balken, lauf);
     await page.waitForFunction(() => !window.__wfpdf.eingang.ALLE.an, null, { timeout: 240000 });
@@ -357,7 +362,7 @@ try {
   {
     const { ctx, page, fehler } = await neueSeite();
     await einlesen(page, ['Antrag.pdf', 'H0.jpg', '4C-ohne.png']);
-    await page.click('[data-pruef-alle-los]');
+    await page.click('[data-pruef-alle-los]'); await page.click('.dlg [data-j]');
     await page.click('[data-pruef-alle-stopp]');
     const halt = await page.evaluate(() => (document.querySelector('[data-pruef-alle-lauf]') || {}).textContent || '');
     await page.waitForFunction(() => !window.__wfpdf.eingang.ALLE.an, null, { timeout: 240000 });

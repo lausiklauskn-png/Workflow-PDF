@@ -633,3 +633,4 @@ div.dok-pruefung{cursor:default;font-weight:600;opacity:.8}
 .pruef-alle .hinweis{margin:0;font-size:.82rem}
 .pruef-alle progress{accent-color:var(--rot)}
 .dok-akt button .ic-strich,.marke-klein .ic-strich{width:1em;height:1em}
+.kopf .knopf.klein{min-height:32px;min-width:32px}
