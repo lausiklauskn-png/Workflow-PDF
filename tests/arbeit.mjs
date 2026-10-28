@@ -232,6 +232,18 @@ try {
   ok('B30 Scanner ohne sichtbares Emoji', !(await sichtEmoji(page)).length, await sichtEmoji(page));
   ok('B31 keine Seitenfehler', !fehler.length, fehler);
   await ctx.close();
+  // B12b in einem eigenen Fenster OHNE Bedeutungssuche (deren Antwort zeichnet die Liste sonst ohnehin neu — die Zeile wäre blind):
+  // direkt nach dem Neuladen EINE Suche, ohne weiterzutippen. Der Seitentext kommt aus dem Speicher; die Liste muss sich selbst neu zeichnen.
+  {const c2 = await browser.newContext({ viewport: { width: 1100, height: 900 } }); const p2 = await c2.newPage();
+   await p2.route(/^https?:\/\/(?!127\.0\.0\.1)/, r => r.abort());
+   await p2.goto(URL0); await bereit(p2);
+   await p2.setInputFiles('#inDatei', [{ name: 'Rechnung.pdf', mimeType: 'application/pdf', buffer: PDFS.Rechnung }, { name: 'Garantie.pdf', mimeType: 'application/pdf', buffer: PDFS.Garantie }]);
+   await p2.waitForFunction(() => window.__wfpdf.S.docs.length === 2, null, { timeout: 60000 });
+   await p2.reload(); await bereit(p2); await p2.waitForTimeout(500);
+   await p2.evaluate(() => { const w = window.__wfpdf; w.S.suche = 'Betrag'; document.getElementById('bibSuche').value = 'Betrag'; w.suche.zeichneBibliothek(); });
+   const b12b = await p2.waitForFunction(() => [...document.querySelectorAll('#dokGitter .dok .dok-name')].some(e => e.textContent === 'Rechnung'), null, { timeout: 8000 }).then(() => true, () => false);
+   ok('B12b die erste Suche nach dem Neuladen findet den Seitentext ohne weiteres Tippen (Liste zeichnet sich neu)', b12b, await p2.evaluate(() => [...document.querySelectorAll('#dokGitter .dok .dok-name')].map(e => e.textContent)));
+   await c2.close();}
 } catch (e) { ok('Probe lief durch', false, String((e && e.stack) || e).split('\n').slice(0, 3).join(' | ')); }
 finally { await browser.close(); srv.close(); fs.rmSync(TMP, { recursive: true, force: true }); }
 console.log(`\n${gruen} grün · ${rot} ROT`);

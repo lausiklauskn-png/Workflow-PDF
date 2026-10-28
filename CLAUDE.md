@@ -40,8 +40,8 @@ Leitfaden der Pro-Apps § 3 und § 5 (`BookLedgerPro/docs/design/LEITFADEN-PRO-A
   nicht bei jeder Suche neu versucht. ⚠ Sortieren nach **Dateigröße** liest weiter jede Datei einmal (Größe steht nicht am Dokument).
 - Version **1.1.4**, Cache **v109**, `app.js?v=72`, `style.css?v=46`, `sprache.js?v=4`, `sprache-texte.js?v=49` (34 neue Sätze je EN/RU/AR),
   `bildbeschreibung.js?v=2`, `strich.js?v=1` (im Vorrat).
-- Proben: `tests/arbeit.mjs` (in `npm test`, 39 grün; Modul 03, Bildmodell und `ProHintergrund` gestellt) · `node tests/gegenprobe_arbeit.mjs`
-  (15 Fälle; `NUR_ANKER=1`, `NUR_FALL`). Angepasst: `eingang.mjs` (Frage vor „Prüfen“), `bedeutung.mjs` (nach dem Neuladen erst „Einordnen“),
+- Proben: `tests/arbeit.mjs` (in `npm test`, 40 grün; Modul 03, Bildmodell und `ProHintergrund` gestellt) · `node tests/gegenprobe_arbeit.mjs`
+  (16 Fälle; `NUR_ANKER=1`, `NUR_FALL`). Angepasst: `eingang.mjs` (Frage vor „Prüfen“), `bedeutung.mjs` (nach dem Neuladen erst „Einordnen“),
   `suche.mjs` (Seitentext erst bei der Suche), `bildbeschreibung.mjs` (wartet auf „Beschreiben“); tote Anker in fünf Gegenproben nachgezogen
   (drei davon waren schon auf main tot: bedeutung „Dialog verschweigt“, suche „kein Text erfasst“, version 1.1.0/v105).
 - **Befunde beim Bau:** (1) `pruefLeiste` verglich `innerHTML` mit dem gebauten Text — nach `strich.js` steht dort svg statt Emoji, also
@@ -53,7 +53,12 @@ Leitfaden der Pro-Apps § 3 und § 5 (`BookLedgerPro/docs/design/LEITFADEN-PRO-A
   (5) In der CI (andere Schrift) wurde „Workfloh PDF“ bei 320 px abgeschnitten: die neue Regel `.ikon{32px}` stand am Ende von
   `style.css` und überstimmte die gemessenen Handy-Maße (31 px bis 370 px) — sechs Knöpfe je 1 px, Gruppe 5 px breiter. Lokal grün,
   weil die Behälter-Schrift schmaler ist. Jetzt gelten 32 px erst ab 521 px; nachgemessen: Gruppe wieder 196 px wie auf main.
-  (6) Gegenprobe `gegenprobe_arbeit.mjs`: **15 gefangen · 0 durchgerutscht · 0 aus falschem Grund · 0 tote Anker**.
+  (6) Gegenprobe `gegenprobe_arbeit.mjs`: **15 gefangen · 0 durchgerutscht · 0 aus falschem Grund · 0 tote Anker** (vor Fall 16).
+  (7) **Echter Fehler, in der CI gefunden** (`tests/bildbeschreibung.mjs`, „Die gewöhnliche Suche findet weiter das PDF → []“): seit die Suche
+  den Seitentext erst nachholt, holte `texteNachholen()` ihn nach einem Neuladen aus dem Fach `texte`, zeichnete die Liste aber nur neu, wenn
+  ein PDF FRISCH gelesen wurde — die erste Suche nach dem Neuladen blieb leer stehen, bis man weitertippte. Lokal war der Speicher schneller
+  als die Probe, in der CI nicht. Jetzt zählt Text aus dem Speicher wie neu gelesen. Probe B12b (eigenes Fenster OHNE Bedeutungssuche — mit
+  ihr zeichnet deren Antwort die Liste ohnehin neu; die Zeile war zweimal blind, bis das klar war); Gegenprobe-Fall 16 gefangen.
 - ⚠ Am Tablet nicht gemessen; echtes Modell und echte Android-Mitteilung nicht (gestellt); Zeit des Einordnens bei 400 Seiten ungemessen.
 
 ## Bildbeschreibung (Sitzung 4 mit Private Brain Pro, Klaus 2026-10-26)

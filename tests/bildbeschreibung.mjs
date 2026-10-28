@@ -138,7 +138,8 @@ try {
   await suchen(page, 'Palmen');
   let n = await namen(page), k = await karte(page, 'Urlaub');
   ok('Die Suche findet das Foto an den eigenen Worten, mit Fundzeile „Bildbeschreibung" — das PDF nicht', n.length === 1 && n[0] === 'Urlaub' && !!k && k.fund.includes('Bildbeschreibung'), { n, fund: k && k.fund });
-  await suchen(page, 'Musterstadt'); n = await namen(page);
+  // Nach dem Neuladen holt erst die Suche den Seitentext aus dem Speicher (Pro-Umbau 5) und zeichnet die Liste danach selbst neu
+  await suchen(page, 'Musterstadt'); await page.waitForFunction(() => [...document.querySelectorAll('#dokGitter .dok .dok-name')].some(e => e.textContent === 'Formular'), null, { timeout: 10000 }).catch(() => {}); n = await namen(page);
   ok('Die gewöhnliche Suche findet weiter das PDF', n.length === 1 && n[0] === 'Formular', n);
   // Der Schalter: nur beschriebene Fotos
   await suchen(page, '');

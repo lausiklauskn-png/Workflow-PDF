@@ -708,8 +708,11 @@
   function texteNachholen() {
     if (_nachholen) return _nachholen;
     _nachholen = (async () => {
-      try { for (const r of await DB.all('texte')) if (!TEXTE.has(r.id)) TEXTE.set(r.id, SU.vorbereiten(r.seiten)); } catch (_) {}
+      // Kam Seitentext aus dem Speicher dazu, zählt das wie neu gelesen: die Trefferliste wird danach neu gezeichnet.
+      // (Pro-Umbau 5: seit die Suche den Text erst nachholt, blieb die erste Suche nach dem Neuladen sonst leer stehen —
+      // gefunden von tests/bildbeschreibung.mjs in der CI, lokal war der Speicher schneller als die Probe.)
       let neu = false;
+      try { for (const r of await DB.all('texte')) if (!TEXTE.has(r.id)) { TEXTE.set(r.id, SU.vorbereiten(r.seiten)); neu = true; } } catch (_) {}
       for (const d of S.docs.slice()) {
         if (TEXTE.has(d.id)) continue;
         const b = await DB.getFile(d.id); if (!b) { TEXTE.set(d.id, []); continue; }   // ohne Datei: nicht bei jeder Suche neu lesen

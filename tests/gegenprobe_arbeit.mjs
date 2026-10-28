@@ -21,6 +21,7 @@ const FAELLE = [
   { name: '„Einordnen" mit Auswahl ordnet alle ein', datei: A, anker: '      return einordnenLauf(new Set(ids));', ersatz: '      return einordnenLauf(null);', trifft: /B16/ },
   { name: 'Abbrechen hält das Einordnen nicht an', datei: A, anker: "if (BED.zustand === 'aus' || BED.zustand === 'fehler' || BED.stopp) return;", ersatz: "if (BED.zustand === 'aus' || BED.zustand === 'fehler') return;", trifft: /B17/ },
   { name: 'die Bibliothek liest beim Öffnen wieder den Seitentext', datei: A, anker: '    zeichneBibliothek();\n    /* Pro-Umbau 5', ersatz: '    zeichneBibliothek(); texteNachholen();\n    /* Pro-Umbau 5', trifft: /B11/ },
+  { name: 'Seitentext aus dem Speicher zeichnet die Liste nicht neu', datei: A, anker: '{ TEXTE.set(r.id, SU.vorbereiten(r.seiten)); neu = true; }', ersatz: '{ TEXTE.set(r.id, SU.vorbereiten(r.seiten)); }', trifft: /B12b/ },
   { name: 'Bildbeschreibung meldet keine Hintergrundaufgabe', datei: B, anker: 'try { B.hg = W.ProHintergrund &&', ersatz: 'try { B.hg = null &&', trifft: /B20/ },
   { name: 'strich.js wird nicht geladen', datei: 'index.html', anker: '<script defer src="assets/strich.js?v=1"></script>\n', ersatz: '', trifft: /A1|B21|B22/ },
   { name: 'ohne Emoji wird nicht nachgeschlagen', datei: S, anker: "      if (!/\\p{Extended_Pictographic}/u.test(k)) continue;", ersatz: '      continue;', trifft: /B25/ },
