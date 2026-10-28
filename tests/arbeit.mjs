@@ -216,6 +216,7 @@ try {
   await page.evaluate(() => WFP.Sprache.setzen('en')); await page.waitForTimeout(300);
   const en = await page.evaluate(() => ({ scan: document.getElementById('btnScan').innerText.trim(), svg: !!document.querySelector('#btnScan svg.ic-strich'), pruef: (document.querySelector('#pruefAlle [data-pruefen]') || document.querySelector('#pruefAlle [data-einordnen]') || {}).innerText || '' }));
   ok('B25 auf Englisch: übersetzt, Strichsymbol bleibt, kein Emoji', /Scan/.test(en.scan) && !/Scannen/.test(en.scan) && en.svg && !EMOJI.test(en.scan + en.pruef) && !/Prüfen|Einordnen/.test(en.pruef), en);
+  ok('B25b ein Satz, der nur mit Emoji im Wörterbuch steht, wird auch ohne Emoji übersetzt („Ordner ausgeben" → „Export folder")', await page.evaluate(() => WFP.Sprache.T('Ordner ausgeben') === 'Export folder'), await page.evaluate(() => WFP.Sprache.T('Ordner ausgeben')));
   ok('B26 auf Englisch kein sichtbares Emoji', !(await sichtEmoji(page)).length, await sichtEmoji(page));
   await page.evaluate(() => WFP.Sprache.setzen('de')); await page.waitForTimeout(300);
   ok('B27 zurück auf Deutsch: wieder deutsch, Symbol bleibt', await page.evaluate(() => /Scannen/.test(document.getElementById('btnScan').innerText) && !!document.querySelector('#btnScan svg.ic-strich')));
@@ -231,6 +232,7 @@ try {
   ok('B30 Scanner ohne sichtbares Emoji', !(await sichtEmoji(page)).length, await sichtEmoji(page));
   ok('B31 keine Seitenfehler', !fehler.length, fehler);
   await ctx.close();
-} finally { await browser.close(); srv.close(); fs.rmSync(TMP, { recursive: true, force: true }); }
+} catch (e) { ok('Probe lief durch', false, String((e && e.stack) || e).split('\n').slice(0, 3).join(' | ')); }
+finally { await browser.close(); srv.close(); fs.rmSync(TMP, { recursive: true, force: true }); }
 console.log(`\n${gruen} grün · ${rot} ROT`);
 process.exitCode = rot ? 1 : 0;
