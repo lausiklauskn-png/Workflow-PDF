@@ -38,7 +38,28 @@
   const fehlt = new Set(), fehltSatz = new Set();
 
   const norm = s => s.replace(/\s+/g, ' ').trim();
-  const text = () => (W.SPRACH_TEXTE || {})[LANG] || {};
+  /* Strichgrafiken (assets/strich.js, Pro-Umbau 5): ein Emoji im Text wird dort zu <svg data-strich="📷">. Steht der
+     Text danach ohne Emoji da („Scannen"), schlägt diese Datei ihn auch ohne Emoji nach: zu jedem Schlüssel mit
+     Bildzeichen gibt es denselben Schlüssel ohne — der Wert ebenfalls ohne (das Symbol steht ja davor). Die
+     Wörterbücher bleiben unverändert. */
+  const BILD_RE = /\s?(?![↗©™®↔↕↺↻])\p{Extended_Pictographic}(?:\uFE0F|\u20E3)*(?:\u200D\p{Extended_Pictographic}\uFE0F?)*\s?/gu;
+  const ohneBild = t => String(t).replace(BILD_RE, ' ').replace(/[\uFE0F\u200D]/g, '').replace(/ {2,}/g, ' ').trim();
+  const OHNE = {};
+  function text() {
+    const roh = (W.SPRACH_TEXTE || {})[LANG] || {};
+    const c = OHNE[LANG];
+    if (c && c.roh === roh && c.n === Object.keys(roh).length) return c.t;
+    const t = Object.assign({}, roh);
+    for (const [k, v] of Object.entries(roh)) {
+      if (!/\p{Extended_Pictographic}/u.test(k)) continue;
+      const sk = ohneBild(k);
+      if (!sk || Object.prototype.hasOwnProperty.call(t, sk)) continue;
+      t[sk] = typeof v === 'function' ? (...a) => ohneBild(v(...a)) : ohneBild(v);
+    }
+    OHNE[LANG] = { roh, n: Object.keys(roh).length, t };
+    delete MUSTER[LANG];
+    return t;
+  }
 
   // Muster ({}-Schlüssel) je Sprache einmal übersetzen.
   const MUSTER = {};
@@ -124,6 +145,9 @@
           // Ein Name des Nutzers steht als <n>…</n> im Satz; der Wert schreibt <n>{1}</n>,
           // eingesetzt wird beim Aufbau der Original-Knoten (unübersetzt, samt Inhalt).
           if (c.tagName === 'SPAN' && c.hasAttribute('data-kein-ue')) { inl++; s += '<n>' + c.textContent + '</n>'; continue; }
+          // Ein Strichsymbol (assets/strich.js) zählt als sein Emoji: der Schlüssel bleibt der aus dem Wörterbuch,
+          // die Übersetzung trägt das Emoji wieder, und strich.js macht daraus erneut das Symbol.
+          if (c.tagName === 'svg' && c.hasAttribute('data-strich')) { inl++; s += c.getAttribute('data-strich'); continue; }
           // Ein Kind mit Kennung oder data-Marke hält die App womöglich fest (querySelector
           // im onMount, VOR diesem Beobachter) — es auszutauschen hieße, ihr den Knoten zu nehmen.
           if (!INLINE.has(c.tagName) || c.id || [...c.attributes].some(a => a.name.startsWith('data-'))) { ok = false; return; }
@@ -163,6 +187,8 @@
       if (m[2] !== 'br') stapel.push(neu);
     }
     el.replaceChildren(frag);
+    // Emoji im neu gebauten Satz gleich wieder zum Strichsymbol (assets/strich.js) — nicht erst im nächsten Takt
+    if (W.Strich) W.Strich.ersetzen(el);
   }
 
   function richElement(el) {

@@ -15,7 +15,7 @@ const FAELLE = [
   { name: 'eigene Worte werden nicht gesucht', datei: 'assets/app.js', anker: "fields: (d.fields || []).concat(bildFelder(d)) }", ersatz: "fields: d.fields }", trifft: /eigenen Worten/ },
   { name: 'der Schalter tut nichts', datei: 'assets/app.js', anker: ' && imZeitraum(d) && bildFilter(d));', ersatz: ' && imZeitraum(d));', trifft: /Schalter an/ },
   { name: 'das Feld steht auch am PDF', datei: 'assets/bildbeschreibung.js', anker: "const d = A.S.docs.find(x => x.id === el.dataset.id); if (!istBild(d)) return;", ersatz: "const d = A.S.docs.find(x => x.id === el.dataset.id); if (!d) return;", trifft: /das PDF nicht/ },
-  { name: 'das Modell lädt von selbst, ohne Wahl', datei: 'assets/bildbeschreibung.js', anker: 'function start() { if (A && A.EINST.bild) starten(); }', ersatz: 'function start() { starten(); }', trifft: /nichts ins Netz|von selbst/ },
+  { name: 'das Modell lädt von selbst, ohne Wahl', datei: 'assets/bildbeschreibung.js', anker: "function start() { if (A && A.EINST.bild && B.zustand === 'aus' && !B._lauf) { B.zustand = 'wartet'; leiste(); } }", ersatz: 'function start() { starten(); }', trifft: /nichts ins Netz|von selbst/ },
   { name: 'eigene Worte werden nicht gespeichert', datei: 'assets/bildbeschreibung.js', anker: "    await A.DB.put('docs', d);\n    // Karten und Editor", ersatz: "    // Karten und Editor", trifft: /gespeichert|Neuladen/ },
   { name: 'ⓘ wird nicht gemerkt', datei: 'assets/bildbeschreibung.js', anker: 'i.onclick = () => { const offen = t.hidden; zeigen(offen); hilfeMerken(offen); };', ersatz: 'i.onclick = () => { const offen = t.hidden; zeigen(offen); };', trifft: /gemerkt/ },
   { name: 'der Dialog verschweigt die gemessenen Zahlen', datei: 'assets/bildbeschreibung.js', anker: 'Download ${nm(String(MESSUNG.downloadMB))} MB', ersatz: 'Download', trifft: /GEMESSENEN/ },
@@ -26,7 +26,7 @@ const FAELLE = [
   // Der Riegel vor der Schleife und der in alleBeschreiben decken einander — sabotiert wird deshalb das Abbrechen selbst (der Lauf bleibt der gültige).
   { name: 'Abbrechen lässt das Modell weiterlaufen und beschreiben', datei: 'assets/bildbeschreibung.js', anker: "B.zustand = 'aus'; B.fehler = ''; B.beschreibt = null; B._lauf = null; B.pipe = null;", ersatz: "B.zustand = 'aus'; B.fehler = ''; B.beschreibt = null; B.pipe = null;", trifft: /nach dem Ende des Ladens|Abbrechen/ },
   { name: 'ein Fehler wird verschluckt (Leiste geht auf „aus")', datei: 'assets/bildbeschreibung.js', anker: "B.zustand = 'fehler'; B.fehler =", ersatz: "B.zustand = 'aus'; B.fehler =", trifft: /Fehler: wird gesagt/ },
-  { name: 'das Modul fehlt im Vorrat des Workers', datei: 'sw.js', anker: " './assets/bildbeschreibung.js?v=1',", ersatz: '', trifft: /Vorrat/ },
+  { name: 'das Modul fehlt im Vorrat des Workers', datei: 'sw.js', anker: " './assets/bildbeschreibung.js?v=2',", ersatz: '', trifft: /Vorrat/ },
 ];
 
 let gefangen = 0, durch = 0, falsch = 0, tot = 0;

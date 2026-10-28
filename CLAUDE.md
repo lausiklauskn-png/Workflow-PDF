@@ -5,6 +5,62 @@ ausfüllen → festes / ausfüllbares PDF / leere Vorlage. Kein Build-Schritt.
 Vorlage war der Originaldokument-Modus von Mein-WorkFloh (Felder in Prozent
 über der echten Seite, „bearbeiten" gegen „ausfüllen").
 
+## Pro-Umbau 5: nichts startet von selbst · Prüfen/Einordnen für die Auswahl · Strichgrafiken · nur Vorschaubilder (Klaus 2026-10-28)
+
+Leitfaden der Pro-Apps § 3 und § 5 (`BookLedgerPro/docs/design/LEITFADEN-PRO-APPS-BEDIENUNG.md`), gilt für PWA UND Pro-App.
+- **Nichts startet beim Öffnen.** `bedeutungStarten({ einordnen: false })` lädt beim Start nur das Modell (aus dem Vorrat) und die
+  gespeicherten Vektoren — Suchen geht sofort, eingeordnet wird erst auf „Einordnen“. „Modell laden“ im Dialog ist selbst der Tipp
+  und ordnet danach alle ein. `BED.frei` = „Einordnen“ lief in dieser Sitzung für alle → neue Dokumente ordnen sich mit ein (wie
+  vorher); Abbrechen nimmt das zurück. Die **Bildbeschreibung** wartet nach dem Start (`B.zustand = 'wartet'`, Zeile „N Foto(s) noch
+  nicht beschrieben.“ + **Beschreiben**, eine Frage mit Zahl und 256 MB); erst danach lädt das Bildmodell. ⚠ Tafel-Evolution, benannt:
+  bis 1.1.3 ordnete der Kern beim Öffnen ein und lud das Bildmodell (1,2 GB Spitze) von selbst — die Pro-App bremste das von außen
+  (`native-hintergrund.js`), das ist jetzt im Kern.
+- **Arbeitsleiste über den Karten** (`#pruefAlle`, `pruefLeiste`): **▶ Prüfen** und **🧠 Einordnen** nebeneinander, farbig nur der
+  nächste Schritt. Mit Auswahl (Kästchen, langer Druck) „Prüfen (N)“/„Einordnen (N)“ ohne Frage für genau die gewählten
+  (`allePruefen(ids)`, `vektorenNachholen(nur)`), ohne Auswahl die Frage „Alle N …?“ (`pruefenKnopf`, `einordnenKnopf`). Einer zur
+  Zeit, Datei für Datei, mit Stand und **■ Abbrechen** (Einordnen hält nach dem laufenden Block an, `BED.stopp`, Zeile „Angehalten.“).
+- **Hintergrundaufgabe:** gibt es `window.ProHintergrund` (Baustein der Pro-Apps, Quelle Private Brain Pro), melden sich Prüfen
+  („Prüfen läuft“), Einordnen („Einordnen läuft“) und Beschreiben („Bildbeschreibung läuft“) dort an — Stand je Dokument/Foto,
+  „Abbrechen“ aus der Mitteilung wirkt wie der Knopf. Ohne den Baustein (PWA) läuft alles einfach so (`hgBeginnen`).
+- **Strichgrafiken statt Emojis** (`assets/strich.js`, `WFP.Strich`): die App schreibt weiter ihre Texte mit Emoji, die Wörterbücher
+  bleiben unverändert; ein Beobachter ersetzt im DOM jedes Bildzeichen durch `<svg class="ic-strich" data-strich="📷">` (24 × 24,
+  Strich 1,75, `currentColor`, Stil wie `pb-icons.svg`; 59 Symbole für 66 Emojis, Tafel `STRICH`). Das Emoji steht als `<desc>` im svg — `textContent`
+  bleibt gleich, sichtbar und vorgelesen wird nur der Text. In title/aria-label/placeholder/`<option>` fällt es weg, ein unbekanntes
+  Bildzeichen ebenso. Unberührt: Eingaben, Namen (`[data-kein-ue]`), `[data-kein-strich]`, SBKIM-Fenster (byte-1:1 aus Sage; die Mycel-Pille
+  trägt weiter „🌐“ — benannt). ⚠ **Reihenfolge:** `strich.js` steht VOR `sprache.js` (ihr Beobachter muss zuerst laufen).
+  `sprache.js` liest ein Strich-svg als sein Emoji (Satz-Ebene, Schlüssel unverändert) und schlägt einen Text auch ohne Emoji nach
+  (zu jedem Schlüssel mit Bildzeichen ein Zwilling ohne, Wert ebenfalls ohne); nach einem Neuaufbau ruft sie `WFP.Strich.ersetzen`
+  sofort. Gilt für alle Flächen (Kopf, Start, Bibliothek, Editor, Einstellungen, Dialoge, Scanner) — `scanner.js` bleibt unverändert.
+- **Flach:** Knöpfe 32 px (`.knopf`), klein 28 px, Kopf-Symbole 32 px ab 521 px (darunter die Handy-Maße 34/31 px), Start-Kacheln eine Zeile (32 px, ohne Schatten, Unterzeile
+  weg, farbig nur „PDF oder Bild“). Am Ende von `style.css`.
+- **Bibliothek lädt nur Vorschaubilder:** beim Öffnen liest sie nur das Fach `docs` (Name, Zahlen, `d.thumb` 260 px). Gemessen
+  (`tests/arbeit.mjs` B11, IndexedDB und `pdfjsLib.getDocument` gezählt): 3 Dokumente → **0** Lesezugriffe auf `files`, **0** auf `texte`,
+  **0** PDF geöffnet. Vorher öffnete `texteNachholen()` beim Laden jedes PDF ohne gemerkten Seitentext mit pdf.js und las `texte` ganz.
+  Jetzt holt erst die Suche den Seitentext (`zeichneBibliothek`, B12: 1 Lesezugriff auf `texte`, 0 PDF); ein Dokument ohne Datei wird
+  nicht bei jeder Suche neu versucht. ⚠ Sortieren nach **Dateigröße** liest weiter jede Datei einmal (Größe steht nicht am Dokument).
+- Version **1.1.4**, Cache **v109**, `app.js?v=72`, `style.css?v=46`, `sprache.js?v=4`, `sprache-texte.js?v=49` (34 neue Sätze je EN/RU/AR),
+  `bildbeschreibung.js?v=2`, `strich.js?v=1` (im Vorrat).
+- Proben: `tests/arbeit.mjs` (in `npm test`, 40 grün; Modul 03, Bildmodell und `ProHintergrund` gestellt) · `node tests/gegenprobe_arbeit.mjs`
+  (16 Fälle; `NUR_ANKER=1`, `NUR_FALL`). Angepasst: `eingang.mjs` (Frage vor „Prüfen“), `bedeutung.mjs` (nach dem Neuladen erst „Einordnen“),
+  `suche.mjs` (Seitentext erst bei der Suche), `bildbeschreibung.mjs` (wartet auf „Beschreiben“); tote Anker in fünf Gegenproben nachgezogen
+  (drei davon waren schon auf main tot: bedeutung „Dialog verschweigt“, suche „kein Text erfasst“, version 1.1.0/v105).
+- **Befunde beim Bau:** (1) `pruefLeiste` verglich `innerHTML` mit dem gebauten Text — nach `strich.js` steht dort svg statt Emoji, also
+  setzte sie bei jedem Aufruf neu (die Probe fand „nicht sichtbar/stabil“); jetzt Vergleich mit dem zuletzt gesetzten Text. (2) Ein
+  `async`-Lauf, der sich selbst als `BED.einLauf` sucht, sieht sich im synchronen Teil noch nicht — die Leiste zeigte den Lauf nie;
+  `await Promise.resolve()` zuerst (dieselbe TDZ-Lehre wie in der Bildbeschreibung). (3) `tests/sprache.mjs` las sofort nach dem
+  Umschalten `innerText`: das Emoji stand noch als Text da — `sprache.js` wandelt jetzt im selben Takt. (4) Ein einzelnes eingelesenes
+  PDF/Foto öffnet den Editor; Klicks in der Bibliothek trafen danach „nicht sichtbar“ — die Probe geht zurück (`zurBib`).
+  (5) In der CI (andere Schrift) wurde „Workfloh PDF“ bei 320 px abgeschnitten: die neue Regel `.ikon{32px}` stand am Ende von
+  `style.css` und überstimmte die gemessenen Handy-Maße (31 px bis 370 px) — sechs Knöpfe je 1 px, Gruppe 5 px breiter. Lokal grün,
+  weil die Behälter-Schrift schmaler ist. Jetzt gelten 32 px erst ab 521 px; nachgemessen: Gruppe wieder 196 px wie auf main.
+  (6) Gegenprobe `gegenprobe_arbeit.mjs`: **15 gefangen · 0 durchgerutscht · 0 aus falschem Grund · 0 tote Anker** (vor Fall 16).
+  (7) **Echter Fehler, in der CI gefunden** (`tests/bildbeschreibung.mjs`, „Die gewöhnliche Suche findet weiter das PDF → []“): seit die Suche
+  den Seitentext erst nachholt, holte `texteNachholen()` ihn nach einem Neuladen aus dem Fach `texte`, zeichnete die Liste aber nur neu, wenn
+  ein PDF FRISCH gelesen wurde — die erste Suche nach dem Neuladen blieb leer stehen, bis man weitertippte. Lokal war der Speicher schneller
+  als die Probe, in der CI nicht. Jetzt zählt Text aus dem Speicher wie neu gelesen. Probe B12b (eigenes Fenster OHNE Bedeutungssuche — mit
+  ihr zeichnet deren Antwort die Liste ohnehin neu; die Zeile war zweimal blind, bis das klar war); Gegenprobe-Fall 16 gefangen.
+- ⚠ Am Tablet nicht gemessen; echtes Modell und echte Android-Mitteilung nicht (gestellt); Zeit des Einordnens bei 400 Seiten ungemessen.
+
 ## Bildbeschreibung (Sitzung 4 mit Private Brain Pro, Klaus 2026-10-26)
 
 Klaus: „Die soll Workflow PDF Pro und Workflow PDF bekommen. Auch die Suche … Alle.“ Kurzer Name überall

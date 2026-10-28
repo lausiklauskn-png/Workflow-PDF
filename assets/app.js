@@ -155,9 +155,13 @@
     // Was DB.putFile/del weggeworfen hat, fällt auch aus dem Vorrat
     try { const da = new Set(await DB.keys('texte')); for (const id of [...TEXTE.keys()]) if (!da.has(id) && TEXTE.get(id).length) TEXTE.delete(id); } catch (_) {}
     zeichneBibliothek();
-    texteNachholen();
-    if (BED.zustand === 'bereit') vektorenNachholen().then(() => { bedeutungZeichnen(); if (BED.ergebnis === null && $('sc-bib').classList.contains('on')) zeichneBibliothek(); }).catch(() => {});
-    if (window.WFP && WFP.Bild) WFP.Bild.nachziehen();   // neue Fotos beschreiben, solange das Bildmodell bereit ist
+    /* Pro-Umbau 5 (Klaus 2026-10-28, Leitfaden § 3 und § 5): beim Öffnen werden nur die Karten gezeichnet —
+       Name, Zahlen und das Vorschaubild (d.thumb, 260 px) aus dem Fach „docs". Kein PDF wird geöffnet: den
+       Seitentext liest erst die Suche nach (texteNachholen in zeichneBibliothek), das Einordnen erst „Einordnen".
+       Neue Dokumente ordnet die Bedeutung nur nach, wenn „Einordnen“ in dieser Sitzung schon für alle lief. */
+    if (BED.zustand === 'bereit' && BED.frei) einordnenLauf(null).catch(() => {});
+    else if (BED.zustand === 'bereit') bedeutungZeichnen();   // die Zeile zählt neue, noch nicht eingeordnete Dokumente
+    if (window.WFP && WFP.Bild) WFP.Bild.nachziehen();   // neue Fotos beschreiben, solange „Beschreiben“ in dieser Sitzung lief
   }
   function offeneVorschlaege(d) { return (d.fields || []).filter(f => !f.geprueft).length; }
   /* Sortierung der Bibliothek (Klaus 2026-09-26: „Seite 1 bis 40 als erstes, dann Seite 41 bis 81
@@ -200,6 +204,8 @@
     // Die Rechnung steht in assets/suche.js; hier nur Auswahl und Anzeige. Gerechnet wird über ALLE
     // Dokumente, damit jeder Ordner-Knopf seine Trefferzahl zeigt; angezeigt nur der gewählte Ordner.
     const such = SU.anfrage(S.suche);
+    // Seitentext erst für die Suche lesen (Pro-Umbau 5): ohne Suche öffnet die Bibliothek kein PDF
+    if (such.length && S.docs.some(d => !TEXTE.has(d.id))) texteNachholen();
     const FUND = new Map();
     if (such.length) for (const d of S.docs) {
       const ordn = S.ordner.find(x => x.id === d.folderId);
@@ -393,14 +399,22 @@
           + `<span class="bed-mb" data-bed-zeit>${h('Dokument ' + o.dok + ' von ' + o.doks + ' · ' + (o.msSeite == null ? 'Zeit je Seite wird gemessen …' : '≈ ' + sek(o.msSeite) + ' s je Seite · noch ≈ ' + min(o.restMs) + ' min'))}</span>`
         : `<span class="bed-t" data-bed-text>${h('Dokumente werden geprüft …')}</span>`;
       html += `<div class="fortschritt" data-bed-balken role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.floor(p)}"><i style="width:${p.toFixed(1)}%"></i></div>`;
+      html += BED.stopp ? `<span class="bed-t" data-bed-haelt>${h('Hält an …')}</span>` : '<button class="knopf klein" type="button" data-bed-stopp>■ Abbrechen</button>';
       if (o) html += `<span class="bed-t bed-klein" data-bed-schon>${h('Suchen geht schon — was eingeordnet ist, wird gefunden.')}</span>`;
-    } else if (z === 'bereit') html = `<span class="bed-t" data-bed-text>🧠 ${h('Suche nach Bedeutung an · ' + BED.vek.size + ' Dokumente eingeordnet')}</span><button class="knopf klein" type="button" data-bed-mehr>⚙️</button>`;
+    } else if (z === 'bereit') {
+      const offen = offeneEinordnen().length;
+      html = `<span class="bed-t" data-bed-text>🧠 ${h('Suche nach Bedeutung an · ' + (S.docs.length - offen) + ' Dokumente eingeordnet')}</span>`
+        + (offen ? `<span class="bed-t" data-bed-offen="${offen}">${h((BED.angehalten ? 'Angehalten. ' : '') + offen + ' noch nicht eingeordnet — „Einordnen" über den Karten.')}</span>` : '')
+        + '<button class="knopf klein" type="button" data-bed-mehr title="Suche nach Bedeutung: Einstellungen" aria-label="Suche nach Bedeutung: Einstellungen">⚙️</button>';
+    }
     else html = `<span class="bed-t bed-fehler" data-bed-text>⚠️ ${'Suche nach Bedeutung ging nicht:'} <span data-kein-ue>${h(BED.fehler)}</span></span><button class="knopf klein" type="button" data-bed-nochmal>↻ Nochmal</button><button class="knopf klein" type="button" data-bed-mehr>⚙️</button>`;
     l.innerHTML = html;
     const b = sel => l.querySelector(sel);
     if (b('[data-bed-an]')) b('[data-bed-an]').onclick = bedeutungDialog;
     if (b('[data-bed-mehr]')) b('[data-bed-mehr]').onclick = bedeutungDialog;
-    if (b('[data-bed-nochmal]')) b('[data-bed-nochmal]').onclick = () => bedeutungStarten();
+    if (b('[data-bed-nochmal]')) b('[data-bed-nochmal]').onclick = () => bedeutungStarten({ einordnen: !!BED.frei });
+    if (b('[data-bed-stopp]')) b('[data-bed-stopp]').onclick = einordnenStopp;
+    pruefLeiste();
   }
   function bedeutungDialog() {
     const an = BED.zustand !== 'aus';
@@ -418,13 +432,21 @@
     });
   }
   function bedeutungAus() {
-    EINST.bedeutung = false; einstSpeichern();
+    EINST.bedeutung = false; einstSpeichern(); BED.frei = false;
     BED.zustand = 'aus'; BED.ergebnis = null; BED.fehler = ''; S.bedeutungFund = new Map(); BED._lauf = null;
     bedeutungZeichnen(); if ($('sc-bib').classList.contains('on')) zeichneBibliothek();
   }
   let _bedFort = null;
-  function bedeutungStarten() {
+  /* Pro-Umbau 5 (Klaus 2026-10-28, Leitfaden § 3: „Nichts startet von selbst beim Öffnen"). Beim Start lädt
+     bedeutungStarten({ einordnen: false }) nur das Modell (aus dem Vorrat des Browsers) und liest die schon
+     gespeicherten Vektoren — gesucht werden kann sofort, eingeordnet wird erst auf „Einordnen“ (Arbeitsleiste
+     über den Karten, für die Auswahl oder „Alle N?"). „Modell laden" im Dialog ist selbst der Tipp dafür und
+     ordnet danach alle ein. BED.frei: „Einordnen“ lief in dieser Sitzung für alle — dann ordnen sich neue
+     Dokumente (Einlesen, Scannen) von selbst mit ein, wie vorher. Wer neu lädt, tippt wieder. */
+  function bedeutungStarten(opt) {
     if (BED._lauf) return BED._lauf;
+    const einordnen = !opt || opt.einordnen !== false;
+    if (einordnen) BED.frei = true;
     BED.zustand = 'laedt'; BED.fehler = ''; BED.dateien = new Map(); BED.stand = { prozent: null, geladen: 0, gesamt: 0, datei: '' }; bedeutungZeichnen();
     if (!_bedFort) {
       _bedFort = ev => {
@@ -438,16 +460,68 @@
       await modulLaden();
       await window.SbkimEmbedding.init();
       if (BED._lauf !== lauf) return;
-      BED.zustand = 'ordnet'; BED.ordnet = null; if (!BED.msStueck && EINST.bedMsStueck) { BED.msStueck = EINST.bedMsStueck; BED.gemessen = 32; } bedeutungZeichnen();
-      await vektorenNachholen();
+      if (!BED.msStueck && EINST.bedMsStueck) { BED.msStueck = EINST.bedMsStueck; BED.gemessen = 32; }
+      await vektorenAusSpeicher();
       if (BED._lauf !== lauf) return;
       BED.zustand = 'bereit'; BED.ergebnis = null; bedeutungZeichnen();
       if ($('sc-bib').classList.contains('on')) zeichneBibliothek();
+      if (BED.frei) await einordnenLauf(null);
     })().catch(e => {
       if (BED._lauf !== lauf) return;
       BED.zustand = 'fehler'; BED.fehler = String((e && e.message) || e).slice(0, 200); BED._lauf = null; bedeutungZeichnen();
     });
     return lauf;
+  }
+  /* Hintergrundaufgabe (Leitfaden § 3): läuft die Seite in einer Pro-App mit window.ProHintergrund (gemeinsamer
+     Baustein aus Private Brain Pro), meldet sich jeder lange Lauf dort an — Mitteilung mit Stand und „Abbrechen",
+     Android hält die App am Leben. Ohne den Baustein (PWA) läuft dieselbe Arbeit einfach so. */
+  async function hgBeginnen(art, titel) {
+    try { return window.ProHintergrund && typeof window.ProHintergrund.beginnen === 'function' ? await window.ProHintergrund.beginnen({ art, titel: T(titel) }) : null; }
+    catch (_) { return null; }
+  }
+  // Dokumente, deren Abschnitte noch nicht (ganz) eingeordnet sind — aus dem, was gespeichert ist
+  const einzuordnen = d => { const e = BED.vek.get(d.id); return !e || e.st.length < e.n; };
+  const offeneEinordnen = () => S.docs.filter(einzuordnen);
+  const einordnenMoeglich = () => BED.zustand === 'bereit' || BED.zustand === 'ordnet';
+  /* Einordnen, Dokument für Dokument: nur = Set der Kennungen (Auswahl) oder null (alle). Ein Lauf zur Zeit;
+     „Abbrechen" (Leiste oder Mitteilung) hält nach dem laufenden Abschnittsblock an — gespeichert ist, was fertig
+     ist, „Einordnen" macht an derselben Stelle weiter. */
+  function einordnenLauf(nur) {
+    if (BED.einLauf) { if (!nur) vektorenNachholen(null); return BED.einLauf; }
+    if (!einordnenMoeglich()) return Promise.resolve();
+    if (!nur) BED.frei = true;
+    const lauf = BED.einLauf = (async () => {
+      await Promise.resolve();   // erst nach der Zuweisung weiter: die Leisten zeigen sonst den Lauf nicht
+      BED.stopp = false; BED.angehalten = false; BED.zustand = 'ordnet'; BED.ordnet = null; bedeutungZeichnen();
+      BED.hg = await hgBeginnen('einordnen', 'Einordnen läuft');
+      if (BED.hg) BED.hg.signal.addEventListener('abort', () => { BED.stopp = true; bedeutungZeichnen(); }, { once: true });
+      try { await vektorenNachholen(nur); }
+      finally {
+        if (BED.hg) { BED.hg.ende(); BED.hg = null; }
+        const angehalten = BED.stopp;
+        if (angehalten) BED.frei = false;   // wer anhält, will nicht, dass es beim nächsten Einlesen weiterläuft
+        BED.stopp = false; BED.einLauf = null;
+        if (BED.zustand === 'ordnet') { BED.zustand = 'bereit'; BED.ergebnis = null; }
+        BED.angehalten = angehalten;
+        bedeutungZeichnen();
+        if ($('sc-bib').classList.contains('on')) zeichneBibliothek();
+      }
+    })();
+    return lauf;
+  }
+  function einordnenStopp() { if (BED.einLauf) { BED.stopp = true; bedeutungZeichnen(); } }
+  async function einordnenKnopf() {
+    if (!einordnenMoeglich() || BED.einLauf || ALLE.an) return;
+    if (WAHL.size) {
+      const ids = [...WAHL].filter(id => { const d = S.docs.find(x => x.id === id); return d && einzuordnen(d); });
+      if (!ids.length) { toast('Unter den gewählten ist nichts mehr einzuordnen.'); return; }
+      return einordnenLauf(new Set(ids));
+    }
+    const n = offeneEinordnen().length; if (!n) return;
+    const ms = Number(EINST.bedMsStueck) || 0, seiten = offeneEinordnen().reduce((a, d) => a + ((d.pages && d.pages.length) || 1), 0);
+    const dauer = ms ? ' ' + 'Zuletzt gemessen: ≈ ' + (ms * 4 / 1000).toFixed(1).replace('.', ',') + ' s je Seite, zusammen ≈ ' + Math.max(1, Math.round(ms * 4 * seiten / 60000)) + ' min.' : '';
+    if (!await frage('Alle ' + n + ' Dokumente einordnen?', '<p>' + h('Läuft im Hintergrund, Dokument für Dokument. Du kannst weiterarbeiten; nach einer Unterbrechung geht es an derselben Stelle weiter.') + (dauer ? '</p><p class="hinweis" data-einordnen-dauer>' + h(dauer.trim()) : '') + '</p>', 'Einordnen')) return;
+    return einordnenLauf(null);
   }
   /* Jedes Dokument einordnen — ALLE Seiten (seit 2026-09-26 ohne Deckel). Unverändert
      Eingeordnetes kommt aus dem Speicher. Gespeichert wird in Blöcken zu VEK_BLOCK Abschnitten
@@ -474,7 +548,8 @@
     BED.speicherGelesen = true;
   }
   let _vekLauf = null, _vekNochmal = false;
-  function vektorenNachholen() {
+  // nur: Set der Kennungen (Einordnen für die Auswahl) oder null (alle)
+  function vektorenNachholen(nur) {
     if (_vekLauf) { _vekNochmal = true; return _vekLauf; }
     _vekLauf = (async () => {
       do {
@@ -483,6 +558,7 @@
         await vektorenAusSpeicher();
         const plan = [];
         for (const d of S.docs.slice()) {
+          if (nur && !nur.has(d.id)) continue;
           const st = BD.stuecke(d, TEXTE.get(d.id) ? TEXTE.get(d.id) : null);
           const sig = BD.signatur(st), alt = BED.vek.get(d.id);
           if (!st.length) { if (alt) { BED.vek.delete(d.id); DB.vektorenWeg(d.id).catch(() => {}); } continue; }
@@ -500,7 +576,7 @@
             try { await DB.vektorenWeg(d.id); await DB.put('vektoren', { id: d.id, sig, n: st.length, fertig: 0 }); } catch (_) {}
           }
           for (let k = e.st.length; k < st.length; k += 16) {
-            if (BED.zustand === 'aus' || BED.zustand === 'fehler') return;
+            if (BED.zustand === 'aus' || BED.zustand === 'fehler' || BED.stopp) return;
             const teil = st.slice(k, k + 16), t0 = performance.now();
             const vs = await window.SbkimEmbedding.embedPassageBatch(teil.map(x => x.text));
             const ms = (performance.now() - t0) / teil.length;
@@ -521,6 +597,7 @@
               msSeite: BED.gemessen >= 32 ? BED.msStueck * st.length / Math.max(1, d.pages.length) : null,
               restMs: BED.gemessen >= 32 ? BED.msStueck * (gesamt - fertig) : null };
             if (BED.zustand === 'ordnet') bedeutungZeichnen();
+            if (BED.hg) BED.hg.stand(T('Dokument ' + (i + 1) + ' von ' + plan.length) + ' · ' + d.name, i, plan.length);
           }
           BED.ergebnis = null;
           if (BED.zustand === 'ordnet' && String(S.suche || '').trim() && $('sc-bib').classList.contains('on')) zeichneBibliothek();
@@ -631,11 +708,14 @@
   function texteNachholen() {
     if (_nachholen) return _nachholen;
     _nachholen = (async () => {
-      try { for (const r of await DB.all('texte')) if (!TEXTE.has(r.id)) TEXTE.set(r.id, SU.vorbereiten(r.seiten)); } catch (_) {}
+      // Kam Seitentext aus dem Speicher dazu, zählt das wie neu gelesen: die Trefferliste wird danach neu gezeichnet.
+      // (Pro-Umbau 5: seit die Suche den Text erst nachholt, blieb die erste Suche nach dem Neuladen sonst leer stehen —
+      // gefunden von tests/bildbeschreibung.mjs in der CI, lokal war der Speicher schneller als die Probe.)
       let neu = false;
+      try { for (const r of await DB.all('texte')) if (!TEXTE.has(r.id)) { TEXTE.set(r.id, SU.vorbereiten(r.seiten)); neu = true; } } catch (_) {}
       for (const d of S.docs.slice()) {
         if (TEXTE.has(d.id)) continue;
-        const b = await DB.getFile(d.id); if (!b) continue;
+        const b = await DB.getFile(d.id); if (!b) { TEXTE.set(d.id, []); continue; }   // ohne Datei: nicht bei jeder Suche neu lesen
         let pdf = null;
         try { pdf = await pdfjsLib.getDocument({ data: b.slice(0) }).promise; await textAblegen(d.id, await seitenText(pdf)); neu = true; }
         catch (_) { TEXTE.set(d.id, []); }   // unlesbar: nicht bei jedem Öffnen neu versuchen
@@ -693,7 +773,7 @@
   function wahlLeiste() {
     const l = $('wahlLeiste'); if (!l) return;
     for (const id of [...WAHL]) if (!S.docs.some(d => d.id === id)) WAHL.delete(id);
-    if (!WAHL_AN && !WAHL.size) { l.hidden = true; l.innerHTML = ''; $('dokGitter').classList.remove('wahl-an'); return; }
+    if (!WAHL_AN && !WAHL.size) { l.hidden = true; l.innerHTML = ''; $('dokGitter').classList.remove('wahl-an'); pruefLeiste(); return; }
     l.hidden = false;
     const n = WAHL.size, alle = (S.sicht || []).length;
     l.innerHTML = `<b data-wahl-zahl="${n}">✓ ${n} ausgewählt</b>
@@ -710,6 +790,7 @@
     q('[data-wahl-loeschen]').onclick = () => loeschenMehrere([...WAHL]);
     q('[data-wahl-ende]').onclick = wahlEnde;
     $('dokGitter').classList.toggle('wahl-an', WAHL_AN);
+    pruefLeiste();
   }
   async function inOrdner(ids, folderId) {
     let n = 0;
@@ -1040,42 +1121,81 @@
      Atempause dazwischen (ein Buch mit 400 Seiten friert sonst die Seite ein). Abbrechen hält nach dem
      laufenden Dokument an; die übrigen bleiben „noch nicht geprüft". Der Knopf steht nur da, wenn es
      Ungeprüfte gibt. */
-  const ALLE = { an: false, stopp: false, gesamt: 0, fertig: 0, geprueft: 0, warn: 0, ende: null };
+  const ALLE = { an: false, stopp: false, gesamt: 0, fertig: 0, geprueft: 0, warn: 0, ende: null, auswahl: false };
   const offenePruefungen = () => S.docs.filter(pruefbar);
+  /* Arbeitsleiste über den Karten (Pro-Umbau 5, Klaus 2026-10-28, Leitfaden § 3): „Prüfen" und „Einordnen"
+     nebeneinander. Mit Auswahl (langer Druck, Kästchen) wirken sie auf die gewählten Dokumente, ohne Auswahl
+     fragen sie „Alle N …?". Beide laufen Dokument für Dokument im Hintergrund, mit Stand und Abbrechen; einer
+     zur Zeit. Nichts davon startet von selbst. Farbig ist nur der nächste Schritt (Prüfen vor Einordnen). */
+  const gewaehlt = test => [...WAHL].filter(id => { const d = S.docs.find(x => x.id === id); return d && test(d); });
   function pruefLeiste() {
     const l = $('pruefAlle'); if (!l) return;
     const offen = offenePruefungen().length;
+    const einOffen = einordnenMoeglich() ? offeneEinordnen().length : 0;
+    const wahl = WAHL.size > 0;
+    const pz = wahl ? gewaehlt(pruefbar).length : offen;
+    const ez = !einordnenMoeglich() ? 0 : wahl ? gewaehlt(einzuordnen).length : einOffen;
+    const laeuft = ALLE.an || !!BED.einLauf;
+    const knoepfe = () => {
+      let k = '';
+      if (offen || (wahl && pz)) k += `<button class="knopf klein${pz ? ' rot' : ''} pruef-alle-knopf" type="button" data-pruef-alle-los data-pruefen${laeuft || !pz ? ' disabled' : ''}>▶ ${wahl ? 'Prüfen (' + pz + ')' : 'Prüfen'}</button>`;
+      if (einOffen || (wahl && ez)) k += `<button class="knopf klein${ez && !pz ? ' rot' : ''}" type="button" data-einordnen${laeuft || !ez ? ' disabled' : ''}>🧠 ${wahl ? 'Einordnen (' + ez + ')' : 'Einordnen'}</button>`;
+      if (k && !wahl) k += `<span class="hinweis" data-pruef-alle-zahl>${[offen ? offen + ' noch nicht geprüft' : '', einOffen ? einOffen + ' noch nicht eingeordnet' : ''].filter(Boolean).join(' · ')}</span>`;
+      else if (k) k += `<span class="hinweis" data-arbeit-wahl>${h('für die Auswahl')}</span>`;
+      return k;
+    };
     let html = '';
     if (ALLE.an) {
       html = `<div class="pruef-alle-lauf" data-pruef-alle-lauf role="status"><span class="pruef-dreh" aria-hidden="true"></span><span>${ALLE.stopp ? 'Hält nach diesem Dokument an …' : `Prüfe Dokument ${Math.min(ALLE.fertig + 1, ALLE.gesamt)} von ${ALLE.gesamt} …`}</span></div>`
         + `<progress max="${ALLE.gesamt}" value="${ALLE.fertig}" data-pruef-alle-balken></progress>`
-        + (ALLE.stopp ? '' : '<button class="knopf" data-pruef-alle-stopp>■ Abbrechen</button>');
+        + (ALLE.stopp ? '' : '<button class="knopf klein" type="button" data-pruef-alle-stopp>■ Abbrechen</button>');
     } else if (ALLE.ende) {
       const e = ALLE.ende;
       html = `<div class="pruef-alle-ende" data-pruef-alle-ende><span>✓ Fertig: ${e.geprueft} geprüft.</span>`
         + (e.warn ? ` <span class="warn" data-pruef-alle-warn>⚠ Mit Fund: ${e.warn}. Die Karte zeigt ihn.</span>` : '')
         + (e.abgebrochen ? ` <span data-pruef-alle-abgebrochen>Abgebrochen. Noch offen: ${e.offen}.</span>` : '')
-        + '</div><button class="knopf klein" data-pruef-alle-zu title="Ausblenden" aria-label="Ausblenden">✕</button>'
-        + (offen ? '<button class="knopf pruef-alle-knopf" data-pruef-alle-los>▶ Alle prüfen</button>' : '');
-    } else if (offen) {
-      html = `<button class="knopf pruef-alle-knopf" data-pruef-alle-los>▶ Alle prüfen</button><span class="hinweis" data-pruef-alle-zahl>${offen} noch nicht geprüft</span>`;
-    }
-    if (l.innerHTML !== html) l.innerHTML = html;
+        + '</div><button class="knopf klein" type="button" data-pruef-alle-zu title="Ausblenden" aria-label="Ausblenden">✕</button>'
+        + knoepfe();
+    } else if (BED.einLauf) {
+      const o = BED.ordnet;
+      html = `<div class="pruef-alle-lauf" data-einordnen-lauf role="status"><span class="pruef-dreh" aria-hidden="true"></span><span>${BED.stopp ? 'Hält an …' : o ? `Ordne Dokument ${o.dok} von ${o.doks} ein …` : 'Einordnen beginnt …'}</span></div>`
+        + (BED.stopp ? '' : '<button class="knopf klein" type="button" data-einordnen-stopp>■ Abbrechen</button>');
+    } else html = knoepfe();
+    // Vergleich mit dem zuletzt GESETZTEN Text: im DOM stehen danach Strichsymbole statt der Emojis (assets/strich.js)
+    if (l._html !== html) { l._html = html; l.innerHTML = html; }
     l.hidden = !html;
     const q = s => l.querySelector(s);
-    if (q('[data-pruef-alle-los]')) q('[data-pruef-alle-los]').onclick = allePruefen;
+    if (q('[data-pruef-alle-los]')) q('[data-pruef-alle-los]').onclick = pruefenKnopf;
+    if (q('[data-einordnen]')) q('[data-einordnen]').onclick = einordnenKnopf;
     if (q('[data-pruef-alle-stopp]')) q('[data-pruef-alle-stopp]').onclick = () => { ALLE.stopp = true; pruefLeiste(); };
+    if (q('[data-einordnen-stopp]')) q('[data-einordnen-stopp]').onclick = einordnenStopp;
     if (q('[data-pruef-alle-zu]')) q('[data-pruef-alle-zu]').onclick = () => { ALLE.ende = null; pruefLeiste(); };
   }
-  async function allePruefen() {
+  async function pruefenKnopf() {
+    if (ALLE.an || BED.einLauf) return;
+    if (WAHL.size) {
+      const ids = gewaehlt(pruefbar);
+      if (!ids.length) { toast('Unter den gewählten ist nichts mehr zu prüfen.'); return; }
+      return allePruefen(ids);
+    }
+    const n = offenePruefungen().length; if (!n) return;
+    if (!await frage('Alle ' + n + ' noch nicht geprüften Dokumente prüfen?', '<p>' + h('Läuft Dokument für Dokument im Hintergrund; du kannst weiterarbeiten. „Abbrechen" hält nach dem laufenden an.') + '</p>', 'Alle prüfen')) return;
+    return allePruefen();
+  }
+  // ids: die gewählten Dokumente; ohne: alle noch ungeprüften
+  async function allePruefen(ids) {
     if (ALLE.an) return;
-    const ids = offenePruefungen().map(d => d.id);
+    const auswahl = Array.isArray(ids);
+    ids = auswahl ? ids.slice() : offenePruefungen().map(d => d.id);
     if (!ids.length) return;
-    Object.assign(ALLE, { an: true, stopp: false, gesamt: ids.length, fertig: 0, geprueft: 0, warn: 0, ende: null });
+    Object.assign(ALLE, { an: true, stopp: false, gesamt: ids.length, fertig: 0, geprueft: 0, warn: 0, ende: null, auswahl });
     pruefLeiste();
+    const hg = await hgBeginnen('pruefen', 'Prüfen läuft');
+    if (hg) hg.signal.addEventListener('abort', () => { ALLE.stopp = true; pruefLeiste(); }, { once: true });
     try {
       for (const id of ids) {
         if (ALLE.stopp) break;
+        if (hg) hg.stand(T('Dokument ' + (ALLE.fertig + 1) + ' von ' + ALLE.gesamt), ALLE.fertig, ALLE.gesamt);
         const d = S.docs.find(x => x.id === id);
         // inzwischen gelöscht, schon geprüft oder einzeln gestartet: nicht doppelt
         if (d && pruefbar(d)) {
@@ -1088,7 +1208,8 @@
         await new Promise(r => setTimeout(r, 30));   // Atempause: die Seite bleibt bedienbar
       }
     } finally {
-      ALLE.ende = { geprueft: ALLE.geprueft, warn: ALLE.warn, abgebrochen: ALLE.stopp, offen: offenePruefungen().length };
+      if (hg) hg.ende();
+      ALLE.ende = { geprueft: ALLE.geprueft, warn: ALLE.warn, abgebrochen: ALLE.stopp, offen: (auswahl ? ids.filter(id => { const d = S.docs.find(x => x.id === id); return d && pruefbar(d); }) : offenePruefungen()).length };
       ALLE.an = false; ALLE.stopp = false;
       pruefLeiste();
     }
@@ -3188,8 +3309,8 @@
     versionZeigen();
     // Bildbeschreibung (Sitzung 4): die Nähte der App hineinreichen; das Modell startet nur, wenn die Wahl gemerkt ist
     if (window.WFP && WFP.Bild) WFP.Bild.init({ S, EINST, einstSpeichern, DB, dialog, toast, neu: () => { if ($('sc-bib').classList.contains('on')) zeichneBibliothek(); }, sprechen: window.WFSprechen, micSprache: () => MIC_LANG[(WFP.Sprache && WFP.Sprache.lang) || 'de'] || 'de-DE' });
-    ladeBibliothek().then(() => { if (EINST.bedeutung) bedeutungStarten(); if (window.WFP && WFP.Bild) WFP.Bild.start(); }).then(chromeTabRueckweg).then(geteiltUebernehmen).then(oeffnenMitEmpfangen).then(scanDirektstart).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
-    window.__wfpdf = { bild: window.WFP && WFP.Bild, eingang: { PRUEF, pruefDialog, eingangPruefen, pruefungNachholen, ALLE, allePruefen }, versionNummer, kiReiniger, beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner, geteiltUebernehmen, scanDirektstart,
+    ladeBibliothek().then(() => { if (EINST.bedeutung) bedeutungStarten({ einordnen: false }); if (window.WFP && WFP.Bild) WFP.Bild.start(); }).then(chromeTabRueckweg).then(geteiltUebernehmen).then(oeffnenMitEmpfangen).then(scanDirektstart).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
+    window.__wfpdf = { bild: window.WFP && WFP.Bild, eingang: { PRUEF, pruefDialog, eingangPruefen, pruefungNachholen, ALLE, allePruefen, pruefenKnopf, pruefLeiste }, versionNummer, kiReiniger, beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen, einordnenLauf, einordnenStopp, einordnenKnopf, offeneEinordnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner, geteiltUebernehmen, scanDirektstart,
       // für tests/sprache.mjs: jeden Dialog einmal öffnen und seine Texte nachschlagen
       dlg: { neuerOrdner, verschieben, teilenDocs, wahlEnde, WAHL, wahlUmschalten, loeschen, speichernDialog, scanStarten, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, erklaervideo, videoFuer, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe, bedeutungDialog, sicherungDialog, sicherungErinnerung } };   // für die Probe
   }

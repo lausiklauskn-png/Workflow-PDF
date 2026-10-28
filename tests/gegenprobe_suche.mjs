@@ -24,7 +24,7 @@ const FAELLE = [
     // zwei Riegel decken einander (Öffnen UND Schließen leeren) — beide weg, sonst misst der Fall nichts
     extra: { datei: 'assets/app.js', anker: 'S.doc = null; S.sel = null; S.funde = []; S.fundIdx = -1;', ersatz: 'S.doc = null; S.sel = null; S.fundIdx = -1;' }, trifft: /ohne Suche geöffnet/ },
   { name: 'neue Bytes behalten den alten Text', datei: 'assets/db.js', anker: "await DB.put('files', { id, bytes }); await abgeleitetWeg(id);", ersatz: "await DB.put('files', { id, bytes });", trifft: /neue Bytes werfen/ },
-  { name: 'beim Einlesen wird kein Text erfasst, nachgeholt wird nie', datei: 'assets/app.js', anker: '    texteNachholen();\n    if (BED.zustand', ersatz: '    if (BED.zustand', extra: { datei: 'assets/app.js', anker: " await textAblegen(d.id, text);\n    return d;\n  }\n  // Ein abgelegtes", ersatz: "\n    return d;\n  }\n  // Ein abgelegtes" }, trifft: /Probe lief durch|Seitentext/ },
+  { name: 'beim Einlesen wird kein Text erfasst, nachgeholt wird nie', datei: 'assets/app.js', anker: '    if (such.length && S.docs.some(d => !TEXTE.has(d.id))) texteNachholen();\n', ersatz: '', extra: { datei: 'assets/app.js', anker: " await textAblegen(d.id, text);\n    /* Geprüft wird nur", ersatz: "\n    /* Geprüft wird nur" }, trifft: /Probe lief durch|Seitentext/ },
   { name: 'Suche liest den Seitentext nicht', datei: 'assets/app.js', anker: 'TEXTE.get(d.id) || null, such)', ersatz: 'null, such)', trifft: /SEITENTEXT/ },
   // --- Trefferzahlen, Ordner, Suche im Dokument (2026-09-26)
   { name: 'eine Seite zählt nur einen Treffer', datei: 'assets/suche.js', anker: 'anzahl: st.length || 1,', ersatz: 'anzahl: 1,', trifft: /zwei Stellen|zweimal/ },
