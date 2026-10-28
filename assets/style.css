@@ -615,7 +615,10 @@ div.dok-pruefung{cursor:default;font-weight:600;opacity:.8}
 .ic-strich desc{display:none}
 .knopf{min-height:32px;padding:4px 10px;border-width:1.5px;border-radius:8px}
 .knopf.klein{min-height:28px;min-width:28px;padding:2px 8px}
-.ikon{width:32px;height:32px;border-width:1.5px;font-size:.95rem;display:inline-flex;align-items:center;justify-content:center;padding:0}
+/* Kopf-Symbole 32 px erst ab 521 px: darunter gelten die gemessenen Handy-Maße oben (34 / 31 px) — mit 32 px wurde
+   „Workfloh PDF“ bei 320 px in der CI-Schrift abgeschnitten (Gruppe 5 px breiter, tests/bibliothek.mjs). */
+@media (min-width:521px){.ikon{width:32px;height:32px;border-width:1.5px;font-size:.95rem}}
+.ikon{display:inline-flex;align-items:center;justify-content:center;padding:0}
 .modus-k{min-height:30px;padding:3px 10px}
 .import-leiste{gap:6px;margin-bottom:10px}
 .gross-knopf{padding:4px 10px;gap:8px;min-height:32px;border-width:1.5px;border-radius:8px;box-shadow:none;transition:none}
@@ -633,4 +636,4 @@ div.dok-pruefung{cursor:default;font-weight:600;opacity:.8}
 .pruef-alle .hinweis{margin:0;font-size:.82rem}
 .pruef-alle progress{accent-color:var(--rot)}
 .dok-akt button .ic-strich,.marke-klein .ic-strich{width:1em;height:1em}
-.kopf .knopf.klein{min-height:32px;min-width:32px}
+@media (min-width:521px){.kopf .knopf.klein{min-height:32px;min-width:32px}}

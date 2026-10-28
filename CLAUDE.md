@@ -31,7 +31,7 @@ Leitfaden der Pro-Apps § 3 und § 5 (`BookLedgerPro/docs/design/LEITFADEN-PRO-A
   `sprache.js` liest ein Strich-svg als sein Emoji (Satz-Ebene, Schlüssel unverändert) und schlägt einen Text auch ohne Emoji nach
   (zu jedem Schlüssel mit Bildzeichen ein Zwilling ohne, Wert ebenfalls ohne); nach einem Neuaufbau ruft sie `WFP.Strich.ersetzen`
   sofort. Gilt für alle Flächen (Kopf, Start, Bibliothek, Editor, Einstellungen, Dialoge, Scanner) — `scanner.js` bleibt unverändert.
-- **Flach:** Knöpfe 32 px (`.knopf`), klein 28 px, Kopf-Symbole 32 px, Start-Kacheln eine Zeile (32 px, ohne Schatten, Unterzeile
+- **Flach:** Knöpfe 32 px (`.knopf`), klein 28 px, Kopf-Symbole 32 px ab 521 px (darunter die Handy-Maße 34/31 px), Start-Kacheln eine Zeile (32 px, ohne Schatten, Unterzeile
   weg, farbig nur „PDF oder Bild“). Am Ende von `style.css`.
 - **Bibliothek lädt nur Vorschaubilder:** beim Öffnen liest sie nur das Fach `docs` (Name, Zahlen, `d.thumb` 260 px). Gemessen
   (`tests/arbeit.mjs` B11, IndexedDB und `pdfjsLib.getDocument` gezählt): 3 Dokumente → **0** Lesezugriffe auf `files`, **0** auf `texte`,
@@ -50,6 +50,10 @@ Leitfaden der Pro-Apps § 3 und § 5 (`BookLedgerPro/docs/design/LEITFADEN-PRO-A
   `await Promise.resolve()` zuerst (dieselbe TDZ-Lehre wie in der Bildbeschreibung). (3) `tests/sprache.mjs` las sofort nach dem
   Umschalten `innerText`: das Emoji stand noch als Text da — `sprache.js` wandelt jetzt im selben Takt. (4) Ein einzelnes eingelesenes
   PDF/Foto öffnet den Editor; Klicks in der Bibliothek trafen danach „nicht sichtbar“ — die Probe geht zurück (`zurBib`).
+  (5) In der CI (andere Schrift) wurde „Workfloh PDF“ bei 320 px abgeschnitten: die neue Regel `.ikon{32px}` stand am Ende von
+  `style.css` und überstimmte die gemessenen Handy-Maße (31 px bis 370 px) — sechs Knöpfe je 1 px, Gruppe 5 px breiter. Lokal grün,
+  weil die Behälter-Schrift schmaler ist. Jetzt gelten 32 px erst ab 521 px; nachgemessen: Gruppe wieder 196 px wie auf main.
+  (6) Gegenprobe `gegenprobe_arbeit.mjs`: **15 gefangen · 0 durchgerutscht · 0 aus falschem Grund · 0 tote Anker**.
 - ⚠ Am Tablet nicht gemessen; echtes Modell und echte Android-Mitteilung nicht (gestellt); Zeit des Einordnens bei 400 Seiten ungemessen.
 
 ## Bildbeschreibung (Sitzung 4 mit Private Brain Pro, Klaus 2026-10-26)
