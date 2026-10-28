@@ -215,6 +215,8 @@ else {
     await page.fill('#bibSuche', 'x'); await page.fill('#bibSuche', 'Mueller'); await page.waitForTimeout(80);
     ok('Bibliothek: nachgeholter Seitentext wird gefunden, der Hinweis ist weg', await page.evaluate(() => document.querySelectorAll('#dokGitter .dok').length === 1 && !document.querySelector('[data-suchstand]')));
     await page.reload(); await page.waitForFunction(() => window.__wfpdf && window.__wfpdf.S.docs.length === 2);
+    // Pro-Umbau 5: erst die Suche liest den Seitentext (aus dem Fach „texte“, ohne das PDF zu öffnen)
+    r = await suche('kd 4711');
     await page.waitForFunction(() => window.__wfpdf.S.docs.every(d => window.__wfpdf.suche.TEXTE.has(d.id)), null, { timeout: 30000 });
     r = await suche('kd 4711');
     ok('nach dem Neuladen: der Seitentext kommt aus dem Speicher', r.length === 1, r);

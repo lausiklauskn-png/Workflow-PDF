@@ -44,7 +44,7 @@ const FAELLE = [
   { name: 'MANUELL: das Originalfoto bleibt nach der Prüfung liegen', datei: A, anker: 'if (originalWeg) await DB.del(\'files\', id + ORIGINAL);', ersatz: '', trifft: /Original ist danach weg/ },
   { name: 'MANUELL: Löschen lässt das Originalfoto liegen', datei: 'assets/db.js', anker: "st.delete(id); if (store === 'files' && !String(id).endsWith('~original')) st.delete(id + '~original');", ersatz: 'st.delete(id);', trifft: /Original mit/ },
   // „Alle prüfen" (Klaus 2026-10-22)
-  { name: 'ALLE: der Knopf fehlt', datei: A, anker: '} else if (offen) {', ersatz: '} else if (false) {', trifft: /Knopf „▶ Alle prüfen"/ },
+  { name: 'ALLE: der Knopf fehlt', datei: A, anker: '    } else html = knoepfe();', ersatz: "    } else html = '';", trifft: /Knopf „▶ Prüfen"/ },
   { name: 'ALLE: alle zugleich statt nacheinander', datei: A, anker: 'await PRUEF.kette;                         // erst', ersatz: '//', trifft: /nie zwei zugleich/ },
   { name: 'ALLE: Abbrechen tut nichts', datei: A, anker: 'if (ALLE.stopp) break;', ersatz: ';', trifft: /Abbrechen|Noch offen/ },
   { name: 'ALLE: ein Fund öffnet mitten im Lauf ein Fenster', datei: A, anker: "r.stand === 'warnung' && !ALLE.an && ", ersatz: "r.stand === 'warnung' && ", trifft: /kein Fenster/ },

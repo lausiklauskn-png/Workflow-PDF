@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 const WURZEL = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FAELLE = [
-  { name: 'das Modell lädt von selbst, ohne Knopf', datei: 'assets/app.js', anker: 'if (EINST.bedeutung) bedeutungStarten();', ersatz: 'bedeutungStarten();', trifft: /NICHT von selbst/ },
+  { name: 'das Modell lädt von selbst, ohne Knopf', datei: 'assets/app.js', anker: 'if (EINST.bedeutung) bedeutungStarten({ einordnen: false });', ersatz: 'bedeutungStarten({ einordnen: false });', trifft: /NICHT von selbst/ },
   { name: 'der Fortschritt kommt nicht an die Anzeige', datei: 'assets/app.js', anker: 'BED.stand = BD.ladeStand(BED.dateien, (ev && ev.detail) || {});', ersatz: '', trifft: /Ladebalken|Ladeanzeige/ },
   { name: 'Prozent falsch gerechnet (halb)', datei: 'assets/bedeutung.js', anker: 'geladen / gesamt * 100', ersatz: 'geladen / gesamt * 50', trifft: /12,5 %|100 %/ },
   { name: 'Ladeanzeige ohne MB', datei: 'assets/app.js', anker: '+ (st.gesamt ? `<span class="bed-mb"', ersatz: '+ (false ? `<span class="bed-mb"', trifft: /MB von MB/ },
@@ -26,11 +26,11 @@ const FAELLE = [
   { name: 'die Wahl wird nicht gemerkt', datei: 'assets/app.js', anker: 'zu(); EINST.bedeutung = true; einstSpeichern(); bedeutungStarten();', ersatz: 'zu(); bedeutungStarten();', trifft: /gemerkt/ },
   { name: 'Ausschalten lässt die Leiste an', datei: 'assets/app.js', anker: "    BED.zustand = 'aus'; BED.ergebnis = null;", ersatz: '    BED.ergebnis = null;', trifft: /^.*Aus: der Abschnitt/ },
   { name: 'ein Fehler wird verschluckt (Leiste geht still auf „aus")', datei: 'assets/app.js', anker: "BED.zustand = 'fehler'; BED.fehler =", ersatz: "BED.zustand = 'aus'; BED.fehler =", trifft: /Fehler: wird gesagt/ },
-  { name: '„Nochmal" tut nichts', datei: 'assets/app.js', anker: "b('[data-bed-nochmal]').onclick = () => bedeutungStarten();", ersatz: "b('[data-bed-nochmal]').onclick = () => {};", trifft: /Nochmal/ },
+  { name: '„Nochmal" tut nichts', datei: 'assets/app.js', anker: "b('[data-bed-nochmal]').onclick = () => bedeutungStarten({ einordnen: !!BED.frei });", ersatz: "b('[data-bed-nochmal]').onclick = () => {};", trifft: /Nochmal/ },
   { name: 'aus der Bedeutung geöffnet wird nichts markiert', datei: 'assets/app.js', anker: 'S.funde = fundMarken(fund); S.fundIdx = S.funde.length ? 0 : -1;', ersatz: 'S.funde = []; S.fundIdx = -1;', trifft: /Editor/ },
   { name: 'die Grenze (Nähe, Höchstzahl, Rangfolge) steht nicht dabei', datei: 'assets/app.js', anker: "const grenze = `", ersatz: "const grenze = '', _grenze = `", trifft: /Grenze steht dabei/ },
   { name: 'Modul 04 ist nicht mehr byte-1:1 aus Sage', datei: 'vendor/sbkim/04_match.js', anker: '"MODUL 04 MATCH bereit, Funktionen:', ersatz: '"MODUL 04 MATCH  bereit, Funktionen:', trifft: /byte-1:1/ },
-  { name: 'der Dialog verschweigt, dass etwas aus dem Netz kommt', datei: 'assets/app.js', anker: 'von jsDelivr und Hugging Face. Der Balken', ersatz: 'aus dem Internet. Der Balken', trifft: /VORHER/ },
+  { name: 'der Dialog verschweigt, dass etwas aus dem Netz kommt', datei: 'assets/app.js', anker: 'das Programm von jsDelivr, die Modelldateien', ersatz: 'das Programm aus dem Internet, die Modelldateien', trifft: /VORHER/ },
   { name: 'Abschnitte überlappen nicht', datei: 'assets/bedeutung.js', anker: 'teile = teile.length > 1 && letztes.s.length < STUECK_ZIEL ? [letztes] : [];', ersatz: 'teile = [];', trifft: /überlappen/ },
   { name: 'ein Abschnitt endet mitten im Satz', datei: 'assets/bedeutung.js', anker: 'if (len() >= STUECK_ZIEL && satzEnde(x.s)) ab();', ersatz: 'if (len() >= STUECK_ZIEL) ab();', trifft: /Satzende/ },
   { name: 'nichts klar nah — und es steht auch nichts Schwaches da', datei: 'assets/bedeutung.js', anker: 'const schwach = gezeigt.length ? [] : alle.slice(0, SCHWACH_ZEIGEN);', ersatz: 'const schwach = [];', trifft: /schwach/ },

@@ -174,8 +174,12 @@ try {
   ok('Die Suche findet das Foto an den Modellworten, Fundzeile „Bildbeschreibung vom Modell"', n.length === 1 && !!k && k.fund.includes('Bildbeschreibung vom Modell'), { n, fund: k && k.fund });
   // Neu laden: das Modell startet (gemerkte Wahl), beschreibt aber nichts noch einmal
   await page.reload(); await page.waitForFunction(() => window.__wfpdf && document.querySelectorAll('#dokGitter .dok').length === 2);
+  // Pro-Umbau 5 (Klaus 2026-10-28): nach dem Neuladen startet NICHTS von selbst — die Zeile wartet auf „Beschreiben"
+  await warteZustand(page, 'wartet', 30000); await page.waitForTimeout(500);
+  ok('Nach dem Neuladen lädt das Modell NICHT von selbst (Wahl gemerkt, Zeile wartet auf „Beschreiben")', await page.evaluate(() => window.__bildStub.pipelines === 0 && window.__bildStub.calls === 0) && !!(await page.$('#bildLeiste [data-bild-beschreiben]')));
+  await page.click('#bildLeiste [data-bild-beschreiben]'); await page.click('.dlg [data-j]');
   await warteZustand(page, 'bereit', 30000);
-  ok('Nach dem Neuladen startet das Modell von selbst (Wahl gemerkt) und beschreibt NICHTS noch einmal', await page.evaluate(() => window.__bildStub.pipelines === 1 && window.__bildStub.calls === 0));
+  ok('Nach „Beschreiben" lädt das Modell und beschreibt NICHTS noch einmal', await page.evaluate(() => window.__bildStub.pipelines === 1 && window.__bildStub.calls === 0));
   // Ein neues Foto wird nachgezogen
   await page.setInputFiles('#inDatei', [{ name: 'Garten.png', mimeType: 'image/png', buffer: png }, { name: 'Garten 2.png', mimeType: 'image/png', buffer: png }]);
   await page.waitForFunction(() => window.__wfpdf.S.docs.length === 4, null, { timeout: 60000 });
