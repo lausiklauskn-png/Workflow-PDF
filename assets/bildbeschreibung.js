@@ -41,6 +41,7 @@
   const h = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const nm = s => '<span data-kein-ue>' + h(s) + '</span>';
   const mb = n => String(Math.round(n / 1048576));
+  const T = s => (W.WFP && W.WFP.Sprache ? W.WFP.Sprache.T(s) : s);
 
   let A = null;   // Nähte aus app.js: { S, EINST, einstSpeichern, DB, dialog, toast, neu, sprechen, micSprache }
   const B = { zustand: 'aus', stand: { geladen: 0, gesamt: 0 }, fehler: '', beschreibt: null, pipe: null, _lauf: null, tf: null, fertig: 0 };
@@ -164,6 +165,12 @@
     const mehr = `<button class="bild-knopf bild-knopf-rund" type="button" data-bild-mehr title="Bildbeschreibung: Einstellungen" aria-label="Bildbeschreibung: Einstellungen">${sym('mehr')}</button>`;
     let html = '';
     if (z === 'aus') html = `<button class="bild-knopf" type="button" data-bild-an>${sym('bild')}<span>Fotos beschreiben lassen</span></button><span class="bild-t">Modell auf dem Gerät, einmal laden</span>`;
+    else if (z === 'wartet') {
+      // Pro-Umbau 5 (Klaus 2026-10-28, Leitfaden § 3): nach dem Öffnen startet nichts von selbst — erst „Beschreiben"
+      const n = offen().length;
+      html = `<span class="bild-t" data-bild-text data-bild-offen="${n}">${n ? 'Bildbeschreibung: ' + nm(String(n)) + ' Foto(s) noch nicht beschrieben.' : 'Bildbeschreibung an. Das Bildmodell lädt erst nach „Beschreiben“.'}</span>`
+        + `<button class="bild-knopf${n ? ' bild-haupt' : ''}" type="button" data-bild-beschreiben>${sym('bild')}<span>Beschreiben</span></button>${mehr}`;
+    }
     else if (z === 'laedt') {
       const p = st.gesamt ? Math.min(100, st.geladen / st.gesamt * 100) : 0;
       html = `<span class="bild-t" data-bild-text>Bildmodell wird geladen: ${nm(mb(st.geladen))} von ${nm(st.gesamt ? mb(st.gesamt) : String(MESSUNG.downloadMB))} MB</span>`
@@ -182,10 +189,22 @@
     if (b('[data-bild-mehr]')) b('[data-bild-mehr]').onclick = dialogZeigen;
     if (b('[data-bild-nochmal]')) b('[data-bild-nochmal]').onclick = () => starten();
     if (b('[data-bild-abbruch]')) b('[data-bild-abbruch]').onclick = abbrechen;
+    if (b('[data-bild-beschreiben]')) b('[data-bild-beschreiben]').onclick = beschreibenFragen;
+  }
+  const offen = () => (A ? A.S.docs.filter(d => istBild(d) && !modellAktuell(d)) : []);
+  // Eine Frage mit Zahl und Größe; erst „Beschreiben" lädt das Modell (einmalig rund 256 MB, danach aus dem Vorrat)
+  function beschreibenFragen() {
+    const n = offen().length;
+    A.dialog(`<h2>${h(n + ' Foto(s) beschreiben?')}</h2>
+      <p>Lädt das Bildmodell (einmalig rund ${nm(String(MESSUNG.downloadMB))} MB, danach aus dem Vorrat) und beschreibt Foto für Foto auf dem Gerät. Du kannst weiterarbeiten; die Fotos verlassen das Gerät nicht.</p>
+      <div class="zeile"><button class="knopf" data-n>Abbrechen</button><button class="knopf rot" data-j data-bild-ja>Beschreiben</button></div>`, (d, zu) => {
+      d.querySelector('[data-n]').onclick = zu;
+      d.querySelector('[data-j]').onclick = () => { zu(); starten(); };
+    });
   }
   function dialogZeigen() {
     const an = B.zustand !== 'aus';
-    const stand = { laedt: 'lädt', beschreibt: 'beschreibt', bereit: 'bereit', fehler: 'Fehler' }[B.zustand] || B.zustand;
+    const stand = { laedt: 'lädt', beschreibt: 'beschreibt', bereit: 'bereit', fehler: 'Fehler', wartet: 'wartet auf „Beschreiben“' }[B.zustand] || B.zustand;
     A.dialog(`<h2>Bildbeschreibung</h2>
       <p>Ein Modell auf dem Gerät findet zu jedem Foto ein paar Worte („a beach with palm trees"). Die Worte stehen am Foto, getrennt von deinen eigenen, und die Suche findet beide. Deine eigenen Worte kannst du auch ohne Modell eintragen.</p>
       <p><b>Was dafür aus dem Netz kommt:</b> einmalig das Bildmodell (vit-gpt2-image-captioning) — das Programm von jsDelivr, die Modelldateien vom Server des Betreibers (family-projekt.de); antwortet er nicht, von Hugging Face. Danach liegt es im Vorrat dieses Browsers.</p>
@@ -203,6 +222,7 @@
   function aus() {
     A.EINST.bild = false; A.einstSpeichern();
     B.zustand = 'aus'; B.fehler = ''; B.beschreibt = null; B._lauf = null; B.pipe = null;
+    if (B.hg) { const hg = B.hg; B.hg = null; hg.ende(); }
     leiste();
   }
   function abbrechen() { aus(); A.toast('Laden abgebrochen. Was schon da ist, bleibt im Browser.'); }
@@ -241,6 +261,10 @@
     B.zustand = B.pipe ? 'beschreibt' : 'laedt'; B.fehler = ''; B.stand = { geladen: 0, gesamt: 0 }; leiste();
     const lauf = B._lauf = (async () => {
       await Promise.resolve();   // erst nach der Zuweisung weiter — sonst liest der Lauf seine eigene Kennung, bevor sie steht (gemessen: TDZ-Fehler beim Nachziehen)
+      // Hintergrundaufgabe in der Pro-App (window.ProHintergrund, Leitfaden § 3): Mitteilung mit Stand und „Abbrechen"
+      try { B.hg = W.ProHintergrund && typeof W.ProHintergrund.beginnen === 'function' ? await W.ProHintergrund.beginnen({ art: 'beschreiben', titel: T('Bildbeschreibung läuft') }) : null; } catch (_) { B.hg = null; }
+      if (B.hg) { const hg = B.hg; hg.signal.addEventListener('abort', () => { if (B.hg === hg) aus(); }, { once: true }); if (!B.pipe) hg.stand(T('Bildmodell wird geladen'), 0, 0); }
+      if (B._lauf !== lauf) return;
       if (!B.pipe) B.pipe = await modellLaden();
       if (B._lauf !== lauf) return;
       do { B._nochmal = false; await alleBeschreiben(lauf); } while (B._lauf === lauf && B._nochmal);
@@ -250,7 +274,7 @@
     })().catch(e => {
       if (B._lauf !== lauf) return;
       B.zustand = 'fehler'; B.fehler = String((e && e.message) || e).slice(0, 200); B._lauf = null; B.pipe = null; leiste();
-    });
+    }).finally(() => { if (B.hg && B._lauf !== lauf) { const hg = B.hg; B.hg = null; hg.ende(); } });
     return lauf;
   }
   async function beschreiben(d) {
@@ -266,6 +290,7 @@
     for (const d of offen) {
       if (B._lauf !== lauf) return;
       i++; B.zustand = 'beschreibt'; B.beschreibt = { i, n: offen.length, name: d.name }; leiste();
+      if (B.hg) B.hg.stand(T('Foto ' + i + ' von ' + offen.length), i - 1, offen.length);
       const t = await beschreiben(d);
       if (B._lauf !== lauf) return;
       d.bild = Object.assign({}, d.bild || {}, { modell: t, modellZeit: new Date().toISOString(), sig: sig(d) });
@@ -274,10 +299,14 @@
       await new Promise(r => setTimeout(r, 30));
     }
   }
-  // Nach dem Start, wenn die Wahl gemerkt ist: das Modell kommt aus dem Browser-Vorrat, neue Fotos werden beschrieben
-  function start() { if (A && A.EINST.bild) starten(); }
-  // Ein neues Foto, solange das Modell bereit ist (Einlesen, Scannen): nachziehen
-  function nachziehen() { if (!A || !A.EINST.bild || !B.pipe || B.zustand === 'aus' || B.zustand === 'fehler') return; if (A.S.docs.some(d => istBild(d) && !modellAktuell(d))) starten(); }
+  /* Nach dem Start, wenn die Wahl gemerkt ist: NICHTS startet von selbst (Pro-Umbau 5, Klaus 2026-10-28). Die Zeile
+     sagt, wie viele Fotos offen sind, und „Beschreiben" lädt das Modell (aus dem Vorrat) und beschreibt. ⚠ Tafel-
+     Evolution: bis 1.1.3 lud start() das Modell beim Öffnen (1,2 GB Arbeitsspeicher in der Spitze) und beschrieb
+     alle Fotos. */
+  function start() { if (A && A.EINST.bild && B.zustand === 'aus' && !B._lauf) { B.zustand = 'wartet'; leiste(); } }
+  // Ein neues Foto, solange das Modell in dieser Sitzung geladen ist (Einlesen, Scannen): nachziehen. Wartet die
+  // Zeile auf „Beschreiben", zählt sie nur neu.
+  function nachziehen() { if (B.zustand === 'wartet') { leiste(); return; } if (!A || !A.EINST.bild || !B.pipe || B.zustand === 'aus' || B.zustand === 'fehler') return; if (A.S.docs.some(d => istBild(d) && !modellAktuell(d))) starten(); }
 
   function init(naehte) {
     A = naehte;
@@ -285,7 +314,7 @@
     filterZeichnen(); leiste();
     return API;
   }
-  const API = { init, start, starten, nachziehen, aus, leiste, karten, editor, istBild, beschrieben, suchFelder, istBildFund, fundWo, eigenSetzen, filterAn, filterSetzen, filterZeichnen, hilfeLesen, MODELL, REVISION, LIB, MESSUNG, BILD_QUELLEN, EIGEN_MAX, zustand: () => B };
+  const API = { init, start, starten, beschreibenFragen, offen, nachziehen, aus, leiste, karten, editor, istBild, beschrieben, suchFelder, istBildFund, fundWo, eigenSetzen, filterAn, filterSetzen, filterZeichnen, hilfeLesen, MODELL, REVISION, LIB, MESSUNG, BILD_QUELLEN, EIGEN_MAX, zustand: () => B };
   W.WFP = W.WFP || {}; W.WFP.Bild = API;
   if (typeof globalThis !== 'undefined') globalThis.__WFP_BILD = API;
 })();

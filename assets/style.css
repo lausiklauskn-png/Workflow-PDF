@@ -608,3 +608,28 @@ div.dok-pruefung{cursor:default;font-weight:600;opacity:.8}
 .ed-bild .bild-feld-kopf{margin:0}
 .ed-bild .bild-eigen-zeile{flex:1 1 240px}
 .fund-wo[data-art=bild]{color:#0b6b4f}
+/* Pro-Umbau 5 (Klaus 2026-10-28, Leitfaden der Pro-Apps § 1 und § 5): flache Start-Kacheln, kleinere Knöpfe
+   (≈ 28–32 px wie Private Brain Pro, auch am Handy), Strichgrafiken statt Emojis (assets/strich.js), ein farbiger
+   nächster Schritt. Steht am Ende, damit es die älteren Regeln überstimmt. */
+.ic-strich{width:1.15em;height:1.15em;vertical-align:-.2em;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none;display:inline-block}
+.ic-strich desc{display:none}
+.knopf{min-height:32px;padding:4px 10px;border-width:1.5px;border-radius:8px}
+.knopf.klein{min-height:28px;min-width:28px;padding:2px 8px}
+.ikon{width:32px;height:32px;border-width:1.5px;font-size:.95rem;display:inline-flex;align-items:center;justify-content:center;padding:0}
+.modus-k{min-height:30px;padding:3px 10px}
+.import-leiste{gap:6px;margin-bottom:10px}
+.gross-knopf{padding:4px 10px;gap:8px;min-height:32px;border-width:1.5px;border-radius:8px;box-shadow:none;transition:none}
+.gross-knopf:not(.rot){border-color:var(--linie)}
+.gross-knopf:hover{transform:none;border-color:var(--rot)}
+.gross-knopf .gk-ico{font-size:1.1rem;flex:none;display:inline-flex;align-items:center}
+.gross-knopf .gk-t{font-size:.92rem;font-weight:600;line-height:1.15;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gross-knopf .gk-t br,.gross-knopf small{display:none}
+.bild-knopf,.bild-info,.bild-mic{min-height:30px;min-width:30px}
+.bild-info,.bild-mic,.bild-knopf-rund{width:30px}
+.bild-knopf.bild-haupt{background:var(--rot);border-color:var(--rot);color:#fff}
+/* Arbeitsleiste „Prüfen · Einordnen": eine flache Zeile, farbig nur der nächste Schritt */
+.pruef-alle{border:0;background:none;padding:0;margin:2px 0 8px;color:inherit;gap:6px 8px}
+.pruef-alle .pruef-alle-knopf:not(.rot){background:var(--flaeche);border-color:var(--linie);color:inherit}
+.pruef-alle .hinweis{margin:0;font-size:.82rem}
+.pruef-alle progress{accent-color:var(--rot)}
+.dok-akt button .ic-strich,.marke-klein .ic-strich{width:1em;height:1em}
