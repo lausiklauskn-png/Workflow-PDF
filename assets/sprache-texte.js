@@ -4,6 +4,24 @@
    (fail-soft). Geprüft von tests/sprache.mjs. */
 (function(){ (window.WFP=window.WFP||{}).SPRACH_TEXTE = {
  "en": {
+  // Im Netz antworten (2026-10-31)
+  "Im Netz antworten": "Answer in the network",
+  "Andere Arbeitsplätze im Mycel dürfen fragen. Öffentlich antwortet Workfloh PDF nur mit dem Dateinamen und vergleicht auch nur mit ihm. Im eigenen Netz kann es auf Wunsch den Seitentext mitvergleichen und einen kurzen Ausschnitt zeigen. Die Dateien selbst gehen nie hinaus.": "Other workplaces in the Mycel may ask. In public, Workfloh PDF answers only with the file name and compares only that. In your own network it can, if you wish, also compare the page text and show a short excerpt. The files themselves never leave.",
+  "Anderen antworten": "Answer others",
+  "Mit Ausschnitt antworten (nur im eigenen Netz)": "Answer with excerpt (own network only)",
+  "○ Antwortet nicht": "○ Not answering",
+  "● Antwortet mit Dateinamen · {} Dokument(e)": "● Answering with file names · {1} document(s)",
+  "● Antwortet mit Ausschnitt · {} Dokument(e)": "● Answering with excerpt · {1} document(s)",
+  "Netz: öffentlich.": "Network: public.",
+  "Netz: eigenes Netz.": "Network: own network.",
+  "Netz: öffentlich. Braucht die Suche nach Bedeutung (Sprachmodell).": "Network: public. Needs search by meaning (language model).",
+  "Netz: eigenes Netz. Braucht die Suche nach Bedeutung (Sprachmodell).": "Network: own network. Needs search by meaning (language model).",
+  "Das Mycel ist noch nicht geladen.": "The Mycel is not loaded yet.",
+  "Modul 04 (Treffer) ist nicht geladen.": "Module 04 (matches) is not loaded.",
+  "Erst in der Bibliothek die Suche nach Bedeutung einschalten (Sprachmodell laden). Ohne Modell kann diese App keine Fragen vergleichen.": "First switch on search by meaning in the library (load the language model). Without the model this app cannot compare questions.",
+  "Mit Ausschnitt nur im eigenen Netz (Netz-Box im Mycel-Fenster).": "Excerpts only in your own network (network box in the Mycel window).",
+  "Anmelden im Netz fehlgeschlagen.": "Signing in to the network failed.",
+  "Antworten ließ sich nicht einschalten.": "Answering could not be switched on.",
   // Pro-Umbau 5 (2026-10-28): Prüfen · Einordnen · Beschreiben auf Knopfdruck
   "▶ Prüfen": "▶ Check",
   "▶ Prüfen ({})": "▶ Check ({1})",
@@ -1051,6 +1069,24 @@
   "Details anzeigen": "Show details"
  },
  "ru": {
+  // Im Netz antworten (2026-10-31)
+  "Im Netz antworten": "Отвечать в сети",
+  "Andere Arbeitsplätze im Mycel dürfen fragen. Öffentlich antwortet Workfloh PDF nur mit dem Dateinamen und vergleicht auch nur mit ihm. Im eigenen Netz kann es auf Wunsch den Seitentext mitvergleichen und einen kurzen Ausschnitt zeigen. Die Dateien selbst gehen nie hinaus.": "Другие рабочие места в Мицелии могут спрашивать. Публично Workfloh PDF отвечает только именем файла и сравнивает только его. В своей сети он по желанию может сравнивать и текст страниц и показывать короткий отрывок. Сами файлы никогда не уходят наружу.",
+  "Anderen antworten": "Отвечать другим",
+  "Mit Ausschnitt antworten (nur im eigenen Netz)": "Отвечать с отрывком (только в своей сети)",
+  "○ Antwortet nicht": "○ Не отвечает",
+  "● Antwortet mit Dateinamen · {} Dokument(e)": "● Отвечает именами файлов · документов: {1}",
+  "● Antwortet mit Ausschnitt · {} Dokument(e)": "● Отвечает с отрывком · документов: {1}",
+  "Netz: öffentlich.": "Сеть: общедоступная.",
+  "Netz: eigenes Netz.": "Сеть: своя сеть.",
+  "Netz: öffentlich. Braucht die Suche nach Bedeutung (Sprachmodell).": "Сеть: общедоступная. Нужен поиск по смыслу (языковая модель).",
+  "Netz: eigenes Netz. Braucht die Suche nach Bedeutung (Sprachmodell).": "Сеть: своя сеть. Нужен поиск по смыслу (языковая модель).",
+  "Das Mycel ist noch nicht geladen.": "Мицелий ещё не загружен.",
+  "Modul 04 (Treffer) ist nicht geladen.": "Модуль 04 (совпадения) не загружен.",
+  "Erst in der Bibliothek die Suche nach Bedeutung einschalten (Sprachmodell laden). Ohne Modell kann diese App keine Fragen vergleichen.": "Сначала включите в библиотеке поиск по смыслу (загрузите языковую модель). Без модели приложение не может сравнивать вопросы.",
+  "Mit Ausschnitt nur im eigenen Netz (Netz-Box im Mycel-Fenster).": "Отрывки только в своей сети (блок «Сеть» в окне Мицелия).",
+  "Anmelden im Netz fehlgeschlagen.": "Не удалось войти в сеть.",
+  "Antworten ließ sich nicht einschalten.": "Не удалось включить ответы.",
   // Pro-Umbau 5 (2026-10-28): Prüfen · Einordnen · Beschreiben auf Knopfdruck
   "▶ Prüfen": "▶ Проверить",
   "▶ Prüfen ({})": "▶ Проверить ({1})",
@@ -2098,6 +2134,24 @@
   "Details anzeigen": "Показать подробности"
  },
  "ar": {
+  // Im Netz antworten (2026-10-31)
+  "Im Netz antworten": "الرد في الشبكة",
+  "Andere Arbeitsplätze im Mycel dürfen fragen. Öffentlich antwortet Workfloh PDF nur mit dem Dateinamen und vergleicht auch nur mit ihm. Im eigenen Netz kann es auf Wunsch den Seitentext mitvergleichen und einen kurzen Ausschnitt zeigen. Die Dateien selbst gehen nie hinaus.": "يجوز لأماكن العمل الأخرى في الميسيليوم أن تسأل. في الشبكة العامة يرد Workfloh PDF باسم الملف فقط ويقارن به وحده. في شبكتك الخاصة يمكنه عند الرغبة مقارنة نص الصفحات أيضاً وعرض مقتطف قصير. الملفات نفسها لا تخرج أبداً.",
+  "Anderen antworten": "الرد على الآخرين",
+  "Mit Ausschnitt antworten (nur im eigenen Netz)": "الرد مع مقتطف (في الشبكة الخاصة فقط)",
+  "○ Antwortet nicht": "○ لا يرد",
+  "● Antwortet mit Dateinamen · {} Dokument(e)": "● يرد بأسماء الملفات · {1} مستند",
+  "● Antwortet mit Ausschnitt · {} Dokument(e)": "● يرد مع مقتطف · {1} مستند",
+  "Netz: öffentlich.": "الشبكة: عامة.",
+  "Netz: eigenes Netz.": "الشبكة: شبكة خاصة.",
+  "Netz: öffentlich. Braucht die Suche nach Bedeutung (Sprachmodell).": "الشبكة: عامة. يحتاج إلى البحث بالمعنى (نموذج لغوي).",
+  "Netz: eigenes Netz. Braucht die Suche nach Bedeutung (Sprachmodell).": "الشبكة: شبكة خاصة. يحتاج إلى البحث بالمعنى (نموذج لغوي).",
+  "Das Mycel ist noch nicht geladen.": "الميسيليوم لم يُحمَّل بعد.",
+  "Modul 04 (Treffer) ist nicht geladen.": "الوحدة 04 (النتائج) غير محمّلة.",
+  "Erst in der Bibliothek die Suche nach Bedeutung einschalten (Sprachmodell laden). Ohne Modell kann diese App keine Fragen vergleichen.": "فعّل أولاً البحث بالمعنى في المكتبة (حمّل النموذج اللغوي). بدون النموذج لا يستطيع هذا التطبيق مقارنة الأسئلة.",
+  "Mit Ausschnitt nur im eigenen Netz (Netz-Box im Mycel-Fenster).": "المقتطفات في الشبكة الخاصة فقط (مربع الشبكة في نافذة الميسيليوم).",
+  "Anmelden im Netz fehlgeschlagen.": "فشل تسجيل الدخول إلى الشبكة.",
+  "Antworten ließ sich nicht einschalten.": "تعذّر تشغيل الرد.",
   // Pro-Umbau 5 (2026-10-28): Prüfen · Einordnen · Beschreiben auf Knopfdruck
   "▶ Prüfen": "▶ فحص",
   "▶ Prüfen ({})": "▶ فحص ({1})",

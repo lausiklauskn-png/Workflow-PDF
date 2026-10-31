@@ -7,6 +7,30 @@ ausfüllen → festes / ausfüllbares PDF / leere Vorlage. Kein Build-Schritt.
 Vorlage war der Originaldokument-Modus von Mein-WorkFloh (Felder in Prozent
 über der echten Seite, „bearbeiten" gegen „ausfüllen").
 
+## 🕸 Im Netz antworten (Klaus 2026-10-31, Punkt 5: „wie Workflow PDF Pro")
+
+⚙️ Einstellungen → **„Im Netz antworten"** (`[data-netz-antworten]`, `assets/netz.js` = `WFPNetz`, Vorlage Workflow-PDF-Pro
+`native/native-netz.js`, Regeln wie BookLedgerPro `src/sbkim/netz.js`/`ueberall.js`). **Ab Werk aus**; die Schalter wirken sofort
+(nicht erst mit „Speichern"), gemerkt wird nur an/aus in `wfpdf_netz_v1`, nach dem Neuladen schaltet es sich wieder ein, sobald Mycel
+und Sprachmodell da sind.
+- **Öffentlich:** Antwort und Vergleich nur mit dem Dateinamen (`Dokument · <Name>`, Vektor aus Modul 03, nur aus dem Namen).
+- **Eigenes Netz** (Netz-Box im Mycel-Fenster; geprüft wird `SbkimRendezvous._meta.network === 'eigen'` — die PWA hat keinen
+  Chefcode-Kasten) **und „Mit Ausschnitt"**: Abschnitte aus den gespeicherten Vektoren der Bedeutungssuche (Fach `vektoren`, nur
+  lückenlose Blöcke), Anfang + immer die letzten 3 (Briefende), ≤ 60 je Dokument, ≤ 4000 gesamt, eine Zeile je Dokument, Ausschnitt um
+  die Suchwörter, Zeile ≤ 200 Zeichen. Der Filter (`antwortFilter`, über `configure({ match })`) prüft bei **jeder** Frage, ob ein
+  eigenes Netz steht, sonst antwortet er nichts.
+- Korpus-Vektoren immer `Float32Array` (Modul 04 `validateCorpus`). Korpus ist eine **Funktion**, gesetzt **nach** `enableAnswering`
+  (Modul 23 legt dort einmal eine feste Liste ab) — neue Dokumente sind ohne Aus/An dabei.
+- Gelesen wird über `WFP.DB` (db.js, nur `all`); ohne db.js nur lesend und **ohne Versionsangabe** (Lehre V3 #34).
+- Braucht das geladene Sprachmodell (Suche nach Bedeutung); ohne Modell sagt der Abschnitt das, und Einschalten meldet den Grund.
+- Datenschutz: `impressum.html` Abschnitt 4f (Stand-Datum unverändert, `tests/schieber.mjs` pinnt es).
+- Proben: `tests/netz.mjs` (in `npm test`, **28 grün**; echtes Modul 04 + echte db.js, Embedder und Modul 23 gestellt; B in der echten App)
+  · `node tests/gegenprobe_netz.mjs` (6 Fälle: Float32Array weg · Filter nicht je Frage · Briefende fehlt · Korpus nicht live ·
+  öffentlich mit Seitentext · Abschnitt fehlt) **6 gefangen · 0 · 0 · 0**. Zuerst war Fall 1 „durchgerutscht": Modul 04 warf, die Probe
+  starb, statt zu melden — jetzt wird der Wurf eine eigene rote Zeile.
+- Version **1.1.5**, Cache **v110**, `app.js?v=73`, `netz.js?v=1`, `sprache-texte.js?v=50` (17 neue Sätze je EN/RU/AR).
+- ⚠ Nicht gemessen: echtes Relais, echtes Sprachmodell, Tablet; ob ein fremder Knoten die Antwort wirklich sieht.
+
 ## Pro-Umbau 5: nichts startet von selbst · Prüfen/Einordnen für die Auswahl · Strichgrafiken · nur Vorschaubilder (Klaus 2026-10-28)
 
 Leitfaden der Pro-Apps § 3 und § 5 (`BookLedgerPro/docs/design/LEITFADEN-PRO-APPS-BEDIENUNG.md`), gilt für PWA UND Pro-App.

@@ -2,7 +2,7 @@
    Cacht die SCHALE (App-Dateien), niemals Dokumente: die liegen in IndexedDB.
    Wer eine Datei aus SCHALE ändert, erhöht CACHE_VERSION — sonst liefert der
    Worker die alte Fassung weiter. */
-const CACHE_VERSION = 'workfloh-pdf-v109';
+const CACHE_VERSION = 'workfloh-pdf-v110';
 /* CacheStorage gehört dem GANZEN Ursprung (github.io: Private Brain, BookLedger, Sage …). Beim Aktivieren werden
    deshalb NUR eigene alte Schalen (workfloh-pdf-v…) gelöscht — nie fremde Vorräte (Klaus 2026-10-26: „darf auf gar
    keinen Fall passieren"). tests/vorrat-isolation.mjs misst es am echten Worker. */
@@ -20,7 +20,7 @@ const GETEILT_VORRAT = 'workfloh-pdf-geteilt';
 const BLEIBT = [MODELL_VORRAT, 'transformers-cache', GETEILT_VORRAT];
 const SCHALE = [
   './', './index.html', './impressum.html', './manifest.webmanifest',
-  './assets/style.css?v=46', './assets/db.js?v=6', './assets/suche.js?v=2', './assets/bedeutung.js?v=2', './assets/zip.js?v=1', './assets/erkennung.js?v=5', './assets/blatt.js?v=1', './assets/scan-bild.js?v=7', './assets/scanner.js?v=13', './assets/export.js?v=7', './assets/html-export.js?v=2', './assets/uebersetzung.js?v=13', './assets/strich.js?v=1', './assets/sprache-texte.js?v=49', './assets/sprache.js?v=4', './assets/sprechen.js?v=3', './assets/bildbeschreibung.js?v=2', './assets/schieber.js?v=1', './assets/eingang.js?v=5', './assets/reinigung.js?v=1', './assets/pruefer-formate.js?v=2', './assets/pruefer-mail.js?v=2', './assets/pruefer-anhang.js?v=4', './assets/schluesseltresor.js?v=1', './assets/sicherung.js?v=3', './assets/app.js?v=72', './assets/sbkim-init.js?v=1', './assets/siegel-inhalt.js?v=1',
+  './assets/style.css?v=46', './assets/db.js?v=6', './assets/suche.js?v=2', './assets/bedeutung.js?v=2', './assets/zip.js?v=1', './assets/erkennung.js?v=5', './assets/blatt.js?v=1', './assets/scan-bild.js?v=7', './assets/scanner.js?v=13', './assets/export.js?v=7', './assets/html-export.js?v=2', './assets/uebersetzung.js?v=13', './assets/strich.js?v=1', './assets/sprache-texte.js?v=50', './assets/sprache.js?v=4', './assets/sprechen.js?v=3', './assets/bildbeschreibung.js?v=2', './assets/schieber.js?v=1', './assets/eingang.js?v=5', './assets/reinigung.js?v=1', './assets/pruefer-formate.js?v=2', './assets/pruefer-mail.js?v=2', './assets/pruefer-anhang.js?v=4', './assets/schluesseltresor.js?v=1', './assets/sicherung.js?v=3', './assets/netz.js?v=1', './assets/app.js?v=73', './assets/sbkim-init.js?v=1', './assets/siegel-inhalt.js?v=1',
   './vendor/pdfjs/pdf.min.js', './vendor/pdfjs/pdf.worker.min.js', './vendor/pdf-lib.min.js', './vendor/qrcode.js', './vendor/fontkit.umd.min.js', './vendor/fonts/NotoSans-Regular.ttf',
   './icons/w-floh-160.png', './icons/w-floh-120.webp', './icons/favicon-32.png?v=1', './icons/favicon-64.png?v=1',
   './icons/icon-192.png?v=1', './icons/icon-512.png?v=1', './icons/icon-512-maskable.png?v=1', './icons/apple-touch-icon.png?v=1'
