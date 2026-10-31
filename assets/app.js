@@ -233,7 +233,7 @@
     // Schalter „Bildbeschreibung" an: nur Fotos, die eine Beschreibung haben (eigene Worte oder vom Modell)
     const bildFilter = d => !bildFilterAn() || (WFP.Bild && WFP.Bild.beschrieben(d));
     const themaFilter = d => !BKA() || BKA().passtThema(d, S.thema);
-    const sicht = S.sicht = S.docs.filter(d => imOrdner(d) && (!such.length || FUND.has(d.id)) && imZeitraum(d) && bildFilter(d) && themaFilter(d));
+    const sicht = S.sicht = S.docs.filter(d => imOrdner(d) && (!such.length || FUND.has(d.id)) && imZeitraum(d) && themaFilter(d) && bildFilter(d));
     if (such.length) sicht.sort((a, b) => FUND.get(b.id).punkte - FUND.get(a.id).punkte);
     else sortiere(sicht);
     // EIN Kasten für Sortieren UND den Zeitraum (Klaus 2026-09-27: „nicht außerhalb des Containers, weil es

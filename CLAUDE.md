@@ -31,6 +31,33 @@ und Sprachmodell da sind.
 - Version **1.1.5**, Cache **v110**, `app.js?v=73`, `netz.js?v=1`, `sprache-texte.js?v=50` (17 neue Sätze je EN/RU/AR).
 - ⚠ Nicht gemessen: echtes Relais, echtes Sprachmodell, Tablet; ob ein fremder Knoten die Antwort wirklich sieht.
 
+## Briefkopf lesen und danach sortieren (Pro-Umbau 14, Sitzung D, Klaus 2026-10-31)
+
+„Briefdatum, Absender, Empfänger, Kundennummer … danach sortieren“ · Nachtrag „ein Thema vorschlagen“. **Quelle des Bausteins ist dieses Repo**
+(Klaus' Frage 3 im Plan): `assets/briefkopf.js` (`WFP.Briefkopf`, rein, ohne DOM, in Node geprüft) wird byte-1:1 nach Workflow PDF Pro (über
+`upstream/`), in die WorkFlohs, BookLedgerPro, Private Brain Pro und die Familienakte kopiert — nur hier ändern.
+- `lesen(zeilen, { mail, namen, themen })` liefert Briefdatum (beschriftet „Datum:“ oder „Ort, den …“; sonst nur, wenn im Kopf genau EIN Datum
+  steht und die Zeile nicht nach Frist/Geburt/zahlbar klingt), Absender (Mail „Von“, „Absender:“, Rücksendezeile, sonst Kopf-/Fußzeile mit
+  Rechtsform oder Behördenwort; „Postfach …“ ist nie ein Absender), Empfänger (Anschriftfeld vor „PLZ Ort“, Abgleich mit `namen`), Nummern
+  (Kunden-, Rechnungs-, Auftrags-, Vertrags-, Versicherungsnummer, Aktenzeichen/Steuernummer, Unser/Ihr Zeichen; mit Ziffer, ≥ 3 Ziffern),
+  Betreff, Wichtigkeit 0–3 (Zahlungsziel · Frist/Mahnung · letzte Mahnung/Kündigung/Inkasso) und Thema (die 18 Lebensbereiche der Familienakte,
+  `lib/family-categories.ts` dort; Gleichstand → leer; eigene Liste über `themen`). Jede Angabe mit Fundstelle; unsicher → null, nie geraten.
+  `zeilenAusSeiten` setzt den Seitentext der Bibliothek nach Lage zu Zeilen zusammen (Seite 1 und die letzte Seite).
+- Klebstoff `assets/briefkopf-ansicht.js` (`WFP.BriefkopfAnsicht`, Nähte über `init()`): nach dem Seitentext (`textAblegen`) wird `d.briefkopf`
+  am Dokument gemerkt (IndexedDB, wie das Dokument); **von Hand geändert** (`hand: true`) wird nie überschrieben, „Neu lesen“ nimmt das bewusst
+  zurück. Sortieren → **„Briefdatum, Absender“** (`vergleich`: Briefdatum, sonst Eingangsdatum, neueste zuerst → Absender → Kundennummer →
+  Wichtigkeit); fehlende Briefköpfe werden aus dem gemerkten Seitentext nachgezogen, je Dokument einmal je Sitzung. **Thema** als Filter im
+  Sortieren-Kasten (`S.thema`, „ohne Thema“). An der Karte eine Zeile (`[data-briefkopf]`), ein Tipp öffnet „Briefkopf“ zum Ändern; im Editor
+  der Knopf `#edBrief`. 23 neue Sätze je EN/RU/AR; Themen bleiben Deutsch (`data-kein-ue`).
+- Version **1.1.6**, Cache **v111**, `app.js?v=74`, `sprache-texte.js?v=51`, `briefkopf.js?v=1`, `briefkopf-ansicht.js?v=1` (im Vorrat).
+- Proben: `tests/briefkopf.mjs` (in `npm test`; Teil A erfundene Briefe: DIN 5008, Behörde, Mahnung, Arztbrief, Mail, Stücke in falscher
+  Reihenfolge, ohne Kopf, Gleichstand, Datumsregeln, Sortieren — Teil B im Browser: drei erfundene PDFs einlesen, Briefkopf gemerkt, Sortieren,
+  Kartenzeile, Thema-Filter, von Hand ändern bleibt nach dem Neuladen) **56 grün** · `node tests/gegenprobe_briefkopf.mjs` (14 Fälle, Wegwerf-Kopie;
+  `NUR_ANKER=1`, `NUR_FALL`) **14 gefangen · 0 · 0 tote Anker**. Beim Bau: drei Wächter zuerst blind (Ort-den ohne zweites Datum, Stücke auf
+  gleicher Höhe, „Buchungsnummer“ ist keine bekannte Nummer) — geschärft; ein echter Fund (Postfach als Absender) behoben.
+- ⚠ Grenzen: Handschrift, schräge Scans (keine Textebene → nichts zu lesen, Texterkennung erst später), Briefe ohne Kopf, Absender ohne Rücksendezeile,
+  Rechtsform und Behördenwort; Themenliste für Betriebe offen (Klaus fragen). Am Tablet nicht gemessen, nur erfundene Briefe.
+
 ## Pro-Umbau 5: nichts startet von selbst · Prüfen/Einordnen für die Auswahl · Strichgrafiken · nur Vorschaubilder (Klaus 2026-10-28)
 
 Leitfaden der Pro-Apps § 3 und § 5 (`BookLedgerPro/docs/design/LEITFADEN-PRO-APPS-BEDIENUNG.md`), gilt für PWA UND Pro-App.
