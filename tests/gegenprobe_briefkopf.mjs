@@ -1,14 +1,14 @@
 // Gegenprobe zu tests/briefkopf.mjs: jede Sabotage am Baustein muss eine rote Zeile ergeben.
 // Arbeitet in einer Wegwerf-Kopie (nur assets/briefkopf.js), der echte Baum bleibt unberührt.
 //   node tests/gegenprobe_briefkopf.mjs        NUR_ANKER=1 prüft nur, ob jeder Anker genau einmal vorkommt
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, cpSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 const wurzel = join(dirname(fileURLToPath(import.meta.url)), '..');
-const quelle = readFileSync(join(wurzel, 'assets/briefkopf.js'), 'utf8');
+const lies = d => readFileSync(join(wurzel, d), 'utf8');
 
 const FAELLE = [
   ['„Ort, den …“ wird nicht mehr gelesen', 'const ortDen = ORT_DEN.exec(z);', 'const ortDen = null;'],
@@ -23,16 +23,27 @@ const FAELLE = [
   ['Empfänger ohne Abgleich mit der Familie', 'if (bekannt) e.bekannt = bekannt;', ''],
 ];
 
+// Oberflächen-Haken: brauchen den ganzen Baum (Teil B der Probe)
+const UI = [
+  ['der Briefkopf wird nach dem Seitentext nicht gemerkt', 'assets/app.js', "    if (BKA()) { try { await BKA().setzen(id, seiten); } catch (_) {} } }", '  }'],
+  ['der Thema-Filter wirkt nicht', 'assets/app.js', 'const themaFilter = d => !BKA() || BKA().passtThema(d, S.thema);', 'const themaFilter = d => true;'],
+  ['„Briefdatum, Absender“ sortiert nicht', 'assets/app.js', "return liste.sort(WFP.Briefkopf.vergleich); }", "return liste.sort(namensVergleich); }"],
+  ['von Hand geändert wird nicht gespeichert', 'assets/briefkopf-ansicht.js', "      try { await N.DB.put('docs', d); } catch (_) {}\n      zu(); N.neu(); N.toast('Briefkopf gespeichert');", "      zu(); N.neu(); N.toast('Briefkopf gespeichert');"],
+];
+const ALLE = FAELLE.map(f => ['assets/briefkopf.js', ...f]).concat(UI.map(([n, d, a, e]) => [d, n, a, e]));
 let gefangen = 0, durch = 0, tot = 0;
-for (const [name, anker, ersatz] of FAELLE) {
+for (const [datei, name, anker, ersatz] of ALLE) {
+  const quelle = lies(datei);
   const n = quelle.split(anker).length - 1;
   if (n !== 1) { tot++; console.log(`  ✗ TOTER ANKER (${n}×): ${name}`); continue; }
   if (process.env.NUR_ANKER) { console.log(`  ✓ Anker lebt: ${name}`); continue; }
   if (process.env.NUR_FALL && !name.includes(process.env.NUR_FALL)) continue;
   const tmp = mkdtempSync(join(tmpdir(), 'bk-'));
-  mkdirSync(join(tmp, 'assets'));
-  writeFileSync(join(tmp, 'assets/briefkopf.js'), quelle.replace(anker, ersatz));
-  const r = spawnSync(process.execPath, [join(wurzel, 'tests/briefkopf.mjs')], { env: { ...process.env, BRIEFKOPF_WURZEL: tmp }, encoding: 'utf8' });
+  const ganz = datei !== 'assets/briefkopf.js';
+  if (ganz) { cpSync(wurzel, tmp, { recursive: true, filter: q => !/node_modules|\.git(\/|$)/.test(q.slice(wurzel.length)) }); try { symlinkSync(join(wurzel, 'node_modules'), join(tmp, 'node_modules')); } catch (_) {} }
+  else mkdirSync(join(tmp, 'assets'));
+  writeFileSync(join(tmp, datei), quelle.replace(anker, ersatz));
+  const r = spawnSync(process.execPath, [join(wurzel, 'tests/briefkopf.mjs')], { env: { ...process.env, BRIEFKOPF_WURZEL: tmp, ...(ganz ? {} : { NUR_TEIL_A: '1' }) }, encoding: 'utf8' });
   rmSync(tmp, { recursive: true, force: true });
   const rote = (r.stdout || '').split('\n').filter(z => z.includes('✗ ROT'));
   const stolpert = r.status !== 0 && !rote.length;

@@ -141,5 +141,73 @@ pruefe('Datum aus „Bremen, den …“, nicht das Bestelldatum', k.datum && k.d
 pruefe('„Kundennummer: siehe oben“ ergibt keine Nummer', !k.nummern.some(n => /siehe/i.test(n.wert)), k.nummern);
 pruefe('zu kurze Nummer (2 Ziffern) wird nicht genommen', !k.nummern.some(n => n.wert === '77'), k.nummern);
 
+// ---------- Teil B: im Browser (erfundene PDFs einlesen, sortieren, Thema, von Hand ändern) ----------
+{
+  const http = await import('node:http'); const fs = await import('node:fs'); const path = await import('node:path'); const os = await import('node:os');
+  let pw = null, pdflib = null;
+  try { pw = await import('playwright-core'); pdflib = await import('pdf-lib'); } catch (_) {}
+  if (!pw || !pdflib) console.log('  ⊘ Teil B nicht lauffähig (playwright-core/pdf-lib fehlt — npm install)');
+  else if (process.env.NUR_TEIL_A) console.log('  ⊘ Teil B übersprungen (NUR_TEIL_A)');
+  else {
+    console.log('B · im Browser');
+    const { PDFDocument, StandardFonts } = pdflib;
+    const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'bk-b-'));
+    const brief = async (zeilen) => { const pdf = await PDFDocument.create(); const f = await pdf.embedFont(StandardFonts.Helvetica); const p = pdf.addPage([595, 842]);
+      let y = 790; for (const z of zeilen) { p.drawText(z.t, { x: z.x || 60, y, size: z.s || 11, font: f }); y -= z.dy || 18; } return pdf.save(); };
+    fs.writeFileSync(path.join(TMP, 'Strom.pdf'), await brief([{ t: 'Stadtwerke Musterstadt GmbH', s: 14 }, { t: 'Stadtwerke Musterstadt GmbH - Werkstrasse 4 - 12345 Musterstadt', s: 7 }, { t: 'Herrn' }, { t: 'Max Mustermann' }, { t: 'Lindenweg 7' }, { t: '12345 Musterstadt' },
+      { t: 'Kundennummer: 4711-0815' }, { t: 'Musterstadt, den 12.10.2026' }, { t: 'Betreff: Jahresabrechnung Strom 2025' }, { t: 'Der Rechnungsbetrag ist zahlbar bis 30.10.2026.' }]));
+    fs.writeFileSync(path.join(TMP, 'Steuer.pdf'), await brief([{ t: 'Finanzamt Musterstadt', s: 14 }, { t: 'Postfach 1234 - 12340 Musterstadt', s: 7 }, { t: 'Frau' }, { t: 'Erika Mustermann' }, { t: 'Lindenweg 7' }, { t: '12345 Musterstadt' },
+      { t: 'Datum: 03.09.2026' }, { t: 'Einkommensteuerbescheid 2025' }, { t: 'Die Frist fuer den Einspruch betraegt einen Monat.' }]));
+    fs.writeFileSync(path.join(TMP, 'Notiz.pdf'), await brief([{ t: 'Liebe Oma,' }, { t: 'danke fuer das Paket!' }]));
+    const typ = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.css': 'text/css', '.png': 'image/png', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.json': 'application/json', '.pdf': 'application/pdf' };
+    const srv = await new Promise(res => { const s = http.createServer((q, r) => {
+      let p = decodeURIComponent(new URL(q.url, 'http://x').pathname); if (p.endsWith('/')) p += 'index.html';
+      const f = path.join(wurzel, p); if (!f.startsWith(wurzel) || !fs.existsSync(f)) { r.writeHead(404); r.end(); return; }
+      r.writeHead(200, { 'Content-Type': typ[path.extname(f)] || 'application/octet-stream' }); fs.createReadStream(f).pipe(r);
+    }); s.listen(0, '127.0.0.1', () => res(s)); });
+    const exe = ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome', '/opt/pw-browsers/chromium/chrome-linux/chrome'].find(fs.existsSync);
+    const browser = await pw.chromium.launch(exe ? { executablePath: exe } : {});
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const page = await ctx.newPage();
+    const fehler = []; page.on('pageerror', e => fehler.push(String(e)));
+    await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, r => r.abort());
+    const url = `http://127.0.0.1:${srv.address().port}/`;
+    const karten = () => page.evaluate(() => [...document.querySelectorAll('#dokGitter .dok')].map(d => ({ name: d.querySelector('.dok-name').textContent, brief: (d.querySelector('[data-briefkopf]') || {}).textContent || '' })));
+    try {
+      await page.goto(url); await page.waitForFunction(() => window.__wfpdf);
+      await page.setInputFiles('#inDatei', ['Strom.pdf', 'Steuer.pdf', 'Notiz.pdf'].map(n => path.join(TMP, n)));
+      await page.waitForFunction(() => window.__wfpdf.S.docs.length === 3, null, { timeout: 30000 });
+      await page.evaluate(() => { for (const g of document.querySelectorAll('.dlg-grund')) g.remove(); });
+      await page.waitForFunction(() => window.__wfpdf.S.docs.every(d => d.briefkopf), null, { timeout: 30000 }).catch(() => {});
+      const bks = await page.evaluate(() => Object.fromEntries(window.__wfpdf.S.docs.map(d => [d.name, d.briefkopf])));
+      pruefe('beim Einlesen wird der Briefkopf am Dokument gemerkt', Object.values(bks).every(Boolean), Object.keys(bks).filter(k => !bks[k]));
+      const strom = Object.entries(bks).find(([n]) => /Strom/.test(n)); const steuer = Object.entries(bks).find(([n]) => /Steuer/.test(n));
+      pruefe('Strom: Datum, Absender, Kundennummer aus dem echten PDF', strom && strom[1] && strom[1].datum && strom[1].datum.wert === '2026-10-12' && strom[1].absender && strom[1].absender.wert === 'Stadtwerke Musterstadt GmbH' && strom[1].nummern.some(n => n.wert === '4711-0815'), strom && strom[1]);
+      pruefe('Steuer: Datum und Thema', steuer && steuer[1] && steuer[1].datum && steuer[1].datum.wert === '2026-09-03' && steuer[1].thema && steuer[1].thema.wert === 'Steuern & Behörden', steuer && steuer[1]);
+      if (!(await page.$('[data-sortbox][open]'))) await page.click('[data-sortbox] summary');
+      await page.selectOption('[data-sort]', 'brief');
+      await page.waitForFunction(() => document.querySelectorAll('#dokGitter [data-briefkopf]').length === 3, null, { timeout: 10000 }).catch(() => {});
+      let k = await karten();
+      pruefe('Sortieren nach Briefdatum: ohne Datum (Eingang heute) zuerst, dann 12.10., dann 03.09.', k.map(x => x.name).join('|').replace(/\.pdf/g, '') === 'Notiz|Strom|Steuer', k.map(x => x.name));
+      pruefe('Karte nennt Briefdatum, Absender und Kundennummer', k.some(x => /12\.10\.2026 · Stadtwerke Musterstadt GmbH · Kd 4711-0815/.test(x.brief)), k);
+      if (!(await page.$('[data-sortbox][open]'))) await page.click('[data-sortbox] summary');
+      await page.selectOption('[data-thema]', 'Steuern & Behörden');
+      await page.waitForTimeout(150);
+      k = await karten();
+      pruefe('Thema als Filter: nur der Steuerbescheid', k.length === 1 && /Steuer/.test(k[0].name), k.map(x => x.name));
+      await page.click('#dokGitter [data-briefkopf-aendern]');
+      await page.waitForSelector('[data-bk="absender"]');
+      await page.fill('[data-bk="absender"]', 'Finanzamt Musterstadt-Nord');
+      await page.click('[data-bk-speichern]');
+      await page.waitForTimeout(200);
+      await page.goto(url); await page.waitForFunction(() => window.__wfpdf && window.__wfpdf.S.docs.length === 3, null, { timeout: 20000 });
+      const nach = await page.evaluate(() => (window.__wfpdf.S.docs.find(d => /Steuer/.test(d.name)) || {}).briefkopf);
+      pruefe('von Hand geändert: bleibt nach dem Neuladen und ist als Hand markiert', nach && nach.hand === true && nach.absender && nach.absender.wert === 'Finanzamt Musterstadt-Nord', nach);
+      pruefe('keine Fehler auf der Seite', fehler.length === 0, fehler);
+    } catch (e) { pruefe('Teil B lief durch', false, String(e)); }
+    finally { await browser.close(); srv.close(); fs.rmSync(TMP, { recursive: true, force: true }); }
+  }
+}
+
 console.log(`\n${gruen} grün · ${rot} ROT`);
 process.exit(rot ? 1 : 0);
