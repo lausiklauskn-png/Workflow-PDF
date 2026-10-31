@@ -3027,6 +3027,7 @@
       <h3 style="margin:14px 0 0;font-size:1rem">Speicher</h3>
       <p class="hinweis" id="stSpeicher">…</p>
       <div class="zeile" style="justify-content:flex-start"><button class="knopf" id="stSicherung">🔐 Bibliothek sichern und zurückholen …</button></div>
+      ${window.WFPNetz ? WFPNetz.abschnittHtml() : ''}
       <p class="hinweis"><a href="impressum.html" target="_blank" rel="noopener">Impressum &amp; Datenschutz</a></p>
       ${$('btnInstall').hidden ? '' : '<div class="zeile" style="justify-content:flex-start" data-einst-install><button class="knopf rot" id="stInstall">📲 Als App installieren</button></div>'}
       <div class="zeile"><button class="knopf" data-x>Abbrechen</button><button class="knopf rot" data-ok>Speichern</button></div>
@@ -3042,6 +3043,7 @@
       zeige();
       d.querySelector('#stSprache').onclick = spracheWaehlen;
       d.querySelector('#stSicherung').onclick = () => { zu(); sicherungDialog(); };
+      if (window.WFPNetz) WFPNetz.binden(d);   // „Im Netz antworten“ (assets/netz.js): schaltet sofort, nicht erst mit „Speichern“
       /* Installieren auch hier (Klaus 2026-10-18: „unter Einstellungen … so wie bei meinem Rezeptbuch“).
          Derselbe Weg wie der Knopf oben; als App ist der obere verborgen und dieser fehlt. */
       const stInst = d.querySelector('#stInstall'); if (stInst) stInst.onclick = () => { zu(); $('btnInstall').click(); };
