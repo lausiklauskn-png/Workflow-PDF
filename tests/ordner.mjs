@@ -96,7 +96,7 @@ try {
   await page.evaluate(() => { const w = window.__wfpdf; w.S.aktOrdner = w.S.ordner.find(o => o.name === 'Buch · RU').id; w.EINST.sortierung = 'name'; w.einstSpeichern(); w.suche.zeichneBibliothek(); });
 
   // C. Sortierung in der Ansicht
-  ok('Sortier-Auswahl steht über der Liste, vorgewählt „Name (1, 2 … 10)"', await page.evaluate(() => { const s = document.querySelector('[data-sort]'); return !!s && s.value === 'name' && [...s.options].map(o => o.value).join() === 'name,neu,erstellt,groesse,seiten'; }));   // benannt statt gezählt: seit 2026-09-27 steht „Erstellungsdatum" dabei
+  ok('Sortier-Auswahl steht über der Liste, vorgewählt „Name (1, 2 … 10)"', await page.evaluate(() => { const s = document.querySelector('[data-sort]'); return !!s && s.value === 'name' && [...s.options].map(o => o.value).join() === 'name,neu,erstellt,groesse,seiten,brief'; }));   // benannt statt gezählt: seit 2026-09-27 steht „Erstellungsdatum" dabei, seit 2026-10-31 „Briefdatum, Absender"
   ok('nach Name: Teil 1, Teil 2, Teil 10', JSON.stringify(await reihe()) === JSON.stringify(NAME), await reihe());
   // Die Auswahl steht seit 2026-09-27 in einem aufklappbaren Kasten — wie ein Nutzer erst aufklappen
   const sortiere = async v => { if (!await page.evaluate(() => document.querySelector('[data-sortbox]').open)) await page.click('[data-sortbox] > summary'); await page.selectOption('[data-sort]', v); };

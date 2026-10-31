@@ -15,8 +15,8 @@ import { fileURLToPath } from 'node:url';
 const WURZEL = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const A = 'assets/app.js';
 const FAELLE = [
-  { name: 'package.json bleibt bei der alten Nummer', datei: 'package.json', anker: '"version": "1.1.5"', ersatz: '"version": "1.0.0"', trifft: /package\.json/ },
-  { name: 'Cache erhöht, Version vergessen', datei: 'sw.js', anker: "const CACHE_VERSION = 'workfloh-pdf-v110';", ersatz: "const CACHE_VERSION = 'workfloh-pdf-v111';", trifft: /CACHE_VERSION/ },
+  { name: 'package.json bleibt bei der alten Nummer', datei: 'package.json', anker: '"version": "1.1.6"', ersatz: '"version": "1.0.0"', trifft: /package\.json/ },
+  { name: 'Cache erhöht, Version vergessen', datei: 'sw.js', anker: "const CACHE_VERSION = 'workfloh-pdf-v111';", ersatz: "const CACHE_VERSION = 'workfloh-pdf-v112';", trifft: /CACHE_VERSION/ },
   { name: 'der Fuß zeigt keine Version', datei: A, anker: "const f = $('versionFuss'); if (f) { f.textContent = v ? z : ''; f.hidden = !v; }", ersatz: ';', trifft: /Fuß/ },
   { name: 'die Einstellungen zeigen keine Version', datei: A, anker: '<p class="hinweis einst-version" data-einst-version>Version ${h(versionNummer())}</p>', ersatz: '', trifft: /Einstellungen|Probe lief durch/ },
   { name: 'die Pro-Nummer wird nicht übernommen', datei: A, anker: "document.addEventListener('wfp-version', versionZeigen);", ersatz: '', trifft: /Pro-Weg/ },
