@@ -70,6 +70,18 @@ try{
     return {id:d.id,source:d.quelle,original:Array.from(f.bytes),pdf:new TextDecoder().decode(new Uint8Array(pdf).slice(0,5)),checked:!!d.pruefung};
   },photo);
   ok('photo uses the normal PDF conversion and keeps its byte-exact original under the reserved identity',image?.id==='native-photo-2'&&image.source==='foto'&&image.original.join()===photo.join()&&image.pdf==='%PDF-'&&!image.checked);
+  const state=await page.evaluate(async bytes=>{
+    const doc=await WFP.DB.get('docs','native-reserved-1');doc.id='foreign-working-state';doc.name='Working state';
+    doc.fields=[{id:'f',page:0,type:'text',label:'Name',value:'Synthetic name',x:10,y:10,w:20,h:5}];doc.pruefung={stand:'sauber'};
+    const data=JSON.stringify({format:'workfloh-pdf-arbeitsstand',version:1,doc,pdf:btoa(String.fromCharCode(...bytes))});
+    const result=await __wfpdf.importDateien([new File([data],'state.workfloh.json',{type:'application/json'})],null,{still:true,
+      async vorSpeichern(d,source){await Promise.resolve();d.id='reserved-state-3';d.proHerkunft={id:'state-3'};
+        if(Array.from(source.bytes).join()!==bytes.join())throw Error('state PDF changed');}
+    });
+    const saved=await WFP.DB.get('docs','reserved-state-3');
+    return {result:result.map(d=>d.id),saved,foreign:!!await WFP.DB.get('docs','foreign-working-state')};
+  },bytes);
+  ok('working-state import awaits the same hook and returns its actual stored document',state.result.join()==='reserved-state-3'&&state.saved?.fields[0].value==='Synthetic name'&&!state.saved.pruefung&&!state.foreign);
   ok('no uncaught browser error',errors.length===0);
   console.log(`${checks} import checks passed`);
 }catch(e){console.error('FAIL '+e.stack);process.exitCode=1;}

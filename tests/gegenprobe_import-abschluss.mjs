@@ -11,7 +11,9 @@ const cases=[
   ['missing hook',hook,';',/hook is called before any document write/],
   ['unawaited reservation',hook,"if (typeof vorSpeichern === 'function') vorSpeichern(d, { bytes, original });",/hook is called before any document write|async hook holds/],
   ['premature file write',hook,`await DB.putFile(d.id, bytes); ${hook}`,/hook is called before any document write/],
-  ['missing photo original',hook,"if (typeof vorSpeichern === 'function') await vorSpeichern(d, { bytes, original: null });",/photo uses the normal PDF conversion/]
+  ['missing photo original',hook,"if (typeof vorSpeichern === 'function') await vorSpeichern(d, { bytes, original: null });",/photo uses the normal PDF conversion/],
+  ['working state bypasses reservation',"if (typeof opt.vorSpeichern === 'function') await opt.vorSpeichern(d, { bytes, original: null });",';',/working-state import awaits/],
+  ['working state returns no receipt','if (!dateien.length) return staendeNeu;','if (!dateien.length) return [];',/working-state import awaits/]
 ];
 let failed=0;const copy=await mkdtemp(join(tmpdir(),'wfp-import-counter-'));
 function run(where){return spawnSync(process.execPath,[join(root,'tests/import-abschluss.mjs')],{env:{...process.env,WURZEL:where},encoding:'utf8',timeout:90000});}

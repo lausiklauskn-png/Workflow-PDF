@@ -9,6 +9,8 @@ asynchronen Haken. Er erhält das fertig gelesene Dokument und `{ bytes, origina
 Dokument oder Seitentext gespeichert werden. Ein nativer Adapter kann dort seine vorab reservierte
 Kennung und Herkunft setzen. Ein abgelehnter Haken erzeugt keinen erfolgreichen Dokumenteintrag.
 PDF-Lesen, Bildumwandlung, aufgehobenes Original und die manuelle Prüfung bleiben im normalen Import.
+Arbeitsstand-Dateien verwenden denselben Haken, erhalten ihre Felder und liefern ebenfalls die tatsächlich
+gespeicherten Dokumente zurück; `still` öffnet dabei keinen Editor. Fremde Prüfbefunde werden weiterhin verworfen.
 Der Aufrufer muss anschließend den dauerhaften Speicher zurücklesen und seine eigene Quittung sichern;
 der Haken selbst ist keine Empfangsbestätigung und keine atomare Datenbanktransaktion.
 
