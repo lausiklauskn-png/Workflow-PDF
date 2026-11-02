@@ -887,6 +887,15 @@
      Mit Einträgen geht das feste PDF hinaus (die Einträge fest auf der Seite), ohne das Original.
      Teilen verlangt einen frischen Tipp; wird es nach dem Bauen verweigert, steht „📤 Jetzt teilen …" da. */
   function nimmEintraege(d) { return d.fields.some(f => f.value !== undefined && f.value !== null && f.value !== '' && f.value !== false); }
+  // Eine Ausgabe gehört zu ihren tatsächlich verwendeten Dokumenten. Geräteadapter
+  // dürfen diese Zuordnung lesen; weder Dateiname noch das später offene Dokument genügen.
+  const AUSGABE_QUELLEN = new WeakMap();
+  function ausgabeDatei(bytes, name, mime, ids) {
+    const file = new File([bytes], name, { type: mime });
+    AUSGABE_QUELLEN.set(file, ids.slice());
+    return file;
+  }
+  function ausgabeHerkunft(file) { return (AUSGABE_QUELLEN.get(file) || []).slice(); }
   async function teilenDocs(ids) {
     ids = ids.filter(Boolean); if (!ids.length) return;
     if (S.doc && ids.includes(S.doc.id)) await speichernJetzt();
@@ -902,13 +911,13 @@
         const m = nimmEintraege(d) ? 'fest' : 'original';
         const r = await ausgabeBytes(d, bytes, m);
         let name = dateiName(d.name) + '.pdf', k = 2; while (namen.has(name.toLowerCase())) name = dateiName(d.name) + ' (' + (k++) + ').pdf';
-        namen.add(name.toLowerCase()); dateien.push({ name, bytes: r.bytes, m });
+        namen.add(name.toLowerCase()); dateien.push({ name, bytes: r.bytes, m, quelle: d.id });
       }
     } catch (e) { if (fb) fb.zu(); console.error(e); return toast('⚠️ Teilen fehlgeschlagen: ' + (e.message || e)); }
     if (fb) fb.zu();
     if (!dateien.length) return toast('⚠️ ' + (hinweise[0] || 'Nichts zu teilen.'));
     const titel = dateien.length === 1 ? dateien[0].name.replace(/\.pdf$/, '') : dateien.length + ' PDFs';
-    const files = dateien.map(f => new File([f.bytes], f.name, { type: 'application/pdf' }));
+    const files = dateien.map(f => ausgabeDatei(f.bytes, f.name, 'application/pdf', [f.quelle]));
     window.__wfpdfTeilen = { ids, dateien: dateien.map(f => ({ name: f.name, groesse: f.bytes.length, m: f.m })) };
     let teilbar = false; try { teilbar = !!(navigator.canShare && navigator.canShare({ files })); } catch (_) {}
     if (teilbar && !hinweise.length) {
@@ -1319,7 +1328,7 @@
   function ausB64(b) { const s = atob(b); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
   function standDatei(doc, bytes) {
     const inhalt = JSON.stringify({ format: STAND_FORMAT, version: 1, gesichert: jetzt(), doc, pdf: zuB64(bytes) });
-    return new File([inhalt], dateiName(doc.name) + '.workfloh.json', { type: 'application/json' });
+    return ausgabeDatei(inhalt, dateiName(doc.name) + '.workfloh.json', 'application/json', [doc.id]);
   }
   async function staendeEinlesen(dateien, opt = {}) {
     const neu = [], fehler = [];
@@ -2186,25 +2195,26 @@
         const fb = fortschritt('Ordner „' + o.name + '" wird ausgegeben');
         try {
           const zusatz = { fest: '', ausfuellbar: ' (ausfuellbar)', vorlage: ' (Vorlage)', original: '' }[m];
-          const dateien = [], hinweise = [];
+          const dateien = [], hinweise = [], quellen = [];
           const eins = weg === 'eins' ? await PDFLib.PDFDocument.create() : null;
           for (let i = 0; i < docs.length; i++) {
             fb.setze(i / docs.length, 'Dokument ' + (i + 1) + ' von ' + docs.length);
             const bytes = await DB.getFile(docs[i].id);
             if (!bytes) { hinweise.push('„' + docs[i].name + '" hat keine Datei mehr — übersprungen.'); continue; }
             const r = await ausgabeBytes(docs[i], bytes, m);
+            quellen.push(docs[i].id);
             if (eins) { const q = await PDFLib.PDFDocument.load(r.bytes, { ignoreEncryption: true }); (await eins.copyPages(q, q.getPageIndices())).forEach(p => eins.addPage(p)); }
-            else dateien.push({ name: dateiName(docs[i].name) + zusatz + '.pdf', bytes: r.bytes });
+            else dateien.push({ name: dateiName(docs[i].name) + zusatz + '.pdf', bytes: r.bytes, quellen: [docs[i].id] });
           }
           fb.setze(0.95, 'Datei wird gebaut …');
           let aus;
-          if (eins) aus = [{ name: dateiName(o.name) + '.pdf', bytes: await eins.save(), typ: 'application/pdf' }];
-          else if (weg === 'zip') aus = [{ name: dateiName(o.name) + '.zip', bytes: WFP.Zip.zip(dateien), typ: 'application/zip' }];
+          if (eins) aus = [{ name: dateiName(o.name) + '.pdf', bytes: await eins.save(), typ: 'application/pdf', quellen }];
+          else if (weg === 'zip') aus = [{ name: dateiName(o.name) + '.zip', bytes: WFP.Zip.zip(dateien), typ: 'application/zip', quellen }];
           else aus = dateien.map(f => Object.assign({ typ: 'application/pdf' }, f));
           fb.zu();
           window.__wfpdfOrdnerAusgabe = { weg, m, dateien: aus.map(f => ({ name: f.name, groesse: f.bytes.length })) };
           if (weg !== 'teilen') laden(aus[0].name, aus[0].bytes, aus[0].typ);
-          const files = aus.map(f => new File([f.bytes], f.name, { type: f.typ }));
+          const files = aus.map(f => ausgabeDatei(f.bytes, f.name, f.typ, f.quellen));
           let teilbar = false; try { teilbar = !!(navigator.canShare && navigator.canShare({ files })); } catch (_) {}
           // Teilen braucht einen frischen Tipp — nach dem Bauen ist der erste verbraucht.
           dialog(`<h2>📤 ${weg === 'teilen' ? 'Bereit zum Teilen' : 'Gespeichert'}</h2>
@@ -2238,26 +2248,27 @@
         const m = b.dataset.m; b.disabled = true;
         try {
           await speichernJetzt();
+          const doc = S.doc, sourceBytes = S.bytes;
           if (m === 'html') {
-            const html = await WFP.HtmlExport.htmlFormular(S.doc, S.bytes);
-            const name = dateiName(S.doc.name) + ' (zum Ausfuellen).html';
+            const html = await WFP.HtmlExport.htmlFormular(doc, sourceBytes);
+            const name = dateiName(doc.name) + ' (zum Ausfuellen).html';
             laden(name, new TextEncoder().encode(html), 'text/html');
-            if (navigator.canShare) { try { const file = new File([html], name, { type: 'text/html' }); if (navigator.canShare({ files: [file] })) (d.querySelectorAll('[data-teilen]').forEach(x => x.remove()), b.insertAdjacentHTML('afterend', '<button class="knopf" data-teilen>📤 Teilen …</button>'), b.nextElementSibling.onclick = () => navigator.share({ files: [file], title: S.doc.name }).catch(() => {})); } catch (_) {} }
+            if (navigator.canShare) { try { const file = ausgabeDatei(html, name, 'text/html', [doc.id]); if (navigator.canShare({ files: [file] })) (d.querySelectorAll('[data-teilen]').forEach(x => x.remove()), b.insertAdjacentHTML('afterend', '<button class="knopf" data-teilen>📤 Teilen …</button>'), b.nextElementSibling.onclick = () => navigator.share({ files: [file], title: doc.name }).catch(() => {})); } catch (_) {} }
             // Ohne Felder ist darin nichts auszufüllen — das nicht still als Erfolg melden (Klaus 2026-09-25)
-            if (!S.doc.fields.length) toast('⚠️ HTML gespeichert — aber dieses Dokument hat keine Felder, darin lässt sich nichts ausfüllen. Erst „🔍 Felder erkennen" oder Felder setzen, dann neu ausgeben.');
+            if (!doc.fields.length) toast('⚠️ HTML gespeichert — aber dieses Dokument hat keine Felder, darin lässt sich nichts ausfüllen. Erst „🔍 Felder erkennen" oder Felder setzen, dann neu ausgeben.');
             else toast('✅ HTML gespeichert — im Browser öffnen, ausfüllen, dann „Als PDF speichern".');
             return;
           }
-          const { bytes, hinweise } = await ausgabeBytes(S.doc, S.bytes, m === 'druck' ? 'fest' : m);
+          const { bytes, hinweise } = await ausgabeBytes(doc, sourceBytes, m === 'druck' ? 'fest' : m);
           const zusatz = { fest: '', ausfuellbar: ' (ausfuellbar)', vorlage: ' (Vorlage)', druck: '' }[m];
           if (m === 'druck') {
             const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
-            const w = window.open(url, '_blank'); if (!w) laden(dateiName(S.doc.name) + '.pdf', bytes);
+            const w = window.open(url, '_blank'); if (!w) laden(dateiName(doc.name) + '.pdf', bytes);
             setTimeout(() => URL.revokeObjectURL(url), 120000);
           } else {
-            const name = dateiName(S.doc.name) + zusatz + '.pdf';
+            const name = dateiName(doc.name) + zusatz + '.pdf';
             laden(name, bytes);
-            if (navigator.canShare) { try { const file = new File([bytes], name, { type: 'application/pdf' }); if (navigator.canShare({ files: [file] })) (d.querySelectorAll('[data-teilen]').forEach(x => x.remove()), b.insertAdjacentHTML('afterend', '<button class="knopf" data-teilen>📤 Teilen …</button>'), b.nextElementSibling.onclick = () => navigator.share({ files: [file], title: S.doc.name }).catch(() => {})); } catch (_) {} }
+            if (navigator.canShare) { try { const file = ausgabeDatei(bytes, name, 'application/pdf', [doc.id]); if (navigator.canShare({ files: [file] })) (d.querySelectorAll('[data-teilen]').forEach(x => x.remove()), b.insertAdjacentHTML('afterend', '<button class="knopf" data-teilen>📤 Teilen …</button>'), b.nextElementSibling.onclick = () => navigator.share({ files: [file], title: doc.name }).catch(() => {})); } catch (_) {} }
           }
           toast('✅ ' + (m === 'druck' ? 'PDF geöffnet' : 'PDF gespeichert') + (hinweise.length ? ' · ' + hinweise.join(' ') : ''));
           hops();
@@ -3329,7 +3340,7 @@
     if (BKA()) BKA().init({ S, DB, dialog, toast, neu: () => { if ($('sc-bib').classList.contains('on')) zeichneBibliothek(); }, texteNachholen });
     if (window.WFP && WFP.Bild) WFP.Bild.init({ S, EINST, einstSpeichern, DB, dialog, toast, neu: () => { if ($('sc-bib').classList.contains('on')) zeichneBibliothek(); }, sprechen: window.WFSprechen, micSprache: () => MIC_LANG[(WFP.Sprache && WFP.Sprache.lang) || 'de'] || 'de-DE' });
     ladeBibliothek().then(() => { if (EINST.bedeutung) bedeutungStarten({ einordnen: false }); if (window.WFP && WFP.Bild) WFP.Bild.start(); }).then(chromeTabRueckweg).then(geteiltUebernehmen).then(oeffnenMitEmpfangen).then(scanDirektstart).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
-    window.__wfpdf = { bild: window.WFP && WFP.Bild, eingang: { PRUEF, pruefDialog, eingangPruefen, pruefungNachholen, ALLE, allePruefen, pruefenKnopf, pruefLeiste }, versionNummer, kiReiniger, beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen, einordnenLauf, einordnenStopp, einordnenKnopf, offeneEinordnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner, geteiltUebernehmen, scanDirektstart,
+    window.__wfpdf = { bild: window.WFP && WFP.Bild, eingang: { PRUEF, pruefDialog, eingangPruefen, pruefungNachholen, ALLE, allePruefen, pruefenKnopf, pruefLeiste }, versionNummer, kiReiniger, beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen, einordnenLauf, einordnenStopp, einordnenKnopf, offeneEinordnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner, geteiltUebernehmen, scanDirektstart, ausgabeHerkunft,
       // für tests/sprache.mjs: jeden Dialog einmal öffnen und seine Texte nachschlagen
       dlg: { neuerOrdner, verschieben, teilenDocs, wahlEnde, WAHL, wahlUmschalten, loeschen, speichernDialog, scanStarten, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, erklaervideo, videoFuer, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe, bedeutungDialog, sicherungDialog, sicherungErinnerung } };   // für die Probe
   }
