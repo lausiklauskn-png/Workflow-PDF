@@ -1021,12 +1021,16 @@
     }
     return out;
   }
-  async function neuesDok(name, bytes, quelle, folderId, original, pruefen) {
+  async function neuesDok(name, bytes, quelle, folderId, original, pruefen, vorSpeichern) {
     const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
     const d = { id: uid(), name, folderId: folderId || null, quelle, createdAt: jetzt(), updatedAt: jetzt(),
       pages: await seitenInfo(pdf), thumb: await vorschaubild(pdf), fields: await vorhandeneFelder(pdf) };
     const text = await seitenText(pdf);
     try { pdf.destroy(); } catch (_) {}
+    // Native Eingänge reservieren ihre Kennung vor dem Import. Der optionale Haken
+    // setzt sie und den Herkunftsvermerk am normalen Dokument, bevor irgendetwas
+    // davon gespeichert wird. Ein abgebrochener Haken schreibt keine Dokumentdaten.
+    if (typeof vorSpeichern === 'function') await vorSpeichern(d, { bytes, original });
     await DB.putFile(d.id, bytes); await DB.put('docs', d); await textAblegen(d.id, text);
     /* Geprüft wird nur auf Knopfdruck (Klaus 2026-10-14: „400 Seiten eines Buches … obwohl nicht
        notwendig, weil die Datei schon mehrfach geprüft wurde"). ⚠ Tafel-Evolution: bis dahin lief die
@@ -1379,7 +1383,7 @@
         let bytes, quelle = 'pdf', original = null;
         if (istPdf(f)) bytes = new Uint8Array(await f.arrayBuffer());
         else { original = { name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) }; const b = await bildNormalisieren(f); bytes = await EX.bilderZuPdf([b]); quelle = 'foto'; }
-        neu.push(await neuesDok(f.name.replace(/\.[^.]+$/, ''), bytes, quelle, folderId, original, opt.pruefen));
+        neu.push(await neuesDok(f.name.replace(/\.[^.]+$/, ''), bytes, quelle, folderId, original, opt.pruefen, opt.vorSpeichern));
       } catch (e) {
         console.error(e);
         fehler.push(f.name + ': ' + (/password/i.test(e && e.name + e.message) ? 'passwortgeschützt' : (e.message || e)));
