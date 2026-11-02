@@ -2,6 +2,21 @@
 
 # Workfloh PDF — Sitzungs-Anker
 
+## Importabschluss für native Eingänge
+
+`__wfpdf.importDateien(files, ordner, { still: true, vorSpeichern })` unterstützt einen optionalen
+asynchronen Haken. Er erhält das fertig gelesene Dokument und `{ bytes, original }`, bevor Dateien,
+Dokument oder Seitentext gespeichert werden. Ein nativer Adapter kann dort seine vorab reservierte
+Kennung und Herkunft setzen. Ein abgelehnter Haken erzeugt keinen erfolgreichen Dokumenteintrag.
+PDF-Lesen, Bildumwandlung, aufgehobenes Original und die manuelle Prüfung bleiben im normalen Import.
+Arbeitsstand-Dateien verwenden denselben Haken, erhalten ihre Felder und liefern ebenfalls die tatsächlich
+gespeicherten Dokumente zurück; `still` öffnet dabei keinen Editor. Fremde Prüfbefunde werden weiterhin verworfen.
+Der Aufrufer muss anschließend den dauerhaften Speicher zurücklesen und seine eigene Quittung sichern;
+der Haken selbst ist keine Empfangsbestätigung und keine atomare Datenbanktransaktion.
+
+Version **1.1.7**, Cache **v112**, `app.js?v=75`. Browserprobe `tests/import-abschluss.mjs` in `npm test`;
+Gegenprobe `node tests/gegenprobe_import-abschluss.mjs` verändert nur Wegwerfkopien.
+
 PWA für Formulare: einlesen (PDF, Foto, Ordner) → Felder erkennen oder setzen →
 ausfüllen → festes / ausfüllbares PDF / leere Vorlage. Kein Build-Schritt.
 Vorlage war der Originaldokument-Modus von Mein-WorkFloh (Felder in Prozent

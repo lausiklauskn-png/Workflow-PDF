@@ -1021,12 +1021,16 @@
     }
     return out;
   }
-  async function neuesDok(name, bytes, quelle, folderId, original, pruefen) {
+  async function neuesDok(name, bytes, quelle, folderId, original, pruefen, vorSpeichern) {
     const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
     const d = { id: uid(), name, folderId: folderId || null, quelle, createdAt: jetzt(), updatedAt: jetzt(),
       pages: await seitenInfo(pdf), thumb: await vorschaubild(pdf), fields: await vorhandeneFelder(pdf) };
     const text = await seitenText(pdf);
     try { pdf.destroy(); } catch (_) {}
+    // Native Eingänge reservieren ihre Kennung vor dem Import. Der optionale Haken
+    // setzt sie und den Herkunftsvermerk am normalen Dokument, bevor irgendetwas
+    // davon gespeichert wird. Ein abgebrochener Haken schreibt keine Dokumentdaten.
+    if (typeof vorSpeichern === 'function') await vorSpeichern(d, { bytes, original });
     await DB.putFile(d.id, bytes); await DB.put('docs', d); await textAblegen(d.id, text);
     /* Geprüft wird nur auf Knopfdruck (Klaus 2026-10-14: „400 Seiten eines Buches … obwohl nicht
        notwendig, weil die Datei schon mehrfach geprüft wurde"). ⚠ Tafel-Evolution: bis dahin lief die
@@ -1317,7 +1321,7 @@
     const inhalt = JSON.stringify({ format: STAND_FORMAT, version: 1, gesichert: jetzt(), doc, pdf: zuB64(bytes) });
     return new File([inhalt], dateiName(doc.name) + '.workfloh.json', { type: 'application/json' });
   }
-  async function staendeEinlesen(dateien) {
+  async function staendeEinlesen(dateien, opt = {}) {
     const neu = [], fehler = [];
     for (const f of dateien) {
       try {
@@ -1332,14 +1336,16 @@
         } else if (vorhanden) hinweis = ' · Stand im Browser ersetzt';
         if (d.folderId && !S.ordner.some(o => o.id === d.folderId)) d.folderId = null;
         delete d.pruefung;                                  // ein Befund aus einer fremden Datei wird nicht geglaubt — geprüft wird auf Knopfdruck
+        if (typeof opt.vorSpeichern === 'function') await opt.vorSpeichern(d, { bytes, original: null });
         await DB.putFile(d.id, bytes); await DB.put('docs', d);
         neu.push({ d, hinweis });
       } catch (e) { fehler.push(f.name + ': ' + (e.message || e)); }
     }
     await ladeBibliothek();
     if (fehler.length) dialog(`<h2>Arbeitsstand nicht eingelesen</h2><ul>${fehler.map(x => '<li>' + h(x) + '</li>').join('')}</ul><div class="zeile"><button class="knopf rot" data-x>OK</button></div>`, (d, zu) => d.querySelector('[data-x]').onclick = zu);
-    if (neu.length === 1) { toast('📂 Arbeitsstand „' + neu[0].d.name + '" eingelesen' + neu[0].hinweis); oeffneDok(neu[0].d.id); }
+    if (neu.length === 1) { toast('📂 Arbeitsstand „' + neu[0].d.name + '“ eingelesen' + neu[0].hinweis); if (!opt.still) oeffneDok(neu[0].d.id); }
     else if (neu.length) toast('📂 ' + neu.length + ' Arbeitsstände eingelesen');
+    return neu.map(item => item.d);
   }
   async function speichernDialog() {
     await speichernJetzt();
@@ -1360,10 +1366,11 @@
   async function importDateien(dateien, ordnerName, opt) {
     opt = opt || {};
     const staende = Array.from(dateien || []).filter(istStand);
-    if (staende.length) { await staendeEinlesen(staende); dateien = Array.from(dateien).filter(f => !istStand(f)); if (!dateien.length) return []; }
+    const staendeNeu = staende.length ? await staendeEinlesen(staende, opt) : [];
+    if (staende.length) { dateien = Array.from(dateien).filter(f => !istStand(f)); if (!dateien.length) return staendeNeu; }
     const liste = Array.from(dateien || []).filter(f => istPdf(f) || istBild(f)).sort((a, b) => (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, 'de', { numeric: true }));
     const uebrig = (dateien ? dateien.length : 0) - liste.length;
-    if (!liste.length) { toast('Keine PDF- oder Bilddatei gefunden.'); return []; }
+    if (!liste.length) { toast('Keine PDF- oder Bilddatei gefunden.'); return staendeNeu; }
     if (!_persistGefragt) { _persistGefragt = true; DB.persist(); }
     let folderId = (S.ordner.some(o => o.id === S.aktOrdner)) ? S.aktOrdner : null;
     if (ordnerName) {
@@ -1372,14 +1379,14 @@
       folderId = o.id;
     }
     const fb = liste.length > 1 ? fortschritt('Dokumente einlesen') : null;
-    const neu = [], fehler = [];
+    const neu = [...staendeNeu], fehler = [];
     for (let i = 0; i < liste.length; i++) {
       const f = liste[i]; if (fb) fb.setze(i / liste.length, f.name);
       try {
         let bytes, quelle = 'pdf', original = null;
         if (istPdf(f)) bytes = new Uint8Array(await f.arrayBuffer());
         else { original = { name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) }; const b = await bildNormalisieren(f); bytes = await EX.bilderZuPdf([b]); quelle = 'foto'; }
-        neu.push(await neuesDok(f.name.replace(/\.[^.]+$/, ''), bytes, quelle, folderId, original, opt.pruefen));
+        neu.push(await neuesDok(f.name.replace(/\.[^.]+$/, ''), bytes, quelle, folderId, original, opt.pruefen, opt.vorSpeichern));
       } catch (e) {
         console.error(e);
         fehler.push(f.name + ': ' + (/password/i.test(e && e.name + e.message) ? 'passwortgeschützt' : (e.message || e)));
