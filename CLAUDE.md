@@ -1165,3 +1165,14 @@ Danach keine Verschiebung mehr an der Kopfleiste. Cache v103, `app.js?v=67`, `st
 Gemessen (Playwright, `/Workflow-PDF/`, `beforeinstallprompt` geschluckt): sichtbar und obenauf bei 320 · 360 · 412 · 1280 px,
 Kopfhöhe mit/ohne Knopf gleich, kein Querlaufen, Tipp zeigt die Anleitung, `getInstallabilityErrors` leer, nach
 `appinstalled` und als App weg (auch `#stInstall`). `npm test` Rückgabe 0. ⚠ Am Tablet nicht gemessen.
+
+## Herkunft einer ausgegebenen Datei
+
+Der Kern 1.1.8 führt die Zuordnung einer erzeugten `File` zu ihren tatsächlichen
+Dokumentkennungen in einer privaten `WeakMap`. Geräteadapter lesen eine Kopie über
+`__wfpdf.ausgabeHerkunft(file)`. Karten-/Mehrfachauswahl, Arbeitsstand, PDF-/HTML-Ausgabe
+und Ordnerausgabe verwenden dieselbe Zuordnung. Sammeldateien nennen alle tatsächlich
+beigetragenen Dokumente; ausgelassene Dokumente werden nicht zugeordnet. Fremde Dateien
+werden nicht anhand von Namen oder der späteren Editor-Auswahl zugeordnet. Dateiformate,
+Ausgabeverfahren und manuelle Schutzprüfungen bleiben unverändert. Die Pro-Verbund-
+Bedienung und Empfangsbestätigung gehören zu den jeweiligen App-Adaptern.
