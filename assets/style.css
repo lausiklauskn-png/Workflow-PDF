@@ -121,6 +121,7 @@ button{cursor:pointer}
 .feld .wert.mz{align-items:flex-start;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.18}
 .feld textarea{line-height:1.18;overflow-wrap:anywhere}
 .eig-gr input{width:5.5em}
+.eigene-art{display:inline-flex;gap:2px;align-items:center}.eigene-art [data-v-weg]{padding:0 6px;min-width:0}
 .hilfslinie{position:absolute;pointer-events:none;z-index:5;background:#e0231b;opacity:.75}
 .hilfslinie.senk{top:0;bottom:0;width:1px}
 .hilfslinie.waag{left:0;right:0;height:1px}

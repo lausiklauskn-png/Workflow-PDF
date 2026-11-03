@@ -23,6 +23,16 @@ const FAELLE = [
   { name: 'kein Zahlenfeld', datei: A, anker: "if ($('eigGr')) $('eigGr').oninput", ersatz: "if (false) $('eigGr').oninput", trifft: /14|Zahl|auto|Abbruch/ },
   { name: 'Export übergeht die Zahl (fest)', datei: X, anker: "    if (!g) return passendeGroesse(font, text, bw, bh, !!f.mehrzeilig);", ersatz: "    return passendeGroesse(font, text, bw, bh, !!f.mehrzeilig);", trifft: /festes PDF/ },
   { name: 'Export übergeht die Zahl (ausfüllbar)', datei: X, anker: "let gross = fest || Math.max(", ersatz: "let gross = Math.max(", trifft: /ausfüllbares PDF/ },
+  { name: 'kein Notstand-Schnappschuss beim Verlassen', datei: A, anker: "    window.addEventListener('pagehide', () => { notstandSchreiben(); speichernJetzt(); });", ersatz: "    window.addEventListener('pagehide', () => { speichernJetzt(); });",
+    weitere: [["if (document.visibilityState === 'hidden') { notstandSchreiben(); speichernJetzt(); }", "if (document.visibilityState === 'hidden') { speichernJetzt(); }"]], trifft: /Notstand|Abbruch/ },
+  { name: 'Notstand wird nicht eingespielt', datei: A, anker: "      if (d && (d.updatedAt || '') < (n.updatedAt || '')) {", ersatz: "      if (false) {", trifft: /Notstand|Abbruch/ },
+  { name: 'nach ⟳ nicht weiter, wo man war', datei: A, anker: ".then(scanDirektstart).then(weiterNachNeuladen)", ersatz: ".then(scanDirektstart)", trifft: /⟳/ },
+  // ⟳ löst auch pagehide aus — der Notstand-Schnappschuss deckt ein fehlendes Speichern davor. Ein Fall nimmt beide weg.
+  { name: '⟳ speichert nicht vorher (und kein Notstand)', datei: A, anker: "      $('btnNeu').disabled = true; toast('Neueste Fassung wird geladen …');\n      try { await speichernJetzt(); } catch (_) {}", ersatz: "      $('btnNeu').disabled = true; toast('Neueste Fassung wird geladen …');",
+    weitere: [["    window.addEventListener('pagehide', () => { notstandSchreiben(); speichernJetzt(); });", "    window.addEventListener('pagehide', () => { speichernJetzt(); });"], ["if (document.visibilityState === 'hidden') { notstandSchreiben(); speichernJetzt(); }", "if (document.visibilityState === 'hidden') { speichernJetzt(); }"]], trifft: /⟳|gespeichert|Notstand/ },
+  { name: 'eigene Feldart wird nicht gemerkt', datei: A, anker: "        einstSpeichern(); zu(); zeichneFuss(); toast(alt >= 0", ersatz: "        zu(); zeichneFuss(); toast(alt >= 0", trifft: /Neuladen wieder da|Abbruch/ },
+  { name: 'eigene Feldart setzt ohne Schrift', datei: A, anker: "    if (v.gr) f.gr = v.gr;\n", ersatz: '', trifft: /Tipp auf den Knopf/ },
+  { name: 'Titel der PDF hilft dem Namen nicht', datei: A, anker: "name = nameMitUmlauten(name, m && m.info && m.info.Title);", ersatz: "name = String(name || '');", trifft: /Eröffnungsmail|Gebühren/ },
   { name: 'kein Einrasten', datei: A, anker: "        if (fx) x += fx.d; if (fy) y += fy.d;", ersatz: '', trifft: /rastet/ }
   // BENANNTE GRENZE: das Wegnehmen der Hilfslinien beim Loslassen hat keinen Fall — nach einem Zug zeichnet die App die Felder
   // ohnehin neu (zeichneFelder leert die Seite), die Linien sind dann auch ohne diesen Riegel weg.

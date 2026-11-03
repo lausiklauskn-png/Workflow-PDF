@@ -83,6 +83,8 @@ try { browser = await chromium.launch(exe ? { executablePath: exe } : {}); } cat
 const srv = await server();
 const URL0 = `http://127.0.0.1:${srv.address().port}/`;
 const PDF64 = Buffer.from(await formular()).toString('base64');
+async function kleinesPdf(titel) { const d = await PDFDocument.create(); const f = await d.embedFont(StandardFonts.Helvetica); d.addPage([300, 200]).drawText('Erfunden', { x: 20, y: 100, size: 12, font: f }); if (titel) d.setTitle(titel); return Buffer.from(await d.save()).toString('base64'); }
+const PDF_TITEL64 = await kleinesPdf('Eröffnungsmail'), PDF_OHNE64 = await kleinesPdf('');
 
 try {
   console.log('B · im Browser');
@@ -186,6 +188,60 @@ try {
   ok('ohne Nachbarn im Fangbereich bleibt das Feld frei', Math.abs(frei - (zug.bx + 5)) < 0.3, { frei, zug });
   ok('nahe an der Kante des Nachbarn rastet es genau dort ein', Math.abs(nach.b - nach.a) < 1e-6, nach);
   ok('… mit Hilfslinie während des Ziehens, danach keine mehr', linie && nach.rest === 0, { linie, nach });
+
+  // 7 · eigene Feldart merken, wieder setzen, bleibt nach dem Neuladen, löschen
+  await page.click('.feld[data-id="a"]');
+  await page.waitForSelector('#eigVorlage');
+  await page.click('#eigVorlage');
+  await page.waitForSelector('.dlg #vlName');
+  await page.fill('.dlg #vlName', 'Meine Adresse');
+  await page.click('.dlg [data-ok]');
+  await page.waitForSelector('#edFuss [data-v]');
+  const knopf = await page.evaluate(() => { const b = document.querySelector('#edFuss [data-v]'); return b && b.textContent.trim(); });
+  ok('„★ Als Feldart merken" legt einen eigenen Knopf in „Feld setzen" an', /Meine Adresse/.test(knopf || ''), knopf);
+  await page.click('#edFuss [data-v]');
+  await page.locator('.seite .lage').first().click({ position: { x: 300, y: 520 } });
+  const gesetzt = await page.evaluate(() => { const S = window.__wfpdf.S, a = S.doc.fields.find(f => f.id === 'a'), n = S.doc.fields.find(f => f.vorlage === 'Meine Adresse');
+    return n && { type: n.type, gr: n.gr, mz: n.mehrzeilig, value: n.value, label: n.label, w: +n.w.toFixed(3), h: +n.h.toFixed(3), aw: +a.w.toFixed(3), ah: +a.h.toFixed(3), aval: a.value, alabel: a.label }; });
+  ok('ein Tipp auf den Knopf und aufs Blatt setzt das Feld mit Art, Schrift, mehrzeilig, Inhalt und Größe', gesetzt && gesetzt.type === 'text' && gesetzt.gr === 10 && gesetzt.mz === true && gesetzt.value === gesetzt.aval && gesetzt.label === gesetzt.alabel && Math.abs(gesetzt.w - gesetzt.aw) < 0.01 && Math.abs(gesetzt.h - gesetzt.ah) < 0.01, gesetzt);
+  // sofort neu laden, ohne auf das verzögerte Speichern zu warten (Notstand-Schnappschuss muss greifen)
+  await page.reload(); await page.waitForFunction(() => window.__wfpdf && window.WFP && WFP.DB);
+  await page.waitForFunction(() => window.__wfpdf.S.docs.length === 1, null, { timeout: 15000 });
+  await page.evaluate(async () => { await window.__wfpdf.oeffneDok(window.__wfpdf.S.docs[0].id); });
+  await page.waitForSelector('#sc-ed.on', { timeout: 15000 });
+  await page.evaluate(() => { const b = document.querySelector('#mBearbeiten'); if (b) b.click(); });
+  await page.waitForSelector('#edFuss [data-v]', { timeout: 15000 }).catch(() => {});
+  ok('das eben gesetzte Feld ist nach sofortigem Neuladen da (Notstand)', await page.evaluate(() => window.__wfpdf.S.doc.fields.some(f => f.vorlage === 'Meine Adresse')));
+  ok('die eigene Feldart steht nach dem Neuladen wieder da', await page.evaluate(() => !!document.querySelector('#edFuss [data-v]') && /Meine Adresse/.test(document.querySelector('#edFuss [data-v]').textContent)));
+  await page.click('#edFuss [data-v-weg]');
+  await page.waitForSelector('.dlg [data-j]'); await page.click('.dlg [data-j]');
+  await page.waitForTimeout(150);
+  const weg = await page.evaluate(() => ({ knopf: !!document.querySelector('#edFuss [data-v]'), feld: window.__wfpdf.S.doc.fields.some(f => f.vorlage === 'Meine Adresse'), vorlagen: (window.__wfpdf.EINST.feldVorlagen || []).length }));
+  ok('✕ fragt und löscht die Feldart; gesetzte Felder bleiben', !weg.knopf && weg.feld && weg.vorlagen === 0, weg);
+
+  // 8 · ⟳ mitten in der Arbeit: getippt, sofort aktualisiert → dasselbe Dokument, derselbe Modus, Eintrag da
+  await page.click('#mAusfuellen');
+  const feldB = page.locator('.feld[data-id="b"] input, .feld[data-id="b"] textarea').first();
+  await feldB.click(); await page.keyboard.type('Schnell getippt');
+  await Promise.all([page.waitForURL(/neu=/, { timeout: 15000 }).catch(() => {}), page.click('#btnNeu')]);
+  await page.waitForFunction(() => window.__wfpdfWeiter && window.__wfpdf && window.__wfpdf.S.doc, null, { timeout: 30000 }).catch(() => {});
+  const weiter = await page.evaluate(() => { const S = window.__wfpdf && window.__wfpdf.S; const b = S && S.doc && S.doc.fields.find(f => f.id === 'b');
+    return { w: window.__wfpdfWeiter || null, offen: !!document.querySelector('#sc-ed.on'), modus: S && S.modus, wert: b && b.value, toast: (document.getElementById('toast') || {}).textContent || '', url: location.search }; });
+  ok('⟳ mitten im Tippen: nach dem Neuladen ist dasselbe Dokument offen, im Ausfüllen-Modus', weiter.w && weiter.offen && weiter.modus === 'ausfuellen', weiter);
+  ok('… und der eben getippte Eintrag ist gespeichert', weiter.wert === 'Schnell getippt', weiter);
+  ok('… die Meldung nennt Fassung und „gespeichert", die Adresse ist wieder sauber', /Fassung \d+\.\d+\.\d+/.test(weiter.toast) && /gespeichert/.test(weiter.toast) && !/neu=/.test(weiter.url), weiter);
+
+  // 9 · Umlaute im Namen: Titel der PDF hilft, zerlegte Umlaute werden zusammengesetzt
+  const namen = await page.evaluate(async ([t64, n64]) => {
+    const f1 = new File([Uint8Array.from(atob(t64), c => c.charCodeAt(0))], 'Eroffnungsmail - Leistungsnr. 3766961_02.10.2026.pdf', { type: 'application/pdf' });
+    const f2 = new File([Uint8Array.from(atob(n64), c => c.charCodeAt(0))], 'Gebühren.pdf', { type: 'application/pdf' });
+    const f3 = new File([Uint8Array.from(atob(t64), c => c.charCodeAt(0))], 'Ganz anderer Name.pdf', { type: 'application/pdf' });
+    const r = await window.__wfpdf.importDateien([f1, f2, f3], 'Namen', { still: true });
+    return (Array.isArray(r) ? r : window.__wfpdf.S.docs.filter(d => d.name !== 'Erfundenes Formular')).map(d => d.name);
+  }, [PDF_TITEL64, PDF_OHNE64]);
+  ok('Dateiname ohne Umlaute + Titel „Eröffnungsmail" → „Eröffnungsmail - Leistungsnr. …"', namen.includes('Eröffnungsmail - Leistungsnr. 3766961_02.10.2026'), namen);
+  ok('zerlegter Umlaut im Dateinamen wird zusammengesetzt („Gebühren")', namen.includes('Gebühren') && namen.every(n => n === n.normalize('NFC')), namen);
+  ok('… ein ganz anderer Dateiname bleibt, wie er kam', namen.includes('Ganz anderer Name'), namen);
 
   ok('keine Seitenfehler', fehler.length === 0, fehler);
   await ctx.close();

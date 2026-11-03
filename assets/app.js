@@ -1030,8 +1030,23 @@
     }
     return out;
   }
+  /* Umlaute im Namen (Klaus 2026-11-03: „Eröffnungsmail … mit O statt mit Ö … der Name"). Zerlegte Umlaute (O + ¨) werden
+     zusammengesetzt. Hat die abgebende App die Umlaute ganz weggenommen, steht der Betreff oft noch mit Umlauten im Titel der PDF:
+     sieht der Dateiname aus wie dieser Titel ohne Umlaute, gilt der Titel. Sonst bleibt der Dateiname, wie er kam. */
+  const ohneZeichen = t => String(t || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  function nameMitUmlauten(name, titel) {
+    const n = String(name || '').normalize('NFC'), t = String(titel || '').normalize('NFC').trim();
+    if (!t || t.length > 200 || !/[\u00c0-\u024f]/.test(t) || /[\u00c0-\u024f]/.test(n)) return n;   // nur echte Umlaute/Akzente zählen, kein Gedankenstrich
+    const a = ohneZeichen(n), b = ohneZeichen(t);
+    if (a && a === b) return t;
+    if (a && b && a.startsWith(b) && b.length >= 6) return t + n.slice(lageNach(n, b));   // Titel = Anfang des Namens
+    return n;
+  }
+  // Stelle in n, an der die ersten b.length gefalteten Zeichen enden (Rest des Namens nach dem Titel)
+  function lageNach(n, b) { let k = 0; for (let i = 0; i < n.length; i++) { k += ohneZeichen(n[i]).length; if (k >= b.length) return i + 1; } return n.length; }
   async function neuesDok(name, bytes, quelle, folderId, original, pruefen, vorSpeichern) {
     const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
+    try { const m = await pdf.getMetadata(); name = nameMitUmlauten(name, m && m.info && m.info.Title); } catch (_) { name = String(name || '').normalize('NFC'); }
     const d = { id: uid(), name, folderId: folderId || null, quelle, createdAt: jetzt(), updatedAt: jetzt(),
       pages: await seitenInfo(pdf), thumb: await vorschaubild(pdf), fields: await vorhandeneFelder(pdf) };
     const text = await seitenText(pdf);
@@ -1540,7 +1555,28 @@
   }
   let _st = null;
   function speichern() { if (!S.doc) return; S.doc.updatedAt = jetzt(); clearTimeout(_st); _st = setTimeout(speichernJetzt, 350); }
-  async function speichernJetzt() { clearTimeout(_st); _st = null; if (S.doc) { try { await DB.put('docs', S.doc); } catch (e) { toast('⚠️ Speichern fehlgeschlagen: ' + e.message); } } }
+  async function speichernJetzt() { clearTimeout(_st); _st = null; if (S.doc) { const d = S.doc, st = d.updatedAt; try { await DB.put('docs', d); notstandErledigt(d.id, st); } catch (e) { toast('⚠️ Speichern fehlgeschlagen: ' + e.message); } } }
+  /* Notstand (Klaus 2026-11-03: „ich fange schon an einzugeben"): IndexedDB schreibt asynchron — wird die Seite gleich nach der
+     letzten Änderung neu geladen oder geschlossen, kann der letzte Schreibvorgang verloren gehen (die Probe fand das). Beim
+     Verstecken und Verlassen der Seite liegt deshalb zusätzlich ein synchroner Schnappschuss der Felder in localStorage; beim
+     nächsten Start wird er eingespielt, wenn er neuer ist als das gespeicherte Dokument, und danach gelöscht. */
+  const NOTSTAND_KEY = 'wfpdf_notstand_v1';
+  function notstandSchreiben() {
+    if (!S.doc) return;
+    try { localStorage.setItem(NOTSTAND_KEY, JSON.stringify({ id: S.doc.id, updatedAt: S.doc.updatedAt || '', name: S.doc.name, fields: S.doc.fields })); } catch (_) {}
+  }
+  function notstandErledigt(id, stand) {
+    try { const n = JSON.parse(localStorage.getItem(NOTSTAND_KEY) || 'null'); if (n && n.id === id && (n.updatedAt || '') <= (stand || '')) localStorage.removeItem(NOTSTAND_KEY); } catch (_) {}
+  }
+  async function notstandEinspielen() {
+    let n = null; try { n = JSON.parse(localStorage.getItem(NOTSTAND_KEY) || 'null'); } catch (_) {}
+    if (!n || !n.id || !Array.isArray(n.fields)) return;
+    try {
+      const d = await DB.get('docs', n.id);
+      if (d && (d.updatedAt || '') < (n.updatedAt || '')) { d.fields = n.fields; if (n.name) d.name = n.name; d.updatedAt = n.updatedAt; await DB.put('docs', d); window.__wfpdfNotstand = { id: d.id, eingespielt: true }; }
+      localStorage.removeItem(NOTSTAND_KEY);
+    } catch (_) {}
+  }
 
   let _rzBreite = 0;   // Breite beim letzten Zeichnen (siehe resize)
   function seitenBreite() { const fl = $('edFlaeche'); return Math.round(Math.min(fl.clientWidth - 24, 920) * S.zoom); }
@@ -1786,7 +1822,42 @@
     el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
   }
   function markiere() { document.querySelectorAll('.feld').forEach(el => el.classList.toggle('sel', el.dataset.id === S.sel)); }
+  /* Eigene Feldarten (Klaus 2026-11-03: „neue Felder, Kategorien bestimmt werden können … Kategorie neu anlegen, damit ich
+     automatisch draufklicken kann, wenn ich diese Kategorie oder dieses Feld wieder brauche"). Ein eingestelltes Feld wird unter
+     einem Namen gemerkt: Art, Bezeichnung, Schrift, mehrzeilig, Größe in pt (passt auf jede Seitengröße), Inhalt. Liegt in
+     EINST.feldVorlagen (dieses Gerät, alle Dokumente); in „Feld setzen" steht dafür ein eigener Knopf mit ★, ✕ löscht ihn. */
+  function feldVorlagen() { return Array.isArray(EINST.feldVorlagen) ? EINST.feldVorlagen : (EINST.feldVorlagen = []); }
+  function vorlageVon(f) {
+    const pg = S.doc.pages[f.page];
+    const v = { id: uid(), name: '', type: f.type, label: f.label || '', mehrzeilig: !!f.mehrzeilig, wPt: +(f.w / 100 * pg.w).toFixed(2), hPt: +(f.h / 100 * pg.h).toFixed(2) };
+    if (feldGr(f)) v.gr = feldGr(f);
+    if (typeof f.value === 'string' && f.value && !['unterschrift'].includes(f.type)) v.value = f.value.slice(0, 2000);
+    if (f.type === 'check' && f.value === true) v.value = true;
+    return v;
+  }
+  function vorlageMerken(f) {
+    dialog(`<h2>★ Eigene Feldart</h2><p class="hinweis">Steht danach in „Feld setzen" als eigener Knopf — mit Art, Bezeichnung, Schrift, Größe und Inhalt dieses Feldes.</p>
+      <label class="eig">Name der Feldart<input id="vlName" maxlength="40"></label>
+      <div class="zeile"><button class="knopf" data-x>Abbrechen</button><button class="knopf rot" data-ok>★ Merken</button></div>`, (d, zu) => {
+      const i = d.querySelector('#vlName'); i.value = f.label || TYPEN[f.type].name; i.focus(); i.select();
+      const ok = () => { const name = i.value.trim().slice(0, 40); if (!name) { i.focus(); return; }
+        const v = Object.assign(vorlageVon(f), { name }); const alt = feldVorlagen().findIndex(x => x.name.toLowerCase() === name.toLowerCase());
+        if (alt >= 0) { v.id = feldVorlagen()[alt].id; feldVorlagen()[alt] = v; } else feldVorlagen().push(v);
+        einstSpeichern(); zu(); zeichneFuss(); toast(alt >= 0 ? 'Feldart „' + name + '" aktualisiert.' : 'Feldart „' + name + '" gemerkt — steht jetzt in „Feld setzen".'); };
+      d.querySelector('[data-ok]').onclick = ok; d.querySelector('[data-x]').onclick = zu;
+      i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ok(); } });
+    });
+  }
+  async function vorlageLoeschen(id) {
+    const v = feldVorlagen().find(x => x.id === id); if (!v) return;
+    if (!await frage('Eigene Feldart löschen?', `<p>Die Feldart „${nm(v.name)}" verschwindet aus „Feld setzen". Schon gesetzte Felder bleiben.</p>`, 'Löschen')) return;
+    EINST.feldVorlagen = feldVorlagen().filter(x => x.id !== id); einstSpeichern();
+    if (S.platzieren === 'v:' + id) S.platzieren = null;
+    zeichneFuss();
+  }
   function feldSetzen(seite, e, lage) {
+    const vl = String(S.platzieren || '').startsWith('v:') ? feldVorlagen().find(v => 'v:' + v.id === S.platzieren) : null;
+    if (vl) return vorlageSetzen(vl, seite, e, lage);
     const r = lage.getBoundingClientRect(); const t = S.platzieren; const [w, hh] = GROESSE[t];
     const hKorr = t === 'check' || t === 'qr' ? w * S.doc.pages[seite].w / S.doc.pages[seite].h : hh;   // quadratisch
     const x = clamp((e.clientX - r.left) / r.width * 100 - (t === 'check' || t === 'qr' ? w / 2 : 1), 0, 100 - w);
@@ -1797,11 +1868,23 @@
     zeichneFelder(seite); zeichneFuss(); speichern();
     setTimeout(() => { const i = $('eigLabel'); if (i) { i.focus(); i.select(); } }, 30);
   }
+  function vorlageSetzen(v, seite, e, lage) {
+    const r = lage.getBoundingClientRect(), pg = S.doc.pages[seite], t = TYPEN[v.type] ? v.type : 'text';
+    const w = clamp(v.wPt / pg.w * 100, 1, 100), hh = clamp(v.hPt / pg.h * 100, 0.8, 100);
+    const x = clamp((e.clientX - r.left) / r.width * 100 - (t === 'check' || t === 'qr' ? w / 2 : 1), 0, 100 - w);
+    const y = clamp((e.clientY - r.top) / r.height * 100 - hh / 2, 0, 100 - hh);
+    const f = { id: uid(), page: seite, type: t, label: v.label || v.name, x, y, w, h: hh, value: t === 'check' ? v.value === true : (typeof v.value === 'string' ? v.value : ''),
+      herkunft: 'hand', geprueft: true, mehrzeilig: !!v.mehrzeilig, vorlage: v.name };
+    if (v.gr) f.gr = v.gr;
+    S.doc.fields.push(f); S.sel = f.id; S.platzieren = null; document.querySelectorAll('.seite').forEach(s => s.classList.remove('platzieren'));
+    zeichneFelder(seite); zeichneFuss(); speichern();
+  }
   function platzierenStart(t) {
     S.platzieren = S.platzieren === t ? null : t;
     document.querySelectorAll('.seite').forEach(s => s.classList.toggle('platzieren', !!S.platzieren));
     zeichneFuss();
-    if (S.platzieren) toast('Tippe auf die Stelle im Dokument, an die das ' + TYPEN[t].name + '-Feld soll.');
+    const v = String(t).startsWith('v:') ? feldVorlagen().find(x => 'v:' + x.id === t) : null;
+    if (S.platzieren) toast(v ? 'Tippe auf die Stelle im Dokument, an die das Feld „' + v.name + '" soll.' : 'Tippe auf die Stelle im Dokument, an die das ' + TYPEN[t].name + '-Feld soll.');
   }
 
   function zeichneModus() {
@@ -1834,6 +1917,7 @@
       return;
     }
     let html = `<div class="werkzeug"><span class="titel">Feld setzen:</span>${Object.entries(TYPEN).map(([k, t]) => `<button class="knopf${S.platzieren === k ? ' an' : ''}" data-t="${k}">${t.ico} ${t.name}</button>`).join('')}
+      ${feldVorlagen().map(v => `<span class="eigene-art"><button class="knopf${S.platzieren === 'v:' + v.id ? ' an' : ''}" data-v="${h(v.id)}" title="Eigene Feldart">★ ${nm(v.name)}</button><button class="knopf klein" data-v-weg="${h(v.id)}" title="Eigene Feldart löschen" aria-label="Eigene Feldart löschen">✕</button></span>`).join('')}
       <button class="knopf" id="fussSeite">＋ Seite</button><button class="knopf" id="fussText">📄 Erkannter Text</button></div>`;
     if (S.platzieren) html += `<div class="werkzeug"><span class="hinweis">👆 Tippe jetzt auf die Stelle im Dokument. <button class="knopf klein" id="platzAbbr">Abbrechen</button></span></div>`;
     if (f) {
@@ -1848,11 +1932,13 @@
           : `<label class="eig" style="flex:1;min-width:160px">${f.type === 'qr' ? 'Inhalt des QR-Codes' : 'Inhalt (vorbelegt)'}<input id="eigWert" value="${h(f.value || '')}"></label>`}
         ${!['check', 'unterschrift', 'qr'].includes(f.type) ? `<label class="eig eig-gr" title="Schriftgröße in Punkt. Leer: passt sich dem Feld an.">Schrift (pt)<input type="number" id="eigGr" min="${GR_MIN}" max="${GR_MAX}" step="0.5" inputmode="decimal" placeholder="auto" value="${feldGr(f) || ''}"></label>` : ''}
         ${f.type === 'text' ? `<label class="eig eig-haken"><input type="checkbox" id="eigMz"${f.mehrzeilig ? ' checked' : ''}> mehrzeilig</label>` : ''}
-        <button class="knopf" id="eigKopie" title="Feld kopieren">⧉ Kopie</button><button class="knopf gefahr" id="eigDel">🗑 Löschen</button></div>`;
+        <button class="knopf" id="eigVorlage" title="Dieses Feld als eigene Feldart in „Feld setzen" merken">★ Als Feldart merken</button><button class="knopf" id="eigKopie" title="Feld kopieren">⧉ Kopie</button><button class="knopf gefahr" id="eigDel">🗑 Löschen</button></div>`;
     }
     // Kein Erklärsatz ohne gewähltes Feld (Klaus 2026-09-27: „erklärt sich von alleine").
     fuss.innerHTML = html;
     fuss.querySelectorAll('[data-t]').forEach(b => b.onclick = () => platzierenStart(b.dataset.t));
+    fuss.querySelectorAll('[data-v]').forEach(b => b.onclick = () => platzierenStart('v:' + b.dataset.v));
+    fuss.querySelectorAll('[data-v-weg]').forEach(b => b.onclick = () => vorlageLoeschen(b.dataset.vWeg));
     $('fussSeite').onclick = seiteDialog; $('fussText').onclick = erkannterText;
     if ($('platzAbbr')) $('platzAbbr').onclick = () => platzierenStart(S.platzieren);
     if (!f) return;
@@ -1876,6 +1962,7 @@
       f.geprueft = true; feldAnText(f); speichern(); neu();
     };
     if ($('eigMz')) $('eigMz').onchange = e => { f.mehrzeilig = e.target.checked; feldAnText(f); speichern(); neu(); zeichneFuss(); };
+    $('eigVorlage').onclick = () => vorlageMerken(f);
     $('eigKopie').onclick = () => { const n = Object.assign({}, f, { id: uid(), y: clamp(f.y + f.h + 0.6, 0, 100 - f.h), geprueft: true, herkunft: 'hand' }); S.doc.fields.push(n); S.sel = n.id; speichern(); zeichneFelder(f.page); zeichneFuss(); };
     $('eigDel').onclick = () => feldLoeschen(f);
   }
@@ -3374,6 +3461,8 @@
     $('btnNeu').onclick = async () => {
       $('btnNeu').disabled = true; toast('Neueste Fassung wird geladen …');
       try { await speichernJetzt(); } catch (_) {}
+      // Weitermachen, wo man war (Klaus 2026-11-03: „Aktualisierung der App während des Betriebes … ich fange schon an einzugeben")
+      try { if (S.doc) sessionStorage.setItem(WEITER_KEY, JSON.stringify({ id: S.doc.id, modus: S.modus, oben: ($('edFlaeche') || {}).scrollTop || 0, zoom: S.zoom || 1, alt: versionNummer(), zeit: S.doc.updatedAt || '' })); } catch (_) {}
       try { if (window.caches) for (const k of await caches.keys()) await caches.delete(k); } catch (_) {}
       try { if (navigator.serviceWorker) for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister(); } catch (_) {}
       const u = new URL(location.href); u.searchParams.set('neu', Date.now().toString(36)); location.replace(u.href);
@@ -3395,8 +3484,8 @@
     $('edSpeichern').onclick = speichernDialog;
     // Beim Schließen oder Wechseln der App sofort sichern — sonst ginge verloren,
     // was in den letzten 0,35 s getippt wurde (Befund Klaus 2026-09-25).
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') speichernJetzt(); });
-    window.addEventListener('pagehide', () => speichernJetzt());
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { notstandSchreiben(); speichernJetzt(); } });
+    window.addEventListener('pagehide', () => { notstandSchreiben(); speichernJetzt(); });
     $('zMinus').onclick = () => zoom(1 / 1.2); $('zPlus').onclick = () => zoom(1.2);
     window.addEventListener('popstate', () => { if (S.doc && location.hash !== '#dok') schliesseEditor(true); });
     // Nur neu zeichnen, wenn sich die BREITE ändert. Die Bildschirmtastatur macht
@@ -3431,7 +3520,7 @@
     // Bildbeschreibung (Sitzung 4): die Nähte der App hineinreichen; das Modell startet nur, wenn die Wahl gemerkt ist
     if (BKA()) BKA().init({ S, DB, dialog, toast, neu: () => { if ($('sc-bib').classList.contains('on')) zeichneBibliothek(); }, texteNachholen });
     if (window.WFP && WFP.Bild) WFP.Bild.init({ S, EINST, einstSpeichern, DB, dialog, toast, neu: () => { if ($('sc-bib').classList.contains('on')) zeichneBibliothek(); }, sprechen: window.WFSprechen, micSprache: () => MIC_LANG[(WFP.Sprache && WFP.Sprache.lang) || 'de'] || 'de-DE' });
-    ladeBibliothek().then(() => { if (EINST.bedeutung) bedeutungStarten({ einordnen: false }); if (window.WFP && WFP.Bild) WFP.Bild.start(); }).then(chromeTabRueckweg).then(geteiltUebernehmen).then(oeffnenMitEmpfangen).then(scanDirektstart).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
+    notstandEinspielen().then(ladeBibliothek).then(() => { if (EINST.bedeutung) bedeutungStarten({ einordnen: false }); if (window.WFP && WFP.Bild) WFP.Bild.start(); }).then(chromeTabRueckweg).then(geteiltUebernehmen).then(oeffnenMitEmpfangen).then(scanDirektstart).then(weiterNachNeuladen).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
     window.__wfpdf = { bild: window.WFP && WFP.Bild, eingang: { PRUEF, pruefDialog, eingangPruefen, pruefungNachholen, ALLE, allePruefen, pruefenKnopf, pruefLeiste }, versionNummer, kiReiniger, beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen, einordnenLauf, einordnenStopp, einordnenKnopf, offeneEinordnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner, geteiltUebernehmen, scanDirektstart, ausgabeHerkunft,
       // für tests/sprache.mjs: jeden Dialog einmal öffnen und seine Texte nachschlagen
       dlg: { neuerOrdner, verschieben, teilenDocs, wahlEnde, WAHL, wahlUmschalten, loeschen, speichernDialog, scanStarten, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, erklaervideo, videoFuer, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe, bedeutungDialog, sicherungDialog, sicherungErinnerung } };   // für die Probe
@@ -3469,6 +3558,22 @@
      erlaubt keine Vorauswahl des Ziels). Die Adresse wird sofort geputzt, damit ⟳ den Scanner nicht
      noch einmal öffnet. Die gemerkte Wahl des Nutzers (`wfpdf_scan_v1`) bleibt unberührt: nur dieser
      eine Scan ist durchsuchbar. Der Toast sagt, woher der Start kam und wie es zurückgeht. */
+  /* Nach ⟳ (neueste Fassung laden) dasselbe Dokument wieder öffnen, im selben Modus und an derselben Stelle. Gespeichert wurde
+     vorher (speichernJetzt); die Einträge liegen in IndexedDB („WorkflohPDF1"), die das Neuladen nicht anfasst. */
+  const WEITER_KEY = 'wfpdf_weiter_v1';
+  async function weiterNachNeuladen() {
+    let w = null; try { w = JSON.parse(sessionStorage.getItem(WEITER_KEY) || 'null'); sessionStorage.removeItem(WEITER_KEY); } catch (_) {}
+    if (!w || !w.id) return;
+    const d = await DB.get('docs', w.id); if (!d) return;
+    await oeffneDok(w.id);
+    if (!S.doc || S.doc.id !== w.id) return;
+    if (w.modus === 'bearbeiten' || w.modus === 'ausfuellen') { S.modus = w.modus; zeichneModus(); }
+    const fl = $('edFlaeche'); if (fl && w.oben) requestAnimationFrame(() => { fl.scrollTop = w.oben; });
+    const uhr = d.updatedAt ? new Date(d.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    const neu = versionNummer();
+    toast('Neu geladen (Fassung ' + (neu || '?') + '). ' + (uhr ? 'Deine Einträge sind gespeichert (zuletzt ' + uhr + ').' : 'Deine Einträge sind gespeichert.'));
+    window.__wfpdfWeiter = { id: w.id, modus: S.modus, oben: w.oben };
+  }
   function scanDirektstart() {
     const q = new URLSearchParams(location.search);
     if (q.get('scan') !== '1') return;
