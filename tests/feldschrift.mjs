@@ -179,16 +179,20 @@ try {
   await page.click('#mBearbeiten');
   await page.waitForSelector('.feld[data-id="b"] .etikett');
   const zug = await page.evaluate(() => { const S = window.__wfpdf.S, a = S.doc.fields.find(f => f.id === 'a'); const el = document.querySelector('.feld[data-id="b"]'), r = el.getBoundingClientRect(), L = el.parentElement.getBoundingClientRect();
-    return { sx: r.left + r.width / 2, sy: r.top + r.height / 2, pxX: L.width / 100, ax: a.x, bx: S.doc.fields.find(f => f.id === 'b').x }; });
-  // b steht bei x 10, a bei x 10 — b 5 % nach rechts ziehen, dann bis 3 px vor a.x zurück: rastet auf a.x
+    // freie Stelle suchen: Kanten und Mitte von b weit (≥ 2 %) weg von allen Linien des Nachbarn — die Breite von a hängt von der
+    // Schrift des Geräts ab (CI-Befund: bei +5 % lag die Mitte von a zufällig im Fangbereich)
+    const b = S.doc.fields.find(f => f.id === 'b'), linien = [a.x, a.x + a.w, a.x + a.w / 2];
+    let dx = 3; while (dx < 60 && [b.x + dx, b.x + dx + b.w, b.x + dx + b.w / 2].some(v => linien.some(l => Math.abs(l - v) < 2))) dx += 0.5;
+    return { sx: r.left + r.width / 2, sy: r.top + r.height / 2, pxX: L.width / 100, ax: a.x, bx: b.x, dx }; });
+  // b steht bei x 10, a bei x 10 — b an eine freie Stelle ziehen, dann bis 3 px vor a.x zurück: rastet auf a.x
   await page.mouse.move(zug.sx, zug.sy); await page.mouse.down();
-  await page.mouse.move(zug.sx + 5 * zug.pxX, zug.sy + 40, { steps: 5 });
+  await page.mouse.move(zug.sx + zug.dx * zug.pxX, zug.sy + 40, { steps: 5 });
   const frei = await page.evaluate(() => window.__wfpdf.S.doc.fields.find(f => f.id === 'b').x);
   await page.mouse.move(zug.sx + 3, zug.sy + 40, { steps: 5 });
   const linie = await page.evaluate(() => !!document.querySelector('.hilfslinie.senk'));
   await page.mouse.up();
   const nach = await page.evaluate(() => ({ b: window.__wfpdf.S.doc.fields.find(f => f.id === 'b').x, a: window.__wfpdf.S.doc.fields.find(f => f.id === 'a').x, rest: document.querySelectorAll('.hilfslinie').length }));
-  ok('ohne Nachbarn im Fangbereich bleibt das Feld frei', Math.abs(frei - (zug.bx + 5)) < 0.3, { frei, zug });
+  ok('ohne Nachbarn im Fangbereich bleibt das Feld frei', Math.abs(frei - (zug.bx + zug.dx)) < 0.3, { frei, zug });
   ok('nahe an der Kante des Nachbarn rastet es genau dort ein', Math.abs(nach.b - nach.a) < 1e-6, nach);
   ok('… mit Hilfslinie während des Ziehens, danach keine mehr', linie && nach.rest === 0, { linie, nach });
 
