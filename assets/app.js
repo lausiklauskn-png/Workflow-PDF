@@ -1657,9 +1657,11 @@
     const g = feldGr(f), pg = S.doc && S.doc.pages[f.page];
     if (!g || !pg || !pg.w || ['check', 'unterschrift', 'qr'].includes(f.type)) return false;
     const k = _messKtx || (_messKtx = document.createElement('canvas').getContext('2d'));
-    k.font = g + 'px Helvetica, Arial, sans-serif';
-    const breit = t => k.measureText(t).width * 1.08;
-    const rand = 4;                                                     // pt links + rechts
+    // gemessen in der Schrift des Bildschirms UND in Helvetica (Schrift der PDF-Ausgabe), die breitere zählt — fehlt Helvetica auf
+    // dem Gerät, misst der Browser sonst eine schmalere Ersatzschrift und das Feld schneidet auf dem Bildschirm ab (CI-Befund)
+    const bild = getComputedStyle(document.querySelector('.feld .wert, .feld input, .feld textarea') || document.body).fontFamily || 'sans-serif';
+    const breit = t => { k.font = g + 'px ' + bild; const a = k.measureText(t).width; k.font = g + 'px Helvetica, Arial, sans-serif'; return Math.max(a, k.measureText(t).width) * 1.08; };
+    const rand = 6;                                                     // pt links + rechts (Innenabstand des Feldes)
     const text = feldText(f), zeilen = f.mehrzeilig ? text.split('\n') : [text.replace(/\n/g, ' ')];
     const wPt = Math.min(Math.max(f.w / 100 * pg.w, Math.max(0, ...zeilen.map(breit)) + rand), (100 - f.x) / 100 * pg.w);
     let n = 0;

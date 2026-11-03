@@ -33,6 +33,7 @@ const FAELLE = [
   { name: 'eigene Feldart wird nicht gemerkt', datei: A, anker: "        einstSpeichern(); zu(); zeichneFuss(); toast(alt >= 0", ersatz: "        zu(); zeichneFuss(); toast(alt >= 0", trifft: /Neuladen wieder da|Abbruch/ },
   { name: 'eigene Feldart setzt ohne Schrift', datei: A, anker: "    if (v.gr) f.gr = v.gr;\n", ersatz: '', trifft: /Tipp auf den Knopf/ },
   { name: 'Titel der PDF hilft dem Namen nicht', datei: A, anker: "name = nameMitUmlauten(name, m && m.info && m.info.Title);", ersatz: "name = String(name || '');", trifft: /Eröffnungsmail|Gebühren/ },
+  { name: 'Breite nur in Helvetica gemessen (CI-Befund)', datei: A, anker: "const breit = t => { k.font = g + 'px ' + bild; const a = k.measureText(t).width; k.font = g + 'px Helvetica, Arial, sans-serif'; return Math.max(a, k.measureText(t).width) * 1.08; };", ersatz: "const breit = t => { k.font = g + 'px Helvetica, Arial, sans-serif'; return k.measureText(t).width * 1.08; };", trifft: /so breit/ },
   { name: 'kein Einrasten', datei: A, anker: "        if (fx) x += fx.d; if (fy) y += fy.d;", ersatz: '', trifft: /rastet/ }
   // BENANNTE GRENZE: das Wegnehmen der Hilfslinien beim Loslassen hat keinen Fall — nach einem Zug zeichnet die App die Felder
   // ohnehin neu (zeichneFelder leert die Seite), die Linien sind dann auch ohne diesen Riegel weg.

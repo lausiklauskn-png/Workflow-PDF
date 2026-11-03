@@ -93,6 +93,9 @@ try {
   const fehler = []; page.on('pageerror', e => fehler.push(String(e)));
   await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, r => r.abort());
   await page.goto(URL0);
+  // breite Bildschirmschrift (DejaVu Sans): die CI hatte eine andere Schrift als der Behälter, und das Feld wuchs zu schmal,
+  // weil es in Helvetica/Ersatzschrift gemessen wurde. So fällt dieselbe Lücke auch hier auf.
+  await page.addStyleTag({ content: ".feld .wert, .feld input, .feld textarea { font-family: 'DejaVu Sans', sans-serif !important; letter-spacing: .02em }" });
   await page.waitForFunction(() => window.__wfpdf && window.WFP && WFP.DB);
   await page.evaluate(async b64 => {
     const f = new File([Uint8Array.from(atob(b64), c => c.charCodeAt(0))], 'Erfundenes Formular.pdf', { type: 'application/pdf' });

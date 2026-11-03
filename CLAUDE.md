@@ -35,7 +35,9 @@ Beschriftung wie „Datum:“ ohne Text danach. **Erst nur hier (PWA)**, die Pro
   Ausgabe: `export.js` `groesseFuer` (fest: genau `gr`, mehrzeilig umbrochen; passt es nicht, ein Hinweis), ausfüllbar `setFontSize(gr)`,
   `html-export.js` in cqw. Mehrzeilig: „Inhalt“ ist ein mehrzeiliges Eingabefeld, auf dem Blatt `overflow-wrap:anywhere`.
 - **Feld wächst mit** (`feldAnText`, nur mit fester Zahl): Höhe = Zeilen × 1,18 × gr (wächst und schrumpft), Breite wächst bis zum
-  längsten Text (nie schmaler als gesetzt, nie über den Seitenrand); gemessen in Helvetica + 8 % Luft. Beim Ausfüllen bei jedem Tippen.
+  längsten Text (nie schmaler als gesetzt, nie über den Seitenrand); gemessen in der Bildschirmschrift UND in Helvetica (die breitere),
+  + 8 % Luft, 6 pt Rand. ⚠ CI-Befund (PR #142): zuerst nur in Helvetica gemessen — wo Helvetica fehlt, nahm der Browser eine schmalere
+  Ersatzschrift, das Feld blieb 5 % zu schmal. `tests/feldschrift.mjs` fährt deshalb mit breiter Bildschirmschrift (DejaVu Sans). Beim Ausfüllen bei jedem Tippen.
 - **Einrasten** (`ziehen`, `FANG_PX` 8): Kanten und Mitten der anderen Felder derselben Seite fangen beim Schieben und beim
   Größe-Ziehen, rote Hilfslinie (`.hilfslinie`); außerhalb des Fangbereichs bleibt das Feld frei. Kein festes Raster (benannt).
 - **Eigene Feldarten** (Klaus: „neue … Kategorien … damit ich automatisch draufklicken kann"): im Bearbeiten-Fuß
@@ -70,7 +72,7 @@ Beschriftung wie „Datum:“ ohne Text danach. **Erst nur hier (PWA)**, die Pro
 - Proben: `tests/feldschrift.mjs` (in `npm test`, **42 grün**; dazu eigene Feldart merken/setzen/Neuladen/löschen, ⟳ mitten im Tippen,
   sofortiges Neuladen nach dem Setzen; A `schonBelegt` an gestellten Bildern, B erfundenes Formular im Browser:
   Linie, unterstrichener Text, Überschrift im Rahmen, „Datum:“-Rahmen, Logo, grauer Hinweis, graue Fläche; Zahl 14/10, Wachsen,
-  Enter, Ausfüllen, festes und ausfüllbares PDF, Einrasten) · `node tests/gegenprobe_feldschrift.mjs` (12 Fälle; `NUR_ANKER=1`,
+  Enter, Ausfüllen, festes und ausfüllbares PDF, Einrasten) · `node tests/gegenprobe_feldschrift.mjs` (20 Fälle; `NUR_ANKER=1`,
   `NUR_FALL`). Erst **11 gefangen · 2 durchgerutscht**: Filter vor und nach der KI deckten einander (jetzt ein Fall für beide), die
   Hilfslinien verschwinden ohnehin beim Neuzeichnen (Fall entfernt, benannt). Beim Bau: das Logo der Probe war eine volle Fläche und
   gar kein Kandidat — die Zeile war blind, bis ein Rahmen mit farbigem Zeichen drinstand. `tests/e2e.mjs` angepasst (leere graue
