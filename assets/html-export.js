@@ -22,7 +22,7 @@
     const felder = seiten.map(() => []);
     for (const f of doc.fields) {
       if (!felder[f.page]) continue;
-      const st = `left:${f.x}%;top:${f.y}%;width:${f.w}%;height:${f.h}%;font-size:${Math.min(1.6, (f.h / 100 * seiten[f.page].h) * (f.mehrzeilig ? 0.3 : 0.62) / seiten[f.page].w * 100).toFixed(3)}cqw` + (f.decken && /^#[0-9a-f]{6}$/i.test(f.decken) ? `;background:${f.decken}` : '');
+      const st = `left:${f.x}%;top:${f.y}%;width:${f.w}%;height:${f.h}%;font-size:${(Number(f.gr) >= 4 && Number(f.gr) <= 72 ? Number(f.gr) / seiten[f.page].w * 100 : Math.min(1.6, (f.h / 100 * seiten[f.page].h) * (f.mehrzeilig ? 0.3 : 0.62) / seiten[f.page].w * 100)).toFixed(3)}cqw` + (f.decken && /^#[0-9a-f]{6}$/i.test(f.decken) ? `;background:${f.decken}` : '');
       const t = esc(f.label || '');
       const wert = f.type === 'datum' ? WFP.Export.datumText(f.value) : f.value;
       if (f.type === 'check') felder[f.page].push(`<input type="checkbox" class="f k" style="${st}" title="${t}"${f.value ? ' checked' : ''}>`);

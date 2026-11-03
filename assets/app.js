@@ -1592,6 +1592,53 @@
     zeichneFunde(i, lage);
     markiere();
   }
+  /* Schriftgröße im Feld (Klaus 2026-11-03: „Schrift abgeschnitten … Schriftgröße mit einer Zahl direkt hinter
+     dem Eingabefeld"). f.gr = Punkt der Seite (4–72); leer = passt sich an. Angepasst wird wie in der PDF-Ausgabe
+     (export.js passendeGroesse: höchstens 12 pt, so groß, dass alles zu sehen ist) — Bildschirm und PDF stimmen überein. */
+  const GR_MIN = 4, GR_MAX = 72;
+  function feldGr(f) { const g = Number(f && f.gr); return f && f.gr !== '' && f.gr != null && Number.isFinite(g) && g >= GR_MIN && g <= GR_MAX ? g : 0; }
+  function schriftAnpassen(f, ziel, el) {
+    if (!ziel || !el.isConnected) return;
+    const pg = S.doc && S.doc.pages[f.page], lage = el.parentElement;
+    const pxProPt = pg && pg.w && lage ? lage.getBoundingClientRect().width / pg.w : 1;
+    const g = feldGr(f);
+    ziel.dataset.gr = g ? 'fest' : 'auto';
+    if (g) { ziel.style.fontSize = (g * pxProPt).toFixed(2) + 'px'; return; }
+    const hp = el.getBoundingClientRect().height || 20;
+    const min = ziel.tagName === 'SPAN' ? 6 : 9;
+    let s = Math.max(min, Math.min(12 * pxProPt, hp * 0.68));
+    const zuGross = () => f.mehrzeilig ? ziel.scrollHeight > ziel.clientHeight + 1 : ziel.scrollWidth > ziel.clientWidth + 1;
+    ziel.style.fontSize = s + 'px';
+    if (ziel.type === 'date') return;
+    while (s > min && zuGross()) { s = Math.max(min, s - 0.5); ziel.style.fontSize = s + 'px'; }
+  }
+  /* Feld wächst mit Schrift und Text (Klaus 2026-11-03: „ich wähle Schrifthöhe zum Beispiel 10, passt sich automatisch das
+     Textfeld entsprechend an … Enter und eine zweite Zeile … passt sich auch das Fenster an"). Nur mit fester Schriftgröße:
+     die Höhe folgt der Zeilenzahl (wächst und schrumpft), die Breite wächst bis zum längsten Text, schrumpft aber nicht unter
+     das, was gesetzt war. Gemessen in Helvetica (Schrift der PDF-Ausgabe), 8 % Luft. Gibt true zurück, wenn sich etwas änderte. */
+  let _messKtx = null;
+  function feldAnText(f) {
+    const g = feldGr(f), pg = S.doc && S.doc.pages[f.page];
+    if (!g || !pg || !pg.w || ['check', 'unterschrift', 'qr'].includes(f.type)) return false;
+    const k = _messKtx || (_messKtx = document.createElement('canvas').getContext('2d'));
+    k.font = g + 'px Helvetica, Arial, sans-serif';
+    const breit = t => k.measureText(t).width * 1.08;
+    const rand = 4;                                                     // pt links + rechts
+    const text = feldText(f), zeilen = f.mehrzeilig ? text.split('\n') : [text.replace(/\n/g, ' ')];
+    const wPt = Math.min(Math.max(f.w / 100 * pg.w, Math.max(0, ...zeilen.map(breit)) + rand), (100 - f.x) / 100 * pg.w);
+    let n = 0;
+    if (f.mehrzeilig) {
+      for (const z of zeilen) {                                         // umbrechen wie export.js (Wort für Wort)
+        let zeile = '', m = 1;
+        for (const w of z.split(/ +/)) { const t = zeile ? zeile + ' ' + w : w; if (zeile && breit(t) > wPt - rand) { m++; zeile = w; } else zeile = t; }
+        n += m;
+      }
+    } else n = 1;
+    const hPt = f.mehrzeilig ? Math.max(1, n) * g * 1.18 + 3 : g * 1.35 + 2;
+    const w = +(wPt / pg.w * 100).toFixed(3), h = +Math.min(hPt / pg.h * 100, 100 - f.y).toFixed(3);
+    if (Math.abs(w - f.w) < 0.01 && Math.abs(h - f.h) < 0.01) return false;
+    f.w = w; f.h = h; return true;
+  }
   function feldElement(f) {
     const el = document.createElement('div');
     el.className = 'feld' + (!f.geprueft ? ' ki' : '') + (f.type === 'check' ? ' check-feld' : '') + ((f.type === 'check' ? f.value : f.value !== '' && f.value != null) ? ' hatwert' : '');
@@ -1599,7 +1646,6 @@
     el.setAttribute('data-kein-ue', '');   // Bezeichnung und Eintrag gehören dem Nutzer
     el.style.left = f.x + '%'; el.style.top = f.y + '%'; el.style.width = f.w + '%'; el.style.height = f.h + '%';
     if (f.decken) el.style.backgroundColor = f.decken;
-    const hoehePx = () => el.getBoundingClientRect().height || 20;
     if (S.modus === 'ausfuellen') {
       if (f.type === 'check') {
         el.innerHTML = `<span class="kreuz">${f.value ? '✓' : ''}</span>`;
@@ -1616,10 +1662,10 @@
         const inp = document.createElement(f.mehrzeilig ? 'textarea' : 'input');
         if (!f.mehrzeilig) inp.type = f.type === 'datum' ? 'date' : f.type === 'email' ? 'email' : f.type === 'url' ? 'url' : f.type === 'tel' ? 'tel' : 'text';
         inp.value = f.value || ''; inp.placeholder = ''; inp.title = f.label || T(TYPEN[f.type].name); inp.setAttribute('aria-label', f.label || T(TYPEN[f.type].name));
-        inp.oninput = () => { f.value = inp.value; speichern(); };
+        inp.oninput = () => { f.value = inp.value; if (feldAnText(f)) { el.style.width = f.w + '%'; el.style.height = f.h + '%'; } speichern(); if (!feldGr(f)) schriftAnpassen(f, inp, el); };
         inp.onblur = () => speichernJetzt();
         inp.onfocus = () => { S.sel = f.id; markiere(); };
-        requestAnimationFrame(() => { const hp = hoehePx(); inp.style.fontSize = Math.max(9, Math.min(f.mehrzeilig ? 16 : 22, hp * (f.mehrzeilig ? 0.34 : 0.62))) + 'px'; });
+        requestAnimationFrame(() => schriftAnpassen(f, inp, el));
         el.appendChild(inp);
         if (f.type !== 'datum') linkFeld(f, inp, el);
       }
@@ -1632,7 +1678,7 @@
     else if (f.type === 'unterschrift') inhalt = f.value ? `<img class="usbild" src="${h(f.value)}" alt="">` : '';
     else inhalt = `<span class="wert${f.mehrzeilig ? ' mz' : ''}">${h(feldText(f))}</span>`;
     el.innerHTML = inhalt + `<span class="etikett">${!f.geprueft ? '🤖 ' : ''}${h(f.label || T(TYPEN[f.type].name))}</span><span class="griff" title="${h(T('Größe ändern'))}"></span>`;
-    requestAnimationFrame(() => { const w = el.querySelector('.wert'); if (w) w.style.fontSize = Math.max(8, Math.min(20, hoehePx() * (f.mehrzeilig ? 0.34 : 0.6))) + 'px'; });
+    requestAnimationFrame(() => schriftAnpassen(f, el.querySelector('.wert'), el));
     el.addEventListener('pointerdown', e => ziehen(e, f, el, e.target.classList.contains('griff') ? 'groesse' : 'bewegen'));
     return el;
   }
@@ -1696,6 +1742,7 @@
       dl.querySelectorAll('[data-dok]').forEach(b => b.onclick = () => { zu(); if (!S.doc || b.dataset.dok !== S.doc.id) oeffneDok(b.dataset.dok); });
     });
   }
+  const FANG_PX = 8;
   function ziehen(e, f, el, art) {
     if (S.modus !== 'bearbeiten') return;
     e.preventDefault(); e.stopPropagation();
@@ -1703,15 +1750,37 @@
     const lage = el.parentElement.getBoundingClientRect();
     const sx = e.clientX, sy = e.clientY, f0 = { x: f.x, y: f.y, w: f.w, h: f.h };
     let bewegt = false;
+    // Einrasten an Nachbarfeldern (Klaus 2026-11-03: „Parallel stehende … Felder sollen sich automatisch ausrichten zueinander,
+    // horizontal und vertikal … in einem bestimmten Raster"): Kanten und Mitten der anderen Felder dieser Seite fangen im
+    // Umkreis von FANG_PX; außerhalb bleibt das Feld frei. Hilfslinien zeigen, woran es eingerastet ist.
+    const andere = S.doc.fields.filter(g => g !== f && g.page === f.page);
+    const linienX = andere.flatMap(g => [g.x, g.x + g.w, g.x + g.w / 2]), linienY = andere.flatMap(g => [g.y, g.y + g.h, g.y + g.h / 2]);
+    const tolX = FANG_PX / lage.width * 100, tolY = FANG_PX / lage.height * 100;
+    const fang = (werte, linien, tol) => { let best = null; for (const [i, v] of werte.entries()) for (const l of linien) { const d = l - v; if (Math.abs(d) <= tol && (!best || Math.abs(d) < Math.abs(best.d))) best = { d, l, i }; } return best; };
+    const hilfe = el.parentElement.querySelectorAll('.hilfslinie');
+    const zeigeLinie = (art, l) => { let d = el.parentElement.querySelector('.hilfslinie.' + art); if (l == null) { if (d) d.remove(); return; } if (!d) { d = document.createElement('div'); d.className = 'hilfslinie ' + art; el.parentElement.appendChild(d); } d.style[art === 'senk' ? 'left' : 'top'] = l + '%'; };
+    hilfe.forEach(d => d.remove());
     try { el.setPointerCapture(e.pointerId); } catch (_) {}
     const mv = ev => {
       const dx = (ev.clientX - sx) / lage.width * 100, dy = (ev.clientY - sy) / lage.height * 100;
       if (!bewegt && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 4) return; bewegt = true;
-      if (art === 'bewegen') { f.x = clamp(f0.x + dx, 0, 100 - f.w); f.y = clamp(f0.y + dy, 0, 100 - f.h); el.style.left = f.x + '%'; el.style.top = f.y + '%'; }
-      else { f.w = clamp(f0.w + dx, 1, 100 - f.x); f.h = clamp(f0.h + dy, 0.8, 100 - f.y); el.style.width = f.w + '%'; el.style.height = f.h + '%'; }
+      if (art === 'bewegen') {
+        let x = f0.x + dx, y = f0.y + dy;
+        const fx = fang([x, x + f.w, x + f.w / 2], linienX, tolX), fy = fang([y, y + f.h, y + f.h / 2], linienY, tolY);
+        if (fx) x += fx.d; if (fy) y += fy.d;
+        f.x = clamp(x, 0, 100 - f.w); f.y = clamp(y, 0, 100 - f.h); el.style.left = f.x + '%'; el.style.top = f.y + '%';
+        zeigeLinie('senk', fx && fx.l); zeigeLinie('waag', fy && fy.l);
+      } else {
+        let r = f0.x + f0.w + dx, u = f0.y + f0.h + dy;
+        const fx = fang([r], linienX, tolX), fy = fang([u], linienY, tolY);
+        if (fx) r += fx.d; if (fy) u += fy.d;
+        f.w = clamp(r - f.x, 1, 100 - f.x); f.h = clamp(u - f.y, 0.8, 100 - f.y); el.style.width = f.w + '%'; el.style.height = f.h + '%';
+        zeigeLinie('senk', fx && fx.l); zeigeLinie('waag', fy && fy.l);
+      }
     };
     const up = () => {
       el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up);
+      zeigeLinie('senk', null); zeigeLinie('waag', null);
       if (bewegt) { f.geprueft = f.geprueft || false; speichern(); zeichneFelder(f.page); zeichneBand(); }
     };
     el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
@@ -1775,7 +1844,9 @@
         ${f.type === 'unterschrift' ? `<button class="knopf" id="eigUnterschr">✒️ ${f.value ? 'Neu unterschreiben' : 'Unterschreiben'}</button>${f.value ? '<button class="knopf" id="eigUsWeg">Unterschrift entfernen</button>' : ''}`
           : f.type === 'check' ? `<label class="eig eig-haken"><input type="checkbox" id="eigWertC"${f.value ? ' checked' : ''}> angekreuzt</label>`
           : f.type === 'datum' ? `<label class="eig">Inhalt<input type="date" id="eigWert" value="${h(f.value || '')}"></label>`
+          : f.mehrzeilig && f.type === 'text' ? `<label class="eig" style="flex:1;min-width:160px">Inhalt (vorbelegt)<textarea id="eigWert" rows="2">${h(f.value || '')}</textarea></label>`
           : `<label class="eig" style="flex:1;min-width:160px">${f.type === 'qr' ? 'Inhalt des QR-Codes' : 'Inhalt (vorbelegt)'}<input id="eigWert" value="${h(f.value || '')}"></label>`}
+        ${!['check', 'unterschrift', 'qr'].includes(f.type) ? `<label class="eig eig-gr" title="Schriftgröße in Punkt. Leer: passt sich dem Feld an.">Schrift (pt)<input type="number" id="eigGr" min="${GR_MIN}" max="${GR_MAX}" step="0.5" inputmode="decimal" placeholder="auto" value="${feldGr(f) || ''}"></label>` : ''}
         ${f.type === 'text' ? `<label class="eig eig-haken"><input type="checkbox" id="eigMz"${f.mehrzeilig ? ' checked' : ''}> mehrzeilig</label>` : ''}
         <button class="knopf" id="eigKopie" title="Feld kopieren">⧉ Kopie</button><button class="knopf gefahr" id="eigDel">🗑 Löschen</button></div>`;
     }
@@ -1795,11 +1866,16 @@
       if (f.type === 'datum' && !/^\d{4}-\d{2}-\d{2}$/.test(f.value || '')) f.value = '';
       speichern(); neu(); zeichneFuss();
     };
-    if ($('eigWert')) $('eigWert').oninput = e => { f.value = e.target.value; speichern(); neu(); };
+    if ($('eigWert')) $('eigWert').oninput = e => { f.value = e.target.value; feldAnText(f); speichern(); neu(); };
     if ($('eigWertC')) $('eigWertC').onchange = e => { f.value = e.target.checked; speichern(); neu(); };
     if ($('eigUnterschr')) $('eigUnterschr').onclick = () => unterschreiben(f);
     if ($('eigUsWeg')) $('eigUsWeg').onclick = () => { f.value = ''; speichern(); neu(); zeichneFuss(); };
-    if ($('eigMz')) $('eigMz').onchange = e => { f.mehrzeilig = e.target.checked; speichern(); neu(); };
+    if ($('eigGr')) $('eigGr').oninput = e => {
+      const v = String(e.target.value).trim().replace(',', '.'), g = Number(v);
+      if (v === '') delete f.gr; else if (Number.isFinite(g) && g >= GR_MIN && g <= GR_MAX) f.gr = Math.round(g * 2) / 2; else return;   // Zwischenstand beim Tippen (z. B. „1“ auf dem Weg zu „14“) nicht übernehmen
+      f.geprueft = true; feldAnText(f); speichern(); neu();
+    };
+    if ($('eigMz')) $('eigMz').onchange = e => { f.mehrzeilig = e.target.checked; feldAnText(f); speichern(); neu(); zeichneFuss(); };
     $('eigKopie').onclick = () => { const n = Object.assign({}, f, { id: uid(), y: clamp(f.y + f.h + 0.6, 0, 100 - f.h), geprueft: true, herkunft: 'hand' }); S.doc.fields.push(n); S.sel = n.id; speichern(); zeichneFelder(f.page); zeichneFuss(); };
     $('eigDel').onclick = () => feldLoeschen(f);
   }
@@ -2073,6 +2149,7 @@
     const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
     d.fields = d.fields.filter(f => f.geprueft);           // alte, ungeprüfte Vorschläge ersetzen
     let neu = 0, fehler = '';
+    const belegtWeg = [];
     const seiten = Math.min(pdf.numPages, 40);
     for (let i = 0; i < seiten; i++) {
       melde(i / seiten, `Seite ${i + 1} von ${pdf.numPages}`);
@@ -2081,13 +2158,30 @@
       const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
       const x = c.getContext('2d', { willReadFrequently: true }); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
       await p.render({ canvasContext: x, viewport: vp }).promise;
-      let felder = EINST.linien !== false ? ER.linienErkennung(x.getImageData(0, 0, c.width, c.height)) : [];
+      // Textebene einmal lesen (Beschriftungen, Inhalt, „schon belegt“)
+      let tc = null, items = [];
+      try {
+        tc = await p.getTextContent();
+        items = tc.items.map(t => {
+          const tr = pdfjsLib.Util.transform(vp.transform, t.transform); const fh = Math.hypot(tr[2], tr[3]);
+          return { str: t.str, x: tr[4] / c.width * 100, y: (tr[5] - fh) / c.height * 100, w: t.width * vp.scale / c.width * 100, h: fh / c.height * 100 };
+        });
+      } catch (_) {}
+      const seitenBild = x.getImageData(0, 0, c.width, c.height);
+      // Schon belegte Kandidaten (ausgefüllt, Überschrift, unterstrichener Text, grauer Hinweis, Logo/Bild) werden kein Feld
+      // und gehen auch nicht als Kandidat an die KI (Klaus 2026-11-03)
+      const ohneBelegte = liste => {
+        const its = d.uebersetzung ? [] : items;
+        inhaltUebernehmen(liste, its, x, c.width, c.height);
+        return liste.filter(f => { const g = ER.schonBelegt(f, its, seitenBild, f.inhalt); if (g) belegtWeg.push(g); return !g; });
+      };
+      let felder = EINST.linien !== false ? ohneBelegte(ER.linienErkennung(seitenBild)) : [];
       if (mitKi) {
         try {
           // Kandidaten nummeriert ins Bild — schon geprüfte Felder nicht noch einmal fragen
           const iouV = (a, b) => { const ix = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)), iy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y)); const s = ix * iy; return s / (a.w * a.h + b.w * b.h - s || 1); };
           const alt = d.fields.filter(f => f.page === i);
-          const kand = (EINST.linien !== false ? felder : ER.linienErkennung(x.getImageData(0, 0, c.width, c.height)))
+          const kand = (EINST.linien !== false ? felder : ohneBelegte(ER.linienErkennung(seitenBild)))
             .filter(k => !alt.some(v => iouV(v, k) > 0.25)).slice(0, 150);
           melde((i + 0.1) / seiten, `Seite ${i + 1} von ${pdf.numPages} · KI liest die Seite …`, (i + 0.95) / seiten);
           const sicher = await kiSeitenBild(p, vp, c, kand, i + 1);
@@ -2100,16 +2194,13 @@
       }
       // Beschriftung aus der Textebene (digitale PDFs)
       try {
-        const tc = await p.getTextContent();
-        const items = tc.items.map(t => {
-          const tr = pdfjsLib.Util.transform(vp.transform, t.transform); const fh = Math.hypot(tr[2], tr[3]);
-          return { str: t.str, x: tr[4] / c.width * 100, y: (tr[5] - fh) / c.height * 100, w: t.width * vp.scale / c.width * 100, h: fh / c.height * 100 };
-        });
+        if (!tc) throw new Error('keine Textebene');
         ER.beschrifte(felder, items);
         // Übersetztes Dokument: unter der Übersetzung liegt der Originaltext abgedeckt —
         // er ist kein Inhalt eines Feldes und darf nicht als Eintrag gelesen werden.
         if (d.uebersetzung) { felder.forEach(f => { delete f.inhalt; delete f.angekreuzt; }); items.length = 0; }
         inhaltUebernehmen(felder, items, x, c.width, c.height);
+        felder = felder.filter(f => { const g = ER.schonBelegt(f, items, seitenBild, f.inhalt); if (g) belegtWeg.push(g); return !g; });
         // schon vorhandene, noch leere Felder lesen ihren Inhalt ebenfalls
         const leer = d.fields.filter(f => f.page === i && f.type !== 'unterschrift' && f.type !== 'qr' && !f.value);
         inhaltUebernehmen(leer, items, x, c.width, c.height);
@@ -2151,7 +2242,8 @@
     if (pdf.numPages > seiten) fehler = (fehler ? fehler + ' · ' : '') + `nur die ersten ${seiten} von ${pdf.numPages} Seiten untersucht`;
     try { pdf.destroy(); } catch (_) {}
     d.updatedAt = jetzt();
-    return { neu, fehler };
+    window.__wfpdfBelegtWeg = belegtWeg;
+    return { neu, fehler, belegtWeg: belegtWeg.length };
   }
 
   /* ---------- Export ---------- */
