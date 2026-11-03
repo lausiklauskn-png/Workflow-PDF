@@ -380,6 +380,38 @@
     return ki.concat(rest);
   }
 
+  /* Schon belegt? (Klaus 2026-11-03: „Logos als Feld erkannt oder Überschriften … ausschließen" · „vorausgefüllte Felder …
+     braucht nicht noch einmal nachgetragen werden, es sei denn … Datum, Doppelpunkt … ohne danach folgenden Text" ·
+     „Unterstrichene Texte … auch nicht mit"). Ein offline gefundener Kandidat (Rahmen, Linie, graue Fläche) wird KEIN Feld, wenn
+     · in ihm schon Text der Textebene steht, der keine Beschriftung ist (endet nicht auf „:“) — ausgefüllt, Überschrift,
+       unterstrichener Text über einer Linie; oder
+     · in ihm sichtbar gezeichnet ist, was nicht als Beschriftung in der Textebene steht (Logo, Bild mit Text, Scan mit Text):
+       mehr als TINTE_MAX der Fläche dunkel oder kräftig farbig.
+     Kästchen und Felder, die eine KI benannt hat, bleiben unberührt. Gibt den Grund zurück ('text' · 'bild') oder ''.
+     img = ImageData der ganzen Seite, items = Textstücke in Prozent der Seite ({str, x, y, w, h}). */
+  const TINTE_MAX = 0.04;
+  function istBeschriftung(s) { return /:\s*$/.test(String(s || '').replace(/[_.…]{3,}/g, '').trim()); }
+  function schonBelegt(f, items, img, inhalt) {
+    if (!f || f.type === 'check' || f.quelle === 'ki') return '';
+    if (typeof inhalt === 'string' && inhalt.trim() && !/^\p{L}$/u.test(inhalt.trim())) return 'text';
+    if (!img) return '';
+    const W = img.width, H = img.height, px = img.data;
+    const x0 = Math.max(0, Math.round(f.x / 100 * W) + 2), x1 = Math.min(W, Math.round((f.x + f.w) / 100 * W) - 2);
+    // bei einer Linie das untere Fünftel (die Linie selbst) auslassen
+    const y0 = Math.max(0, Math.round(f.y / 100 * H) + 2), y1 = Math.min(H, Math.round((f.y + f.h * (f.quelle === 'linie' ? 0.8 : 1)) / 100 * H) - 2);
+    if (x1 - x0 < 3 || y1 - y0 < 3) return '';
+    const marken = (items || []).filter(t => istBeschriftung(t.str) || (f.label && String(t.str || '').trim().replace(/[:\s]+$/, '').toLowerCase() === String(f.label).replace(/[:\s]+$/, '').toLowerCase()))
+      .map(t => [t.x / 100 * W - 2, t.y / 100 * H - 2, (t.x + t.w) / 100 * W + 2, (t.y + t.h) / 100 * H + 3]);
+    let tinte = 0, n = 0;
+    for (let y = y0; y < y1; y += 2) for (let x = x0; x < x1; x += 2) {
+      if (marken.some(m => x >= m[0] && x <= m[2] && y >= m[1] && y <= m[3])) continue;
+      const i = (y * W + x) * 4, r = px[i], g = px[i + 1], b = px[i + 2];
+      n++;
+      if (r * 0.299 + g * 0.587 + b * 0.114 < 150 || Math.max(r, g, b) - Math.min(r, g, b) > 70) tinte++;
+    }
+    return n && tinte / n > TINTE_MAX ? 'bild' : '';
+  }
+
   window.WFP = window.WFP || {};
-  window.WFP.Erkennung = { linienErkennung, beschrifte, ANBIETER, kiAnfrage, kiAuswerten, kiTest, zusammenfuehren, markiertesBild, promptMitKandidaten, PROMPT };
+  window.WFP.Erkennung = { schonBelegt, istBeschriftung, TINTE_MAX, linienErkennung, beschrifte, ANBIETER, kiAnfrage, kiAuswerten, kiTest, zusammenfuehren, markiertesBild, promptMitKandidaten, PROMPT };
 })();

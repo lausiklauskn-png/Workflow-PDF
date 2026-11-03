@@ -118,7 +118,13 @@ button{cursor:pointer}
 .feld .griff::after{content:"";position:absolute;inset:-9px;border-radius:50%}
 .feld.sel .griff{display:block}
 .feld .wert{position:absolute;inset:0;display:flex;align-items:center;padding:0 3px;overflow:hidden;white-space:nowrap;color:#0b1a52;pointer-events:none}
-.feld .wert.mz{align-items:flex-start;white-space:pre-wrap;line-height:1.15}
+.feld .wert.mz{align-items:flex-start;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.18}
+.feld textarea{line-height:1.18;overflow-wrap:anywhere}
+.eig-gr input{width:5.5em}
+.eigene-art{display:inline-flex;gap:2px;align-items:center}.eigene-art [data-v-weg]{padding:0 6px;min-width:0}
+.hilfslinie{position:absolute;pointer-events:none;z-index:5;background:#e0231b;opacity:.75}
+.hilfslinie.senk{top:0;bottom:0;width:1px}
+.hilfslinie.waag{left:0;right:0;height:1px}
 .feld .kreuz{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-weight:900;color:#0b1a52}
 .feld .qrbild{width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .feld .qrbild svg{width:100%;height:100%}

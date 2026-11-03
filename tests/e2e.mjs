@@ -54,6 +54,11 @@ async function grauFormular() {
   p.drawText('Nein', { x: 250, y: 652, size: 10, font: f }); p.drawRectangle({ x: 280, y: 649, width: 12, height: 12, color: g });
   p.drawText('Schilderung:', { x: 60, y: 600, size: 10, font: f });
   p.drawRectangle({ x: 60, y: 480, width: 450, height: 110, color: g });
+  // leere graue Fläche (bleibt ein Feld) und grau hinterlegter Hinweis mit Text (wird keins, Klaus 2026-11-03)
+  p.drawText('Kennzeichen:', { x: 180, y: 772, size: 10, font: f });
+  p.drawRectangle({ x: 180, y: 750, width: 200, height: 14, color: g });
+  p.drawRectangle({ x: 60, y: 400, width: 450, height: 40, color: g });
+  p.drawText('Bitte alle Angaben vollständig und gut lesbar machen.', { x: 66, y: 424, size: 10, font: f });
   return pdf.save();
 }
 
@@ -91,7 +96,7 @@ await page.route('https://api.anthropic.com/**', async route => {
   const bild = body.messages?.[0]?.content?.find(c => c.type === 'image');
   if (bild) kiBild = bild.source.data;
   const antwort = kiNummern ? { text: 'Graues Formular', felder: [{ nr: 1, typ: 'text', bezeichnung: 'KI eins' }, { nr: 3, typ: 'kaestchen', bezeichnung: 'KI drei' }],
-      keinFeld: [2], zusaetzlich: [{ typ: 'text', bezeichnung: 'In Pixeln', x: 700, y: 1500, b: 350, h: 40 }, { typ: 'text', bezeichnung: 'Auf der Beschriftung', x: 423, y: 295, b: 420, h: 26 }, { typ: 'text', bezeichnung: 'KI eins', x: 100, y: 1800, b: 300, h: 30 }] }
+      keinFeld: [2], zusaetzlich: [{ typ: 'text', bezeichnung: 'In Pixeln', x: 700, y: 1500, b: 350, h: 40 }, { typ: 'text', bezeichnung: 'Auf der Beschriftung', x: 423, y: 154, b: 420, h: 26 }, { typ: 'text', bezeichnung: 'KI eins', x: 100, y: 1800, b: 300, h: 30 }] }
     : { text: 'Anmeldung Testformular\nName:', felder: [
     { typ: 'text', bezeichnung: 'Vollständiger Name', x: 19.5, y: 14.2, b: 47, h: 2.4 },       // absichtlich etwas daneben
     { typ: 'kaestchen', bezeichnung: 'Newsletter', x: 10.4, y: 41.9, b: 2.2, h: 1.6 },
@@ -343,12 +348,15 @@ try {
   await page.waitForFunction(() => !document.querySelector('.fortschritt'));
   const G = await page.evaluate(() => window.__wfpdf.S.doc.fields);
   const gv = G.find(f => f.type === 'text' && /Versicherungsnehmer/.test(f.label));
-  ok('grau: Fläche „Versicherungsnehmer" als Textfeld erkannt, Beschriftung von oben', !!gv, G.map(f => [f.type, f.label]));
-  ok('grau: Fläche liegt genau auf dem grauen Balken (< 0,5 %)', gv && Math.abs(gv.x - 180 / 595.28 * 100) < 0.5 && Math.abs(gv.y - (841.89 - 704) / 841.89 * 100) < 0.5 && Math.abs(gv.w - 330 / 595.28 * 100) < 0.8, gv);
+  const gz = G.find(f => f.type === 'text' && /Kennzeichen/.test(f.label));
+  ok('grau: leere Fläche „Kennzeichen" als Textfeld erkannt, Beschriftung von oben', !!gz, G.map(f => [f.type, f.label]));
+  ok('grau: Fläche liegt genau auf dem grauen Balken (< 0,5 %)', gz && Math.abs(gz.x - 180 / 595.28 * 100) < 0.5 && Math.abs(gz.y - (841.89 - 764) / 841.89 * 100) < 0.5 && Math.abs(gz.w - 200 / 595.28 * 100) < 0.8, gz);
   const gk = G.filter(f => f.type === 'check');
   ok('grau: beide grauen Kästchen erkannt, mit Frage beschriftet', gk.length === 2 && gk.some(f => /Unfallzeugen.*Ja/.test(f.label)) && gk.some(f => /Unfallzeugen.*Nein/.test(f.label)), gk.map(f => f.label));
   ok('grau: große Fläche „Schilderung" mehrzeilig', G.some(f => f.type === 'text' && f.mehrzeilig && /Schilderung/.test(f.label)), G.map(f => [f.label, f.h.toFixed(1)]));
-  ok('grau: Text im Feld wird zum Feldwert, mit Deckfarbe der Fläche', gv && gv.value === 'Max Muster' && /^#e[0-9a-f]e[0-9a-f]e[0-9a-f]$/i.test(gv.decken || ''), gv && [gv.value, gv.decken]);
+  ok('grau: schon ausgefüllte Fläche („Max Muster") wird kein Feld (Klaus 2026-11-03)', !gv && !G.some(f => f.value === 'Max Muster'), G.map(f => [f.label, f.value]));
+  const hinweisOben = (841.89 - 440) / 841.89 * 100, hinweisUnten = (841.89 - 400) / 841.89 * 100;
+  ok('grau: grau hinterlegter Hinweis mit Text wird kein Feld', !G.some(f => f.y + f.h > hinweisOben + 0.5 && f.y < hinweisUnten - 0.5), G.map(f => [f.label, f.y.toFixed(1), f.h.toFixed(1)]));
   const af = await page.evaluate(async () => { const w = window.__wfpdf; const r = await WFP.Export.exportieren(w.S.doc, w.S.bytes, 'ausfuellbar');
     const d = await PDFLib.PDFDocument.load(r.bytes); const fs = d.getForm().getFields();
     const w0 = fs[0].acroField.getWidgets()[0]; const mk = w0.getAppearanceCharacteristics();
@@ -424,7 +432,8 @@ try {
   ok('Arbeitsstand eingelesen: Einträge wieder da, älterer Browserstand ersetzt', await page.evaluate(async () => (await WFP.DB.all('docs')).filter(d => d.name === 'Grauformular').length === 1));
 
   // 13b. Schon vorhandenes, leeres Feld liest bei erneuter Erkennung seinen Inhalt
-  const vnId = await page.evaluate(() => { const f = window.__wfpdf.S.doc.fields.find(f => f.type === 'text' && f.geprueft && Math.abs(f.y - (841.89 - 704) / 841.89 * 100) < 0.6 && f.x < 35); f.value = ''; delete f.decken; return f.id; });
+  // (die Erkennung legt dort selbst kein Feld mehr an, weil schon Text drinsteht — das Feld wird von Hand gesetzt)
+  const vnId = await page.evaluate(() => { const S = window.__wfpdf.S; const f = { id: 'vn-hand', page: 0, type: 'text', label: 'Versicherungsnehmer', x: 180 / 595.28 * 100, y: (841.89 - 704) / 841.89 * 100, w: 330 / 595.28 * 100, h: 14 / 841.89 * 100, value: '', herkunft: 'hand', geprueft: true }; S.doc.fields.push(f); return f.id; });
   await page.click('#mBearbeiten'); { await page.click('#edErkennen'); await page.click('[data-off]'); await page.waitForTimeout(400); await page.waitForFunction(() => !document.querySelector('.fortschritt')); }
   const vnW = await page.evaluate(id => { const f = window.__wfpdf.S.doc.fields.find(f => f.id === id); return f && f.value; }, vnId);
   ok('vorhandenes leeres Feld übernimmt den Text in der Fläche', vnW === 'Max Muster', [vnId, vnW, await page.locator('#edErkennen').isVisible()]);

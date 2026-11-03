@@ -1030,8 +1030,23 @@
     }
     return out;
   }
+  /* Umlaute im Namen (Klaus 2026-11-03: „Eröffnungsmail … mit O statt mit Ö … der Name"). Zerlegte Umlaute (O + ¨) werden
+     zusammengesetzt. Hat die abgebende App die Umlaute ganz weggenommen, steht der Betreff oft noch mit Umlauten im Titel der PDF:
+     sieht der Dateiname aus wie dieser Titel ohne Umlaute, gilt der Titel. Sonst bleibt der Dateiname, wie er kam. */
+  const ohneZeichen = t => String(t || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  function nameMitUmlauten(name, titel) {
+    const n = String(name || '').normalize('NFC'), t = String(titel || '').normalize('NFC').trim();
+    if (!t || t.length > 200 || !/[\u00c0-\u024f]/.test(t) || /[\u00c0-\u024f]/.test(n)) return n;   // nur echte Umlaute/Akzente zählen, kein Gedankenstrich
+    const a = ohneZeichen(n), b = ohneZeichen(t);
+    if (a && a === b) return t;
+    if (a && b && a.startsWith(b) && b.length >= 6) return t + n.slice(lageNach(n, b));   // Titel = Anfang des Namens
+    return n;
+  }
+  // Stelle in n, an der die ersten b.length gefalteten Zeichen enden (Rest des Namens nach dem Titel)
+  function lageNach(n, b) { let k = 0; for (let i = 0; i < n.length; i++) { k += ohneZeichen(n[i]).length; if (k >= b.length) return i + 1; } return n.length; }
   async function neuesDok(name, bytes, quelle, folderId, original, pruefen, vorSpeichern) {
     const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
+    try { const m = await pdf.getMetadata(); name = nameMitUmlauten(name, m && m.info && m.info.Title); } catch (_) { name = String(name || '').normalize('NFC'); }
     const d = { id: uid(), name, folderId: folderId || null, quelle, createdAt: jetzt(), updatedAt: jetzt(),
       pages: await seitenInfo(pdf), thumb: await vorschaubild(pdf), fields: await vorhandeneFelder(pdf) };
     const text = await seitenText(pdf);
@@ -1540,7 +1555,28 @@
   }
   let _st = null;
   function speichern() { if (!S.doc) return; S.doc.updatedAt = jetzt(); clearTimeout(_st); _st = setTimeout(speichernJetzt, 350); }
-  async function speichernJetzt() { clearTimeout(_st); _st = null; if (S.doc) { try { await DB.put('docs', S.doc); } catch (e) { toast('⚠️ Speichern fehlgeschlagen: ' + e.message); } } }
+  async function speichernJetzt() { clearTimeout(_st); _st = null; if (S.doc) { const d = S.doc, st = d.updatedAt; try { await DB.put('docs', d); notstandErledigt(d.id, st); } catch (e) { toast('⚠️ Speichern fehlgeschlagen: ' + e.message); } } }
+  /* Notstand (Klaus 2026-11-03: „ich fange schon an einzugeben"): IndexedDB schreibt asynchron — wird die Seite gleich nach der
+     letzten Änderung neu geladen oder geschlossen, kann der letzte Schreibvorgang verloren gehen (die Probe fand das). Beim
+     Verstecken und Verlassen der Seite liegt deshalb zusätzlich ein synchroner Schnappschuss der Felder in localStorage; beim
+     nächsten Start wird er eingespielt, wenn er neuer ist als das gespeicherte Dokument, und danach gelöscht. */
+  const NOTSTAND_KEY = 'wfpdf_notstand_v1';
+  function notstandSchreiben() {
+    if (!S.doc) return;
+    try { localStorage.setItem(NOTSTAND_KEY, JSON.stringify({ id: S.doc.id, updatedAt: S.doc.updatedAt || '', name: S.doc.name, fields: S.doc.fields })); } catch (_) {}
+  }
+  function notstandErledigt(id, stand) {
+    try { const n = JSON.parse(localStorage.getItem(NOTSTAND_KEY) || 'null'); if (n && n.id === id && (n.updatedAt || '') <= (stand || '')) localStorage.removeItem(NOTSTAND_KEY); } catch (_) {}
+  }
+  async function notstandEinspielen() {
+    let n = null; try { n = JSON.parse(localStorage.getItem(NOTSTAND_KEY) || 'null'); } catch (_) {}
+    if (!n || !n.id || !Array.isArray(n.fields)) return;
+    try {
+      const d = await DB.get('docs', n.id);
+      if (d && (d.updatedAt || '') < (n.updatedAt || '')) { d.fields = n.fields; if (n.name) d.name = n.name; d.updatedAt = n.updatedAt; await DB.put('docs', d); window.__wfpdfNotstand = { id: d.id, eingespielt: true }; }
+      localStorage.removeItem(NOTSTAND_KEY);
+    } catch (_) {}
+  }
 
   let _rzBreite = 0;   // Breite beim letzten Zeichnen (siehe resize)
   function seitenBreite() { const fl = $('edFlaeche'); return Math.round(Math.min(fl.clientWidth - 24, 920) * S.zoom); }
@@ -1592,6 +1628,55 @@
     zeichneFunde(i, lage);
     markiere();
   }
+  /* Schriftgröße im Feld (Klaus 2026-11-03: „Schrift abgeschnitten … Schriftgröße mit einer Zahl direkt hinter
+     dem Eingabefeld"). f.gr = Punkt der Seite (4–72); leer = passt sich an. Angepasst wird wie in der PDF-Ausgabe
+     (export.js passendeGroesse: höchstens 12 pt, so groß, dass alles zu sehen ist) — Bildschirm und PDF stimmen überein. */
+  const GR_MIN = 4, GR_MAX = 72;
+  function feldGr(f) { const g = Number(f && f.gr); return f && f.gr !== '' && f.gr != null && Number.isFinite(g) && g >= GR_MIN && g <= GR_MAX ? g : 0; }
+  function schriftAnpassen(f, ziel, el) {
+    if (!ziel || !el.isConnected) return;
+    const pg = S.doc && S.doc.pages[f.page], lage = el.parentElement;
+    const pxProPt = pg && pg.w && lage ? lage.getBoundingClientRect().width / pg.w : 1;
+    const g = feldGr(f);
+    ziel.dataset.gr = g ? 'fest' : 'auto';
+    if (g) { ziel.style.fontSize = (g * pxProPt).toFixed(2) + 'px'; return; }
+    const hp = el.getBoundingClientRect().height || 20;
+    const min = ziel.tagName === 'SPAN' ? 6 : 9;
+    let s = Math.max(min, Math.min(12 * pxProPt, hp * 0.68));
+    const zuGross = () => f.mehrzeilig ? ziel.scrollHeight > ziel.clientHeight + 1 : ziel.scrollWidth > ziel.clientWidth + 1;
+    ziel.style.fontSize = s + 'px';
+    if (ziel.type === 'date') return;
+    while (s > min && zuGross()) { s = Math.max(min, s - 0.5); ziel.style.fontSize = s + 'px'; }
+  }
+  /* Feld wächst mit Schrift und Text (Klaus 2026-11-03: „ich wähle Schrifthöhe zum Beispiel 10, passt sich automatisch das
+     Textfeld entsprechend an … Enter und eine zweite Zeile … passt sich auch das Fenster an"). Nur mit fester Schriftgröße:
+     die Höhe folgt der Zeilenzahl (wächst und schrumpft), die Breite wächst bis zum längsten Text, schrumpft aber nicht unter
+     das, was gesetzt war. Gemessen in Helvetica (Schrift der PDF-Ausgabe), 8 % Luft. Gibt true zurück, wenn sich etwas änderte. */
+  let _messKtx = null;
+  function feldAnText(f) {
+    const g = feldGr(f), pg = S.doc && S.doc.pages[f.page];
+    if (!g || !pg || !pg.w || ['check', 'unterschrift', 'qr'].includes(f.type)) return false;
+    const k = _messKtx || (_messKtx = document.createElement('canvas').getContext('2d'));
+    // gemessen in der Schrift des Bildschirms UND in Helvetica (Schrift der PDF-Ausgabe), die breitere zählt — fehlt Helvetica auf
+    // dem Gerät, misst der Browser sonst eine schmalere Ersatzschrift und das Feld schneidet auf dem Bildschirm ab (CI-Befund)
+    const bild = getComputedStyle(document.querySelector('.feld .wert, .feld input, .feld textarea') || document.body).fontFamily || 'sans-serif';
+    const breit = t => { k.font = g + 'px ' + bild; const a = k.measureText(t).width; k.font = g + 'px Helvetica, Arial, sans-serif'; return Math.max(a, k.measureText(t).width) * 1.08; };
+    const rand = 6;                                                     // pt links + rechts (Innenabstand des Feldes)
+    const text = feldText(f), zeilen = f.mehrzeilig ? text.split('\n') : [text.replace(/\n/g, ' ')];
+    const wPt = Math.min(Math.max(f.w / 100 * pg.w, Math.max(0, ...zeilen.map(breit)) + rand), (100 - f.x) / 100 * pg.w);
+    let n = 0;
+    if (f.mehrzeilig) {
+      for (const z of zeilen) {                                         // umbrechen wie export.js (Wort für Wort)
+        let zeile = '', m = 1;
+        for (const w of z.split(/ +/)) { const t = zeile ? zeile + ' ' + w : w; if (zeile && breit(t) > wPt - rand) { m++; zeile = w; } else zeile = t; }
+        n += m;
+      }
+    } else n = 1;
+    const hPt = f.mehrzeilig ? Math.max(1, n) * g * 1.18 + 3 : g * 1.35 + 2;
+    const w = +(wPt / pg.w * 100).toFixed(3), h = +Math.min(hPt / pg.h * 100, 100 - f.y).toFixed(3);
+    if (Math.abs(w - f.w) < 0.01 && Math.abs(h - f.h) < 0.01) return false;
+    f.w = w; f.h = h; return true;
+  }
   function feldElement(f) {
     const el = document.createElement('div');
     el.className = 'feld' + (!f.geprueft ? ' ki' : '') + (f.type === 'check' ? ' check-feld' : '') + ((f.type === 'check' ? f.value : f.value !== '' && f.value != null) ? ' hatwert' : '');
@@ -1599,7 +1684,6 @@
     el.setAttribute('data-kein-ue', '');   // Bezeichnung und Eintrag gehören dem Nutzer
     el.style.left = f.x + '%'; el.style.top = f.y + '%'; el.style.width = f.w + '%'; el.style.height = f.h + '%';
     if (f.decken) el.style.backgroundColor = f.decken;
-    const hoehePx = () => el.getBoundingClientRect().height || 20;
     if (S.modus === 'ausfuellen') {
       if (f.type === 'check') {
         el.innerHTML = `<span class="kreuz">${f.value ? '✓' : ''}</span>`;
@@ -1616,10 +1700,10 @@
         const inp = document.createElement(f.mehrzeilig ? 'textarea' : 'input');
         if (!f.mehrzeilig) inp.type = f.type === 'datum' ? 'date' : f.type === 'email' ? 'email' : f.type === 'url' ? 'url' : f.type === 'tel' ? 'tel' : 'text';
         inp.value = f.value || ''; inp.placeholder = ''; inp.title = f.label || T(TYPEN[f.type].name); inp.setAttribute('aria-label', f.label || T(TYPEN[f.type].name));
-        inp.oninput = () => { f.value = inp.value; speichern(); };
+        inp.oninput = () => { f.value = inp.value; if (feldAnText(f)) { el.style.width = f.w + '%'; el.style.height = f.h + '%'; } speichern(); if (!feldGr(f)) schriftAnpassen(f, inp, el); };
         inp.onblur = () => speichernJetzt();
         inp.onfocus = () => { S.sel = f.id; markiere(); };
-        requestAnimationFrame(() => { const hp = hoehePx(); inp.style.fontSize = Math.max(9, Math.min(f.mehrzeilig ? 16 : 22, hp * (f.mehrzeilig ? 0.34 : 0.62))) + 'px'; });
+        requestAnimationFrame(() => schriftAnpassen(f, inp, el));
         el.appendChild(inp);
         if (f.type !== 'datum') linkFeld(f, inp, el);
       }
@@ -1632,7 +1716,7 @@
     else if (f.type === 'unterschrift') inhalt = f.value ? `<img class="usbild" src="${h(f.value)}" alt="">` : '';
     else inhalt = `<span class="wert${f.mehrzeilig ? ' mz' : ''}">${h(feldText(f))}</span>`;
     el.innerHTML = inhalt + `<span class="etikett">${!f.geprueft ? '🤖 ' : ''}${h(f.label || T(TYPEN[f.type].name))}</span><span class="griff" title="${h(T('Größe ändern'))}"></span>`;
-    requestAnimationFrame(() => { const w = el.querySelector('.wert'); if (w) w.style.fontSize = Math.max(8, Math.min(20, hoehePx() * (f.mehrzeilig ? 0.34 : 0.6))) + 'px'; });
+    requestAnimationFrame(() => schriftAnpassen(f, el.querySelector('.wert'), el));
     el.addEventListener('pointerdown', e => ziehen(e, f, el, e.target.classList.contains('griff') ? 'groesse' : 'bewegen'));
     return el;
   }
@@ -1696,6 +1780,7 @@
       dl.querySelectorAll('[data-dok]').forEach(b => b.onclick = () => { zu(); if (!S.doc || b.dataset.dok !== S.doc.id) oeffneDok(b.dataset.dok); });
     });
   }
+  const FANG_PX = 8;
   function ziehen(e, f, el, art) {
     if (S.modus !== 'bearbeiten') return;
     e.preventDefault(); e.stopPropagation();
@@ -1703,21 +1788,78 @@
     const lage = el.parentElement.getBoundingClientRect();
     const sx = e.clientX, sy = e.clientY, f0 = { x: f.x, y: f.y, w: f.w, h: f.h };
     let bewegt = false;
+    // Einrasten an Nachbarfeldern (Klaus 2026-11-03: „Parallel stehende … Felder sollen sich automatisch ausrichten zueinander,
+    // horizontal und vertikal … in einem bestimmten Raster"): Kanten und Mitten der anderen Felder dieser Seite fangen im
+    // Umkreis von FANG_PX; außerhalb bleibt das Feld frei. Hilfslinien zeigen, woran es eingerastet ist.
+    const andere = S.doc.fields.filter(g => g !== f && g.page === f.page);
+    const linienX = andere.flatMap(g => [g.x, g.x + g.w, g.x + g.w / 2]), linienY = andere.flatMap(g => [g.y, g.y + g.h, g.y + g.h / 2]);
+    const tolX = FANG_PX / lage.width * 100, tolY = FANG_PX / lage.height * 100;
+    const fang = (werte, linien, tol) => { let best = null; for (const [i, v] of werte.entries()) for (const l of linien) { const d = l - v; if (Math.abs(d) <= tol && (!best || Math.abs(d) < Math.abs(best.d))) best = { d, l, i }; } return best; };
+    const hilfe = el.parentElement.querySelectorAll('.hilfslinie');
+    const zeigeLinie = (art, l) => { let d = el.parentElement.querySelector('.hilfslinie.' + art); if (l == null) { if (d) d.remove(); return; } if (!d) { d = document.createElement('div'); d.className = 'hilfslinie ' + art; el.parentElement.appendChild(d); } d.style[art === 'senk' ? 'left' : 'top'] = l + '%'; };
+    hilfe.forEach(d => d.remove());
     try { el.setPointerCapture(e.pointerId); } catch (_) {}
     const mv = ev => {
       const dx = (ev.clientX - sx) / lage.width * 100, dy = (ev.clientY - sy) / lage.height * 100;
       if (!bewegt && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 4) return; bewegt = true;
-      if (art === 'bewegen') { f.x = clamp(f0.x + dx, 0, 100 - f.w); f.y = clamp(f0.y + dy, 0, 100 - f.h); el.style.left = f.x + '%'; el.style.top = f.y + '%'; }
-      else { f.w = clamp(f0.w + dx, 1, 100 - f.x); f.h = clamp(f0.h + dy, 0.8, 100 - f.y); el.style.width = f.w + '%'; el.style.height = f.h + '%'; }
+      if (art === 'bewegen') {
+        let x = f0.x + dx, y = f0.y + dy;
+        const fx = fang([x, x + f.w, x + f.w / 2], linienX, tolX), fy = fang([y, y + f.h, y + f.h / 2], linienY, tolY);
+        if (fx) x += fx.d; if (fy) y += fy.d;
+        f.x = clamp(x, 0, 100 - f.w); f.y = clamp(y, 0, 100 - f.h); el.style.left = f.x + '%'; el.style.top = f.y + '%';
+        zeigeLinie('senk', fx && fx.l); zeigeLinie('waag', fy && fy.l);
+      } else {
+        let r = f0.x + f0.w + dx, u = f0.y + f0.h + dy;
+        const fx = fang([r], linienX, tolX), fy = fang([u], linienY, tolY);
+        if (fx) r += fx.d; if (fy) u += fy.d;
+        f.w = clamp(r - f.x, 1, 100 - f.x); f.h = clamp(u - f.y, 0.8, 100 - f.y); el.style.width = f.w + '%'; el.style.height = f.h + '%';
+        zeigeLinie('senk', fx && fx.l); zeigeLinie('waag', fy && fy.l);
+      }
     };
     const up = () => {
       el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up);
+      zeigeLinie('senk', null); zeigeLinie('waag', null);
       if (bewegt) { f.geprueft = f.geprueft || false; speichern(); zeichneFelder(f.page); zeichneBand(); }
     };
     el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
   }
   function markiere() { document.querySelectorAll('.feld').forEach(el => el.classList.toggle('sel', el.dataset.id === S.sel)); }
+  /* Eigene Feldarten (Klaus 2026-11-03: „neue Felder, Kategorien bestimmt werden können … Kategorie neu anlegen, damit ich
+     automatisch draufklicken kann, wenn ich diese Kategorie oder dieses Feld wieder brauche"). Ein eingestelltes Feld wird unter
+     einem Namen gemerkt: Art, Bezeichnung, Schrift, mehrzeilig, Größe in pt (passt auf jede Seitengröße), Inhalt. Liegt in
+     EINST.feldVorlagen (dieses Gerät, alle Dokumente); in „Feld setzen" steht dafür ein eigener Knopf mit ★, ✕ löscht ihn. */
+  function feldVorlagen() { return Array.isArray(EINST.feldVorlagen) ? EINST.feldVorlagen : (EINST.feldVorlagen = []); }
+  function vorlageVon(f) {
+    const pg = S.doc.pages[f.page];
+    const v = { id: uid(), name: '', type: f.type, label: f.label || '', mehrzeilig: !!f.mehrzeilig, wPt: +(f.w / 100 * pg.w).toFixed(2), hPt: +(f.h / 100 * pg.h).toFixed(2) };
+    if (feldGr(f)) v.gr = feldGr(f);
+    if (typeof f.value === 'string' && f.value && !['unterschrift'].includes(f.type)) v.value = f.value.slice(0, 2000);
+    if (f.type === 'check' && f.value === true) v.value = true;
+    return v;
+  }
+  function vorlageMerken(f) {
+    dialog(`<h2>★ Eigene Feldart</h2><p class="hinweis">Steht danach in „Feld setzen" als eigener Knopf — mit Art, Bezeichnung, Schrift, Größe und Inhalt dieses Feldes.</p>
+      <label class="eig">Name der Feldart<input id="vlName" maxlength="40"></label>
+      <div class="zeile"><button class="knopf" data-x>Abbrechen</button><button class="knopf rot" data-ok>★ Merken</button></div>`, (d, zu) => {
+      const i = d.querySelector('#vlName'); i.value = f.label || TYPEN[f.type].name; i.focus(); i.select();
+      const ok = () => { const name = i.value.trim().slice(0, 40); if (!name) { i.focus(); return; }
+        const v = Object.assign(vorlageVon(f), { name }); const alt = feldVorlagen().findIndex(x => x.name.toLowerCase() === name.toLowerCase());
+        if (alt >= 0) { v.id = feldVorlagen()[alt].id; feldVorlagen()[alt] = v; } else feldVorlagen().push(v);
+        einstSpeichern(); zu(); zeichneFuss(); toast(alt >= 0 ? 'Feldart „' + name + '" aktualisiert.' : 'Feldart „' + name + '" gemerkt — steht jetzt in „Feld setzen".'); };
+      d.querySelector('[data-ok]').onclick = ok; d.querySelector('[data-x]').onclick = zu;
+      i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ok(); } });
+    });
+  }
+  async function vorlageLoeschen(id) {
+    const v = feldVorlagen().find(x => x.id === id); if (!v) return;
+    if (!await frage('Eigene Feldart löschen?', `<p>Die Feldart „${nm(v.name)}" verschwindet aus „Feld setzen". Schon gesetzte Felder bleiben.</p>`, 'Löschen')) return;
+    EINST.feldVorlagen = feldVorlagen().filter(x => x.id !== id); einstSpeichern();
+    if (S.platzieren === 'v:' + id) S.platzieren = null;
+    zeichneFuss();
+  }
   function feldSetzen(seite, e, lage) {
+    const vl = String(S.platzieren || '').startsWith('v:') ? feldVorlagen().find(v => 'v:' + v.id === S.platzieren) : null;
+    if (vl) return vorlageSetzen(vl, seite, e, lage);
     const r = lage.getBoundingClientRect(); const t = S.platzieren; const [w, hh] = GROESSE[t];
     const hKorr = t === 'check' || t === 'qr' ? w * S.doc.pages[seite].w / S.doc.pages[seite].h : hh;   // quadratisch
     const x = clamp((e.clientX - r.left) / r.width * 100 - (t === 'check' || t === 'qr' ? w / 2 : 1), 0, 100 - w);
@@ -1728,11 +1870,23 @@
     zeichneFelder(seite); zeichneFuss(); speichern();
     setTimeout(() => { const i = $('eigLabel'); if (i) { i.focus(); i.select(); } }, 30);
   }
+  function vorlageSetzen(v, seite, e, lage) {
+    const r = lage.getBoundingClientRect(), pg = S.doc.pages[seite], t = TYPEN[v.type] ? v.type : 'text';
+    const w = clamp(v.wPt / pg.w * 100, 1, 100), hh = clamp(v.hPt / pg.h * 100, 0.8, 100);
+    const x = clamp((e.clientX - r.left) / r.width * 100 - (t === 'check' || t === 'qr' ? w / 2 : 1), 0, 100 - w);
+    const y = clamp((e.clientY - r.top) / r.height * 100 - hh / 2, 0, 100 - hh);
+    const f = { id: uid(), page: seite, type: t, label: v.label || v.name, x, y, w, h: hh, value: t === 'check' ? v.value === true : (typeof v.value === 'string' ? v.value : ''),
+      herkunft: 'hand', geprueft: true, mehrzeilig: !!v.mehrzeilig, vorlage: v.name };
+    if (v.gr) f.gr = v.gr;
+    S.doc.fields.push(f); S.sel = f.id; S.platzieren = null; document.querySelectorAll('.seite').forEach(s => s.classList.remove('platzieren'));
+    zeichneFelder(seite); zeichneFuss(); speichern();
+  }
   function platzierenStart(t) {
     S.platzieren = S.platzieren === t ? null : t;
     document.querySelectorAll('.seite').forEach(s => s.classList.toggle('platzieren', !!S.platzieren));
     zeichneFuss();
-    if (S.platzieren) toast('Tippe auf die Stelle im Dokument, an die das ' + TYPEN[t].name + '-Feld soll.');
+    const v = String(t).startsWith('v:') ? feldVorlagen().find(x => 'v:' + x.id === t) : null;
+    if (S.platzieren) toast(v ? 'Tippe auf die Stelle im Dokument, an die das Feld „' + v.name + '" soll.' : 'Tippe auf die Stelle im Dokument, an die das ' + TYPEN[t].name + '-Feld soll.');
   }
 
   function zeichneModus() {
@@ -1765,6 +1919,7 @@
       return;
     }
     let html = `<div class="werkzeug"><span class="titel">Feld setzen:</span>${Object.entries(TYPEN).map(([k, t]) => `<button class="knopf${S.platzieren === k ? ' an' : ''}" data-t="${k}">${t.ico} ${t.name}</button>`).join('')}
+      ${feldVorlagen().map(v => `<span class="eigene-art"><button class="knopf${S.platzieren === 'v:' + v.id ? ' an' : ''}" data-v="${h(v.id)}" title="Eigene Feldart">★ ${nm(v.name)}</button><button class="knopf klein" data-v-weg="${h(v.id)}" title="Eigene Feldart löschen" aria-label="Eigene Feldart löschen">✕</button></span>`).join('')}
       <button class="knopf" id="fussSeite">＋ Seite</button><button class="knopf" id="fussText">📄 Erkannter Text</button></div>`;
     if (S.platzieren) html += `<div class="werkzeug"><span class="hinweis">👆 Tippe jetzt auf die Stelle im Dokument. <button class="knopf klein" id="platzAbbr">Abbrechen</button></span></div>`;
     if (f) {
@@ -1775,13 +1930,17 @@
         ${f.type === 'unterschrift' ? `<button class="knopf" id="eigUnterschr">✒️ ${f.value ? 'Neu unterschreiben' : 'Unterschreiben'}</button>${f.value ? '<button class="knopf" id="eigUsWeg">Unterschrift entfernen</button>' : ''}`
           : f.type === 'check' ? `<label class="eig eig-haken"><input type="checkbox" id="eigWertC"${f.value ? ' checked' : ''}> angekreuzt</label>`
           : f.type === 'datum' ? `<label class="eig">Inhalt<input type="date" id="eigWert" value="${h(f.value || '')}"></label>`
+          : f.mehrzeilig && f.type === 'text' ? `<label class="eig" style="flex:1;min-width:160px">Inhalt (vorbelegt)<textarea id="eigWert" rows="2">${h(f.value || '')}</textarea></label>`
           : `<label class="eig" style="flex:1;min-width:160px">${f.type === 'qr' ? 'Inhalt des QR-Codes' : 'Inhalt (vorbelegt)'}<input id="eigWert" value="${h(f.value || '')}"></label>`}
+        ${!['check', 'unterschrift', 'qr'].includes(f.type) ? `<label class="eig eig-gr" title="Schriftgröße in Punkt. Leer: passt sich dem Feld an.">Schrift (pt)<input type="number" id="eigGr" min="${GR_MIN}" max="${GR_MAX}" step="0.5" inputmode="decimal" placeholder="auto" value="${feldGr(f) || ''}"></label>` : ''}
         ${f.type === 'text' ? `<label class="eig eig-haken"><input type="checkbox" id="eigMz"${f.mehrzeilig ? ' checked' : ''}> mehrzeilig</label>` : ''}
-        <button class="knopf" id="eigKopie" title="Feld kopieren">⧉ Kopie</button><button class="knopf gefahr" id="eigDel">🗑 Löschen</button></div>`;
+        <button class="knopf" id="eigVorlage" title="Dieses Feld als eigene Feldart in „Feld setzen" merken">★ Als Feldart merken</button><button class="knopf" id="eigKopie" title="Feld kopieren">⧉ Kopie</button><button class="knopf gefahr" id="eigDel">🗑 Löschen</button></div>`;
     }
     // Kein Erklärsatz ohne gewähltes Feld (Klaus 2026-09-27: „erklärt sich von alleine").
     fuss.innerHTML = html;
     fuss.querySelectorAll('[data-t]').forEach(b => b.onclick = () => platzierenStart(b.dataset.t));
+    fuss.querySelectorAll('[data-v]').forEach(b => b.onclick = () => platzierenStart('v:' + b.dataset.v));
+    fuss.querySelectorAll('[data-v-weg]').forEach(b => b.onclick = () => vorlageLoeschen(b.dataset.vWeg));
     $('fussSeite').onclick = seiteDialog; $('fussText').onclick = erkannterText;
     if ($('platzAbbr')) $('platzAbbr').onclick = () => platzierenStart(S.platzieren);
     if (!f) return;
@@ -1795,11 +1954,17 @@
       if (f.type === 'datum' && !/^\d{4}-\d{2}-\d{2}$/.test(f.value || '')) f.value = '';
       speichern(); neu(); zeichneFuss();
     };
-    if ($('eigWert')) $('eigWert').oninput = e => { f.value = e.target.value; speichern(); neu(); };
+    if ($('eigWert')) $('eigWert').oninput = e => { f.value = e.target.value; feldAnText(f); speichern(); neu(); };
     if ($('eigWertC')) $('eigWertC').onchange = e => { f.value = e.target.checked; speichern(); neu(); };
     if ($('eigUnterschr')) $('eigUnterschr').onclick = () => unterschreiben(f);
     if ($('eigUsWeg')) $('eigUsWeg').onclick = () => { f.value = ''; speichern(); neu(); zeichneFuss(); };
-    if ($('eigMz')) $('eigMz').onchange = e => { f.mehrzeilig = e.target.checked; speichern(); neu(); };
+    if ($('eigGr')) $('eigGr').oninput = e => {
+      const v = String(e.target.value).trim().replace(',', '.'), g = Number(v);
+      if (v === '') delete f.gr; else if (Number.isFinite(g) && g >= GR_MIN && g <= GR_MAX) f.gr = Math.round(g * 2) / 2; else return;   // Zwischenstand beim Tippen (z. B. „1“ auf dem Weg zu „14“) nicht übernehmen
+      f.geprueft = true; feldAnText(f); speichern(); neu();
+    };
+    if ($('eigMz')) $('eigMz').onchange = e => { f.mehrzeilig = e.target.checked; feldAnText(f); speichern(); neu(); zeichneFuss(); };
+    $('eigVorlage').onclick = () => vorlageMerken(f);
     $('eigKopie').onclick = () => { const n = Object.assign({}, f, { id: uid(), y: clamp(f.y + f.h + 0.6, 0, 100 - f.h), geprueft: true, herkunft: 'hand' }); S.doc.fields.push(n); S.sel = n.id; speichern(); zeichneFelder(f.page); zeichneFuss(); };
     $('eigDel').onclick = () => feldLoeschen(f);
   }
@@ -2073,6 +2238,7 @@
     const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
     d.fields = d.fields.filter(f => f.geprueft);           // alte, ungeprüfte Vorschläge ersetzen
     let neu = 0, fehler = '';
+    const belegtWeg = [];
     const seiten = Math.min(pdf.numPages, 40);
     for (let i = 0; i < seiten; i++) {
       melde(i / seiten, `Seite ${i + 1} von ${pdf.numPages}`);
@@ -2081,13 +2247,30 @@
       const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
       const x = c.getContext('2d', { willReadFrequently: true }); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
       await p.render({ canvasContext: x, viewport: vp }).promise;
-      let felder = EINST.linien !== false ? ER.linienErkennung(x.getImageData(0, 0, c.width, c.height)) : [];
+      // Textebene einmal lesen (Beschriftungen, Inhalt, „schon belegt“)
+      let tc = null, items = [];
+      try {
+        tc = await p.getTextContent();
+        items = tc.items.map(t => {
+          const tr = pdfjsLib.Util.transform(vp.transform, t.transform); const fh = Math.hypot(tr[2], tr[3]);
+          return { str: t.str, x: tr[4] / c.width * 100, y: (tr[5] - fh) / c.height * 100, w: t.width * vp.scale / c.width * 100, h: fh / c.height * 100 };
+        });
+      } catch (_) {}
+      const seitenBild = x.getImageData(0, 0, c.width, c.height);
+      // Schon belegte Kandidaten (ausgefüllt, Überschrift, unterstrichener Text, grauer Hinweis, Logo/Bild) werden kein Feld
+      // und gehen auch nicht als Kandidat an die KI (Klaus 2026-11-03)
+      const ohneBelegte = liste => {
+        const its = d.uebersetzung ? [] : items;
+        inhaltUebernehmen(liste, its, x, c.width, c.height);
+        return liste.filter(f => { const g = ER.schonBelegt(f, its, seitenBild, f.inhalt); if (g) belegtWeg.push(g); return !g; });
+      };
+      let felder = EINST.linien !== false ? ohneBelegte(ER.linienErkennung(seitenBild)) : [];
       if (mitKi) {
         try {
           // Kandidaten nummeriert ins Bild — schon geprüfte Felder nicht noch einmal fragen
           const iouV = (a, b) => { const ix = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)), iy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y)); const s = ix * iy; return s / (a.w * a.h + b.w * b.h - s || 1); };
           const alt = d.fields.filter(f => f.page === i);
-          const kand = (EINST.linien !== false ? felder : ER.linienErkennung(x.getImageData(0, 0, c.width, c.height)))
+          const kand = (EINST.linien !== false ? felder : ohneBelegte(ER.linienErkennung(seitenBild)))
             .filter(k => !alt.some(v => iouV(v, k) > 0.25)).slice(0, 150);
           melde((i + 0.1) / seiten, `Seite ${i + 1} von ${pdf.numPages} · KI liest die Seite …`, (i + 0.95) / seiten);
           const sicher = await kiSeitenBild(p, vp, c, kand, i + 1);
@@ -2100,16 +2283,13 @@
       }
       // Beschriftung aus der Textebene (digitale PDFs)
       try {
-        const tc = await p.getTextContent();
-        const items = tc.items.map(t => {
-          const tr = pdfjsLib.Util.transform(vp.transform, t.transform); const fh = Math.hypot(tr[2], tr[3]);
-          return { str: t.str, x: tr[4] / c.width * 100, y: (tr[5] - fh) / c.height * 100, w: t.width * vp.scale / c.width * 100, h: fh / c.height * 100 };
-        });
+        if (!tc) throw new Error('keine Textebene');
         ER.beschrifte(felder, items);
         // Übersetztes Dokument: unter der Übersetzung liegt der Originaltext abgedeckt —
         // er ist kein Inhalt eines Feldes und darf nicht als Eintrag gelesen werden.
         if (d.uebersetzung) { felder.forEach(f => { delete f.inhalt; delete f.angekreuzt; }); items.length = 0; }
         inhaltUebernehmen(felder, items, x, c.width, c.height);
+        felder = felder.filter(f => { const g = ER.schonBelegt(f, items, seitenBild, f.inhalt); if (g) belegtWeg.push(g); return !g; });
         // schon vorhandene, noch leere Felder lesen ihren Inhalt ebenfalls
         const leer = d.fields.filter(f => f.page === i && f.type !== 'unterschrift' && f.type !== 'qr' && !f.value);
         inhaltUebernehmen(leer, items, x, c.width, c.height);
@@ -2151,7 +2331,8 @@
     if (pdf.numPages > seiten) fehler = (fehler ? fehler + ' · ' : '') + `nur die ersten ${seiten} von ${pdf.numPages} Seiten untersucht`;
     try { pdf.destroy(); } catch (_) {}
     d.updatedAt = jetzt();
-    return { neu, fehler };
+    window.__wfpdfBelegtWeg = belegtWeg;
+    return { neu, fehler, belegtWeg: belegtWeg.length };
   }
 
   /* ---------- Export ---------- */
@@ -3282,6 +3463,8 @@
     $('btnNeu').onclick = async () => {
       $('btnNeu').disabled = true; toast('Neueste Fassung wird geladen …');
       try { await speichernJetzt(); } catch (_) {}
+      // Weitermachen, wo man war (Klaus 2026-11-03: „Aktualisierung der App während des Betriebes … ich fange schon an einzugeben")
+      try { if (S.doc) sessionStorage.setItem(WEITER_KEY, JSON.stringify({ id: S.doc.id, modus: S.modus, oben: ($('edFlaeche') || {}).scrollTop || 0, zoom: S.zoom || 1, alt: versionNummer(), zeit: S.doc.updatedAt || '' })); } catch (_) {}
       try { if (window.caches) for (const k of await caches.keys()) await caches.delete(k); } catch (_) {}
       try { if (navigator.serviceWorker) for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister(); } catch (_) {}
       const u = new URL(location.href); u.searchParams.set('neu', Date.now().toString(36)); location.replace(u.href);
@@ -3303,8 +3486,8 @@
     $('edSpeichern').onclick = speichernDialog;
     // Beim Schließen oder Wechseln der App sofort sichern — sonst ginge verloren,
     // was in den letzten 0,35 s getippt wurde (Befund Klaus 2026-09-25).
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') speichernJetzt(); });
-    window.addEventListener('pagehide', () => speichernJetzt());
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { notstandSchreiben(); speichernJetzt(); } });
+    window.addEventListener('pagehide', () => { notstandSchreiben(); speichernJetzt(); });
     $('zMinus').onclick = () => zoom(1 / 1.2); $('zPlus').onclick = () => zoom(1.2);
     window.addEventListener('popstate', () => { if (S.doc && location.hash !== '#dok') schliesseEditor(true); });
     // Nur neu zeichnen, wenn sich die BREITE ändert. Die Bildschirmtastatur macht
@@ -3339,7 +3522,7 @@
     // Bildbeschreibung (Sitzung 4): die Nähte der App hineinreichen; das Modell startet nur, wenn die Wahl gemerkt ist
     if (BKA()) BKA().init({ S, DB, dialog, toast, neu: () => { if ($('sc-bib').classList.contains('on')) zeichneBibliothek(); }, texteNachholen });
     if (window.WFP && WFP.Bild) WFP.Bild.init({ S, EINST, einstSpeichern, DB, dialog, toast, neu: () => { if ($('sc-bib').classList.contains('on')) zeichneBibliothek(); }, sprechen: window.WFSprechen, micSprache: () => MIC_LANG[(WFP.Sprache && WFP.Sprache.lang) || 'de'] || 'de-DE' });
-    ladeBibliothek().then(() => { if (EINST.bedeutung) bedeutungStarten({ einordnen: false }); if (window.WFP && WFP.Bild) WFP.Bild.start(); }).then(chromeTabRueckweg).then(geteiltUebernehmen).then(oeffnenMitEmpfangen).then(scanDirektstart).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
+    notstandEinspielen().then(ladeBibliothek).then(() => { if (EINST.bedeutung) bedeutungStarten({ einordnen: false }); if (window.WFP && WFP.Bild) WFP.Bild.start(); }).then(chromeTabRueckweg).then(geteiltUebernehmen).then(oeffnenMitEmpfangen).then(scanDirektstart).then(weiterNachNeuladen).catch(e => toast('⚠️ Speicher nicht verfügbar: ' + (e.message || e)));
     window.__wfpdf = { bild: window.WFP && WFP.Bild, eingang: { PRUEF, pruefDialog, eingangPruefen, pruefungNachholen, ALLE, allePruefen, pruefenKnopf, pruefLeiste }, versionNummer, kiReiniger, beispieleLaden, S, EINST, suche: { TEXTE, texteNachholen, zeichneBibliothek }, bedeutung: { BED, bedeutungStarten, bedeutungAus, vektorenNachholen, bedeutungZeichnen, einordnenLauf, einordnenStopp, einordnenKnopf, offeneEinordnen }, typAusLabel, nummerOeffnen, erkenneDok, importDateien, oeffneDok, einstSpeichern, uebersetzeViele, ergebnisOrdner, geteiltUebernehmen, scanDirektstart, ausgabeHerkunft,
       // für tests/sprache.mjs: jeden Dialog einmal öffnen und seine Texte nachschlagen
       dlg: { neuerOrdner, verschieben, teilenDocs, wahlEnde, WAHL, wahlUmschalten, loeschen, speichernDialog, scanStarten, seiteDialog, erkannterText, erkennenDialog, exportDialog, uebersetzenStart, uebersetzenDialog, rueckwegDialog, einstellungen, installHinweis, hilfe, erklaervideo, videoFuer, spracheWaehlen, unterschreiben, chromeHinweis, zurueckBand, toast, zeichneFuss, platzierenStart, ordnerAusgabe, bedeutungDialog, sicherungDialog, sicherungErinnerung } };   // für die Probe
@@ -3377,6 +3560,22 @@
      erlaubt keine Vorauswahl des Ziels). Die Adresse wird sofort geputzt, damit ⟳ den Scanner nicht
      noch einmal öffnet. Die gemerkte Wahl des Nutzers (`wfpdf_scan_v1`) bleibt unberührt: nur dieser
      eine Scan ist durchsuchbar. Der Toast sagt, woher der Start kam und wie es zurückgeht. */
+  /* Nach ⟳ (neueste Fassung laden) dasselbe Dokument wieder öffnen, im selben Modus und an derselben Stelle. Gespeichert wurde
+     vorher (speichernJetzt); die Einträge liegen in IndexedDB („WorkflohPDF1"), die das Neuladen nicht anfasst. */
+  const WEITER_KEY = 'wfpdf_weiter_v1';
+  async function weiterNachNeuladen() {
+    let w = null; try { w = JSON.parse(sessionStorage.getItem(WEITER_KEY) || 'null'); sessionStorage.removeItem(WEITER_KEY); } catch (_) {}
+    if (!w || !w.id) return;
+    const d = await DB.get('docs', w.id); if (!d) return;
+    await oeffneDok(w.id);
+    if (!S.doc || S.doc.id !== w.id) return;
+    if (w.modus === 'bearbeiten' || w.modus === 'ausfuellen') { S.modus = w.modus; zeichneModus(); }
+    const fl = $('edFlaeche'); if (fl && w.oben) requestAnimationFrame(() => { fl.scrollTop = w.oben; });
+    const uhr = d.updatedAt ? new Date(d.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    const neu = versionNummer();
+    toast('Neu geladen (Fassung ' + (neu || '?') + '). ' + (uhr ? 'Deine Einträge sind gespeichert (zuletzt ' + uhr + ').' : 'Deine Einträge sind gespeichert.'));
+    window.__wfpdfWeiter = { id: w.id, modus: S.modus, oben: w.oben };
+  }
   function scanDirektstart() {
     const q = new URLSearchParams(location.search);
     if (q.get('scan') !== '1') return;

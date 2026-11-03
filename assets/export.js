@@ -60,6 +60,16 @@
     return { size: 4, zeilen: umbrechen(font, text, 4, bw - 2) };
   }
 
+  // Feste Schriftgröße am Feld (f.gr, Punkt, 4–72; Klaus 2026-11-03). Leer = passendeGroesse.
+  function festeGroesse(f) { const g = Number(f && f.gr); return f && f.gr !== '' && f.gr != null && Number.isFinite(g) && g >= 4 && g <= 72 ? g : 0; }
+  function groesseFuer(f, font, text, bw, bh) {
+    const g = festeGroesse(f);
+    if (!g) return passendeGroesse(font, text, bw, bh, !!f.mehrzeilig);
+    const zeilen = f.mehrzeilig ? umbrechen(font, text, g, bw - 2) : [text];
+    const passt = f.mehrzeilig ? zeilen.length * g * 1.18 <= bh + 0.5 : font.widthOfTextAtSize(text, g) <= bw - 2 && g <= bh * 1.05;
+    return { size: g, zeilen, passt };
+  }
+
   function feldName(f, vergeben) {
     let base = String(f.label || '').replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/Ä/g, 'Ae').replace(/Ö/g, 'Oe').replace(/Ü/g, 'Ue').normalize('NFKD').replace(/[̀-ͯ]/g, '')
       .replace(/ß/g, 'ss').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
@@ -161,7 +171,8 @@
         if (!wert) continue;
         const fnt = fontFuer(wert);
         const { text, ersetzt } = saeubern(fnt, wert); ersetztGesamt += ersetzt;
-        const { size, zeilen } = passendeGroesse(fnt, text, bw, bh, !!f.mehrzeilig);
+        const { size, zeilen, passt } = groesseFuer(f, fnt, text, bw, bh);
+        if (passt === false) hinweise.push('Feld „' + (f.label || 'Text') + '": der Text passt mit Schriftgröße ' + size + ' pt nicht ganz hinein.');
         const zeilenH = size * 1.18;
         const blockH = zeilen.length * zeilenH;
         const oben = f.mehrzeilig ? Math.max(0, (bh - blockH) / 2) : 0;
@@ -188,12 +199,13 @@
       }
       const tf = form.createTextField(name);
       if (f.mehrzeilig) tf.enableMultiline();
-      let gross = Math.max(5, Math.min(12, bh * (f.mehrzeilig ? 0.34 : 0.62)));
+      const fest = festeGroesse(f);
+      let gross = fest || Math.max(5, Math.min(12, bh * (f.mehrzeilig ? 0.34 : 0.62)));
       const fnt = fontFuer(modus === 'ausfuellbar' ? wert : '');
       if (modus === 'ausfuellbar' && wert) {
         const { text, ersetzt } = saeubern(fnt, wert); ersetztGesamt += ersetzt;
         tf.setText(text);
-        gross = Math.min(gross, passendeGroesse(fnt, text, bw, bh, !!f.mehrzeilig).size);
+        if (!fest) gross = Math.min(gross, passendeGroesse(fnt, text, bw, bh, !!f.mehrzeilig).size);
       }
       tf.addToPage(page, Object.assign({ font: fnt }, wopt));   // erst danach gibt es einen /DA-Eintrag
       tf.setFontSize(gross);

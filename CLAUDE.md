@@ -22,6 +22,63 @@ ausfüllen → festes / ausfüllbares PDF / leere Vorlage. Kein Build-Schritt.
 Vorlage war der Originaldokument-Modus von Mein-WorkFloh (Felder in Prozent
 über der echten Seite, „bearbeiten" gegen „ausfüllen").
 
+## ✏️ Felder: Schriftgröße, Feld wächst mit, Einrasten, eigene Feldarten · Erkennung lässt Belegtes aus · ⟳ ohne Verlust (Klaus 2026-11-03, erst PWA)
+
+Klaus am Tablet (Pro-Version): mehrzeilige Felder umbrachen falsch, die Schrift passte sich nicht an und wurde abgeschnitten;
+„Schriftgröße mit einer Zahl direkt hinter dem Eingabefeld“ · Feld passt sich an Schrift und Text an (Breite, Höhe, Enter = neue
+Zeile) · „Parallel stehende Felder sollen sich automatisch ausrichten“ · Erkennung ohne KI soll Logos, Überschriften, Bilder mit
+Text, schon ausgefüllte Felder, unterstrichenen Text und grau hinterlegte Hinweise **nicht** als Feld vorschlagen — außer einer
+Beschriftung wie „Datum:“ ohne Text danach. **Erst nur hier (PWA)**, die Pro-Version zieht später über `upstream/` nach.
+- **Schrift (pt)** (`#eigGr`, `.eig-gr`) direkt hinter „Inhalt“ im Bearbeiten-Fuß, für alle Textarten; `f.gr` = Punkt der Seite
+  (4–72, halbe Schritte), leer = **auto**. Bildschirm: `schriftAnpassen` (app.js) setzt fest `gr × Seitenmaßstab`, sonst wie die
+  PDF-Ausgabe höchstens 12 pt und so lange kleiner, bis nichts mehr übersteht (einzeilig Breite, mehrzeilig Höhe; `data-gr` fest|auto).
+  Ausgabe: `export.js` `groesseFuer` (fest: genau `gr`, mehrzeilig umbrochen; passt es nicht, ein Hinweis), ausfüllbar `setFontSize(gr)`,
+  `html-export.js` in cqw. Mehrzeilig: „Inhalt“ ist ein mehrzeiliges Eingabefeld, auf dem Blatt `overflow-wrap:anywhere`.
+- **Feld wächst mit** (`feldAnText`, nur mit fester Zahl): Höhe = Zeilen × 1,18 × gr (wächst und schrumpft), Breite wächst bis zum
+  längsten Text (nie schmaler als gesetzt, nie über den Seitenrand); gemessen in der Bildschirmschrift UND in Helvetica (die breitere),
+  + 8 % Luft, 6 pt Rand. ⚠ CI-Befund (PR #142): zuerst nur in Helvetica gemessen — wo Helvetica fehlt, nahm der Browser eine schmalere
+  Ersatzschrift, das Feld blieb 5 % zu schmal. `tests/feldschrift.mjs` fährt deshalb mit breiter Bildschirmschrift (DejaVu Sans). Beim Ausfüllen bei jedem Tippen.
+- **Einrasten** (`ziehen`, `FANG_PX` 8): Kanten und Mitten der anderen Felder derselben Seite fangen beim Schieben und beim
+  Größe-Ziehen, rote Hilfslinie (`.hilfslinie`); außerhalb des Fangbereichs bleibt das Feld frei. Kein festes Raster (benannt).
+- **Eigene Feldarten** (Klaus: „neue … Kategorien … damit ich automatisch draufklicken kann"): im Bearbeiten-Fuß
+  **★ Als Feldart merken** (`#eigVorlage` → `vorlageMerken`) merkt Art, Bezeichnung, Schrift, mehrzeilig, Größe **in pt** (passt auf
+  jede Seitengröße) und Inhalt unter einem Namen in `EINST.feldVorlagen` (dieses Gerät, alle Dokumente; gleicher Name = ersetzen).
+  In „Feld setzen" steht je Feldart ein Knopf **★ Name** (`[data-v]`, `S.platzieren = 'v:<id>'`, `vorlageSetzen`) und ✕ zum Löschen
+  (`[data-v-weg]`, mit Frage; gesetzte Felder bleiben, sie tragen `f.vorlage`). Nicht in der Sicherung (Einstellungen reisen dort nicht mit, benannt).
+- **Aktualisieren mitten in der Arbeit** (Klaus: „Aktualisierung der App während des Betriebes … ich fange schon an einzugeben"):
+  ⟳ speicherte schon vorher; neu merkt es Dokument, Modus, Rollstelle und Zoom in `sessionStorage` (`wfpdf_weiter_v1`), und
+  `weiterNachNeuladen` (Ende der Startkette) öffnet danach dasselbe Dokument an derselben Stelle mit der Meldung „Neu geladen
+  (Fassung …). Deine Einträge sind gespeichert (zuletzt …)". **Notstand:** IndexedDB schreibt asynchron — beim Neuladen/Schließen
+  innerhalb von ~0,35 s nach der letzten Änderung ging diese verloren (von `tests/feldschrift.mjs` gefunden, nicht vermutet). Jetzt legt
+  `pagehide`/`visibilitychange` zusätzlich einen synchronen Schnappschuss der Felder in `localStorage` (`wfpdf_notstand_v1`);
+  `notstandEinspielen` (Anfang der Startkette) spielt ihn ein, wenn er neuer ist, und löscht ihn; ein gelungenes Speichern löscht ihn auch.
+  ⚠ Die PWA speichert **unverschlüsselt** in IndexedDB des Browsers (`WorkflohPDF1`); verschlüsselt ist nur die Sicherungsdatei.
+  ⚠ Ein Schnappschuss über ~5 MB (viele Unterschriften als Bild) passt nicht in localStorage — dann bleibt nur das normale Speichern.
+- **Umlaute im Namen** (Klaus: „Eröffnungsmail … mit O statt mit Ö"): Workflow PDF übernimmt den Dateinamen unverändert (auch beim
+  Teilen, `X-Name` URI-kodiert) — die Umlaute nahm die **abgebende App** weg (nicht in dieser Sitzung geprüft: Pro-Hülle oder Mail-App).
+  Abhilfe hier (`nameMitUmlauten` in `neuesDok`): zerlegte Umlaute werden zusammengesetzt (NFC); hat der Dateiname keine Umlaute und
+  sieht er aus wie der Titel der PDF ohne Umlaute (ganz oder als Anfang, ≥ 6 Zeichen), gilt der Titel. Ohne Titel bleibt das „O“.
+- **Erkennung** (`WFP.Erkennung.schonBelegt`, rein, in Node geprüft): ein offline gefundener Kandidat wird kein Feld, wenn in ihm
+  Text der Textebene steht, der keine Beschriftung ist (endet nicht auf „:“), oder wenn mehr als `TINTE_MAX` 4 % seiner Fläche dunkel
+  oder kräftig farbig gezeichnet ist (ohne Beschriftungen der Textebene; bei einer Linie ohne die Linie selbst). Gefiltert wird VOR
+  der KI (sie wird nach Belegtem nicht gefragt) und noch einmal danach. Kästchen und von der KI benannte Felder bleiben unberührt.
+  `window.__wfpdfBelegtWeg` zählt die Gründe (`text` · `bild`).
+  ⚠ **Tafel-Evolution, benannt:** bis 1.1.8 wurde ein schon ausgefüllter Kasten ein Feld mit dem gedruckten Text als Wert und
+  Deckfarbe („Max Muster“, `tests/e2e.mjs` 10). Jetzt wird er kein Feld; ein VORHANDENES leeres Feld liest seinen Inhalt weiter (13b).
+  ⚠ `TINTE_MAX` 4 % und `FANG_PX` 8 sind gewählt, nicht an Klaus' Dokumenten gemessen. Scans ohne Textebene: eine gedruckte
+  Beschriftung zählt dort als Tinte — ein kleiner Kasten mit langer Beschriftung kann wegfallen.
+- Version **1.1.9**, Cache **v114**, `app.js?v=77`, `export.js?v=8`, `html-export.js?v=3`, `erkennung.js?v=6`, `style.css?v=47`,
+  `sprache-texte.js?v=52` (19 neue Sätze je EN/RU/AR).
+- Proben: `tests/feldschrift.mjs` (in `npm test`, **42 grün**; dazu eigene Feldart merken/setzen/Neuladen/löschen, ⟳ mitten im Tippen,
+  sofortiges Neuladen nach dem Setzen; A `schonBelegt` an gestellten Bildern, B erfundenes Formular im Browser:
+  Linie, unterstrichener Text, Überschrift im Rahmen, „Datum:“-Rahmen, Logo, grauer Hinweis, graue Fläche; Zahl 14/10, Wachsen,
+  Enter, Ausfüllen, festes und ausfüllbares PDF, Einrasten) · `node tests/gegenprobe_feldschrift.mjs` (20 Fälle; `NUR_ANKER=1`,
+  `NUR_FALL`). Erst **11 gefangen · 2 durchgerutscht**: Filter vor und nach der KI deckten einander (jetzt ein Fall für beide), die
+  Hilfslinien verschwinden ohnehin beim Neuzeichnen (Fall entfernt, benannt). Beim Bau: das Logo der Probe war eine volle Fläche und
+  gar kein Kandidat — die Zeile war blind, bis ein Rahmen mit farbigem Zeichen drinstand. `tests/e2e.mjs` angepasst (leere graue
+  Fläche „Kennzeichen“, grauer Hinweis, „Auf der Beschriftung“ über „Kennzeichen“).
+- ⚠ Am Tablet nicht gemessen; nicht an Klaus' Versicherungsformular; die Pro-Version hat es noch nicht.
+
 ## 🕸 Im Netz antworten (Klaus 2026-10-31, Punkt 5: „wie Workflow PDF Pro")
 
 ⚙️ Einstellungen → **„Im Netz antworten"** (`[data-netz-antworten]`, `assets/netz.js` = `WFPNetz`, Vorlage Workflow-PDF-Pro
