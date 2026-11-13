@@ -22,6 +22,22 @@ ausfüllen → festes / ausfüllbares PDF / leere Vorlage. Kein Build-Schritt.
 Vorlage war der Originaldokument-Modus von Mein-WorkFloh (Felder in Prozent
 über der echten Seite, „bearbeiten" gegen „ausfüllen").
 
+## 🚩 Update-Fähnchen neben der Versionsnummer (Klaus 2026-11-13)
+
+Steht eine neuere Fassung auf dem Server, erscheint **von selbst** neben „Version …“ im Fuß (`#updateFahne`) und in den
+Einstellungen ein rotes Fähnchen „Update X.Y.Z“ (`[data-update-fahne]`). Ein Tipp geht den vorhandenen Weg (⟳ `#btnNeu`:
+speichern, neu laden, Dokumente bleiben). Aktuelle Fassung, ohne Netz, Fehler oder falsch geformte Antwort: nichts, keine Meldung.
+- Gefragt wird **`version.json`** neben der Seite (`{version, cache}`), kurz nach dem Start und beim Zurückholen, höchstens einmal je
+  Stunde (`neueFassungPruefen`, `FASSUNG` in app.js). Verglichen wird die **Nummer des Vorrats** (`data-cache` ⟷ `cache`), gezeigt die Version.
+- `sw.js` steigt bei `/version.json` aus, bevor der Vorrat greift; die Datei steht nicht in `SCHALE`.
+- ⚠ **Wer `CACHE_VERSION` erhöht, zieht jetzt vier Stellen nach:** sw.js, Meta in index.html, package.json **und version.json** —
+  `tests/version.mjs` hält alle gleich.
+- In der Pro-App liegen index.html und version.json im selben Paket (gleich → kein Fähnchen aus dem Kern); die Hülle zeigt ihr eigenes.
+- Version **1.1.10**, Cache **v115**, `app.js?v=78`, `style.css?v=48`, `sprache-texte.js?v=53` (2 neue Sätze je EN/RU/AR).
+- Proben: `tests/version.mjs` (28 grün) · `node tests/gegenprobe_version.mjs` (9 neue Fälle `NUR_FALL="FAHNE:"`).
+- ⚠ Nicht gemessen: am Tablet · mit echtem Worker und echter Auslieferung über Pages (GitHub Pages hält Dateien bis zu 10 Minuten
+  im HTTP-Cache; gefragt wird deshalb mit `?t=…` und `cache: 'no-store'`) · die Pro-App hat den Kern noch nicht nachgezogen.
+
 ## ✏️ Felder: Schriftgröße, Feld wächst mit, Einrasten, eigene Feldarten · Erkennung lässt Belegtes aus · ⟳ ohne Verlust (Klaus 2026-11-03, erst PWA)
 
 Klaus am Tablet (Pro-Version): mehrzeilige Felder umbrachen falsch, die Schrift passte sich nicht an und wurde abgeschnitten;

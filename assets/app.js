@@ -148,6 +148,35 @@
   }
   document.addEventListener('wfp-version', versionZeigen);
 
+  /* ---------- Update-Fähnchen (Klaus 2026-11-13) ----------
+     Erscheint von selbst neben der Versionsnummer (Fuß und Einstellungen), sobald eine neuere Fassung ausgeliefert ist.
+     Gefragt wird version.json neben der Seite (der Worker bedient sie nie aus dem Vorrat): kurz nach dem Start und beim
+     Zurückholen, höchstens einmal je Stunde. Verglichen wird die Nummer des Vorrats (data-cache ⟷ "cache") — in der
+     Pro-App liegen beide im selben Paket und sind gleich, dort zeigt die Hülle ihr eigenes Fähnchen. Ein Tipp geht den
+     vorhandenen Weg (⟳: speichern, neu laden, Dokumente bleiben). Aktuell, ohne Netz oder Fehler: nichts, keine Meldung. */
+  const FASSUNG = { neu: '', zuletzt: 0 };
+  const vorratZahl = s => { const m = /-v(\d+)$/.exec(String(s || '')); return m ? +m[1] : 0; };
+  function fahneZeigen(wurzel) {
+    const v = FASSUNG.neu;
+    (wurzel || document).querySelectorAll('[data-update-fahne]').forEach(b => {
+      b.textContent = v ? 'Update ' + v : ''; b.hidden = !v;
+      if (v) { b.title = 'Neue Fassung ' + v + ' steht bereit. Antippen lädt sie, deine Dokumente bleiben.'; b.dataset.updateFahne = v; } else { b.removeAttribute('title'); b.dataset.updateFahne = ''; }
+      if (!b.onclick) b.onclick = () => { const n = $('btnNeu'); if (n) n.click(); };
+    });
+  }
+  async function neueFassungPruefen() {
+    if (document.visibilityState === 'hidden' || Date.now() - FASSUNG.zuletzt < 3600000) return;
+    FASSUNG.zuletzt = Date.now();
+    try {
+      const m = document.querySelector('meta[name="wfp-version"]'), ich = vorratZahl(m && m.dataset.cache);
+      const a = await fetch('./version.json?t=' + Date.now().toString(36), { cache: 'no-store' });
+      if (!a.ok) return;
+      const j = await a.json();
+      FASSUNG.neu = ich && vorratZahl(j && j.cache) > ich && /^\d+\.\d+\.\d+$/.test(String(j.version || '')) ? j.version : '';
+      fahneZeigen();
+    } catch (_) { /* ohne Netz: still */ }
+  }
+
   /* ---------- Bibliothek ---------- */
   async function ladeBibliothek() {
     S.ordner = (await DB.all('folders')).sort((a, b) => a.name.localeCompare(b.name, 'de'));
@@ -3239,8 +3268,9 @@
       <p class="hinweis"><a href="impressum.html" target="_blank" rel="noopener">Impressum &amp; Datenschutz</a></p>
       ${$('btnInstall').hidden ? '' : '<div class="zeile" style="justify-content:flex-start" data-einst-install><button class="knopf rot" id="stInstall">📲 Als App installieren</button></div>'}
       <div class="zeile"><button class="knopf" data-x>Abbrechen</button><button class="knopf rot" data-ok>Speichern</button></div>
+      <button type="button" class="update-fahne" data-update-fahne hidden></button>
       <p class="hinweis einst-version" data-einst-version>Version ${h(versionNummer())}</p>`, (d, zu) => {
-      versionZeigen();
+      versionZeigen(); fahneZeigen(d);
       const anb = d.querySelector('#stAnb'), key = d.querySelector('#stKey'), mod = d.querySelector('#stMod'), kon = d.querySelector('#stKonsole');
       const tmp = { schluessel: Object.assign({}, EINST.schluessel), modell: Object.assign({}, EINST.modell), uebModell: Object.assign({}, EINST.uebModell) };
       const umod = d.querySelector('#stUebMod');
@@ -3486,7 +3516,8 @@
     $('edSpeichern').onclick = speichernDialog;
     // Beim Schließen oder Wechseln der App sofort sichern — sonst ginge verloren,
     // was in den letzten 0,35 s getippt wurde (Befund Klaus 2026-09-25).
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { notstandSchreiben(); speichernJetzt(); } });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { notstandSchreiben(); speichernJetzt(); } else neueFassungPruefen(); });
+    setTimeout(neueFassungPruefen, 1500);
     window.addEventListener('pagehide', () => { notstandSchreiben(); speichernJetzt(); });
     $('zMinus').onclick = () => zoom(1 / 1.2); $('zPlus').onclick = () => zoom(1.2);
     window.addEventListener('popstate', () => { if (S.doc && location.hash !== '#dok') schliesseEditor(true); });

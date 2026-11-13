@@ -30,6 +30,15 @@ ok('die Nummer hat die Form 1.2.3', /^\d+\.\d+\.\d+$/.test(nummer || ''), nummer
 ok('Version gleich package.json', nummer === PKG.version, { index: nummer, paket: PKG.version });
 ok('data-cache gleich CACHE_VERSION in sw.js — Cache erhöht? Dann auch die Version erhöhen', cache && cache === swCache, { index: cache, sw: swCache });
 
+// Update-Fähnchen (Klaus 2026-11-13): version.json neben der Seite nennt die ausgelieferte Fassung.
+let VJ = null; try { VJ = JSON.parse(fs.readFileSync(path.join(WURZEL, 'version.json'), 'utf8')); } catch (_) {}
+ok('version.json nennt dieselbe Version und denselben Vorrat wie index.html', VJ && VJ.version === nummer && VJ.cache === cache, VJ);
+{
+  const zeile = SW.indexOf("pathname.endsWith('/version.json')) return;"), seite = SW.indexOf("if (r.mode === 'navigate')"), vorrat = SW.indexOf('e.respondWith(caches.match(r)');
+  ok('der Worker bedient version.json nie aus dem Vorrat (Ausstieg vor jedem respondWith der Schale)', zeile > 0 && zeile < seite && zeile < vorrat, { zeile, seite, vorrat });
+  ok('version.json steht nicht im Installations-Vorrat', !/version\.json/.test((SW.match(/const SCHALE = \[[\s\S]*?\];/) || [''])[0]));
+}
+
 let pw = null;
 try { pw = await import('playwright-core'); } catch (_) {}
 if (!pw) { console.log('  ⊘ nicht lauffähig (playwright-core fehlt — npm install)'); console.log(`\n${gruen} grün · ${rot} ROT`); process.exitCode = rot ? 1 : 0; process.exit(); }
@@ -42,11 +51,15 @@ const srv = await new Promise(res => { const s = http.createServer((q, r) => {
 const url = `http://127.0.0.1:${srv.address().port}/`;
 const exe = ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome'].find(fs.existsSync);
 const browser = await pw.chromium.launch(exe ? { executablePath: exe } : {});
-const seite = async (sprache, html) => {
+const seite = async (sprache, html, fassung) => {
   const ctx = await browser.newContext({ viewport: { width: 412, height: 860 } });
   const page = await ctx.newPage(); const fehler = []; page.on('pageerror', e => fehler.push(String(e)));
   await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, r => r.abort());
   if (html) await page.route(url, r => r.fulfill({ status: 200, contentType: 'text/html', body: html }));
+  // fassung: was der Server als version.json ausliefert (Objekt), 'offline' = kein Netz; ohne Angabe die echte Datei
+  const zaehler = { n: 0 };
+  await page.route(/\/version\.json(\?|$)/, r => { zaehler.n++; return fassung === 'offline' ? r.abort() : fassung ? r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fassung) }) : r.continue(); });
+  page.__fragen = zaehler;
   if (sprache) await page.addInitScript(l => localStorage.setItem('wfpdf_sprache_v1', JSON.stringify({ lang: l })), sprache);
   await page.goto(url); await page.waitForFunction(() => window.__wfpdf);
   return { ctx, page, fehler };
@@ -83,6 +96,44 @@ try {
     const { ctx, page } = await seite(null, kaputt);
     const f = await fuss(page);
     ok('falsch geformte Nummer → der Fuß zeigt keine erfundene Version', f && !f.sicht && f.text === '', f);
+    await ctx.close();
+  }
+  // ---------- Update-Fähnchen ----------
+  const fahne = page => page.evaluate(() => { const b = document.getElementById('updateFahne'), v = document.getElementById('versionFuss'); if (!b) return null;
+    const rb = b.getBoundingClientRect(), rv = v.getBoundingClientRect();
+    return { text: b.textContent.trim(), sicht: b.checkVisibility(), titel: b.title || '', neben: Math.abs((rb.top + rb.bottom) / 2 - (rv.top + rv.bottom) / 2) < 6 && rb.left >= rv.right - 1,
+      meldung: !!document.querySelector('.toast.an, .dlg-grund') }; });
+  const gefragt = async page => { for (let i = 0; i < 80 && !page.__fragen.n; i++) await page.waitForTimeout(100); await page.waitForTimeout(300); return page.__fragen.n; };
+  const NEU = { version: '9.9.9', cache: 'workfloh-pdf-v9999' };
+  {
+    const { ctx, page, fehler } = await seite(null, null, NEU);
+    await page.waitForFunction(() => { const b = document.getElementById('updateFahne'); return b && !b.hidden; }, null, { timeout: 10000 }).catch(() => {});
+    const f = await fahne(page);
+    ok('Fähnchen: neuere Fassung ausgeliefert → „Update 9.9.9" erscheint von selbst neben der Version, ohne Tipp', f && f.sicht && f.text === 'Update 9.9.9' && f.neben, f);
+    ok('Fähnchen: das Erscheinen öffnet nichts und meldet nichts', f && !f.meldung && /9\.9\.9/.test(f.titel), f);
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange'))); await page.waitForTimeout(300);
+    ok('Fähnchen: gefragt wird höchstens einmal je Stunde (Zurückholen fragt nicht sofort wieder)', page.__fragen.n === 1, page.__fragen.n);
+    await page.click('#btnEinst'); await page.waitForSelector('.dlg [data-einst-version]');
+    const e = await page.evaluate(() => { const b = document.querySelector('.dlg [data-update-fahne]'); return b ? { text: b.textContent.trim(), sicht: b.checkVisibility() } : null; });
+    ok('Fähnchen: steht auch in den Einstellungen bei der Version', e && e.sicht && e.text === 'Update 9.9.9', e);
+    await page.keyboard.press('Escape'); await page.evaluate(() => document.querySelectorAll('.dlg-grund').forEach(g => g.remove()));
+    // Tipp = der vorhandene Weg (⟳). Der Knopf wird hier nur belauscht, sonst lüde die Seite neu.
+    const tipp = await page.evaluate(() => { const n = document.getElementById('btnNeu'); n.onclick = () => { window.__neuGetippt = (window.__neuGetippt || 0) + 1; }; document.getElementById('updateFahne').click(); return window.__neuGetippt || 0; });
+    ok('Fähnchen: ein Tipp geht den vorhandenen Weg (⟳ Neueste Fassung laden)', tipp === 1, tipp);
+    ok('Fähnchen: keine Seitenfehler', fehler.length === 0, fehler);
+    await ctx.close();
+  }
+  for (const [name, fassung] of [['dieselbe Fassung (die echte version.json)', null], ['eine ältere Fassung', { version: '0.9.0', cache: 'workfloh-pdf-v1' }], ['ohne Netz', 'offline'], ['eine falsch geformte Antwort', { version: 'neu', cache: 'workfloh-pdf-v9999' }]]) {
+    const { ctx, page, fehler } = await seite(null, null, fassung);
+    const n = await gefragt(page); const f = await fahne(page);
+    ok('Fähnchen: ' + name + ' → gefragt, aber kein Fähnchen und keine Meldung', n === 1 && f && !f.sicht && f.text === '' && !f.meldung && fehler.length === 0, { n, f, fehler });
+    await ctx.close();
+  }
+  for (const [l, text] of [['en', 'Update 9.9.9'], ['ru', 'Обновление 9.9.9'], ['ar', 'تحديث 9.9.9']]) {
+    const { ctx, page } = await seite(l, null, NEU);
+    await page.waitForFunction(t => (document.getElementById('updateFahne').textContent || '').trim() === t, text, { timeout: 10000 }).catch(() => {});
+    const f = await fahne(page);
+    ok(`Fähnchen auf ${l.toUpperCase()}: „${text}", Hinweis übersetzt`, f && f.sicht && f.text === text && !/Neue Fassung/.test(f.titel) && /9\.9\.9/.test(f.titel), f);
     await ctx.close();
   }
 } catch (e) { ok('Probe lief durch', false, String(e && e.stack || e)); }

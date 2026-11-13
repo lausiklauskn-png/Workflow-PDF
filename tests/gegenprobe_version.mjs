@@ -15,13 +15,23 @@ import { fileURLToPath } from 'node:url';
 const WURZEL = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const A = 'assets/app.js';
 const FAELLE = [
-  { name: 'package.json bleibt bei der alten Nummer', datei: 'package.json', anker: '"version": "1.1.9"', ersatz: '"version": "1.0.0"', trifft: /package\.json/ },
-  { name: 'Cache erhöht, Version vergessen', datei: 'sw.js', anker: "const CACHE_VERSION = 'workfloh-pdf-v114';", ersatz: "const CACHE_VERSION = 'workfloh-pdf-v115';", trifft: /CACHE_VERSION/ },
+  { name: 'package.json bleibt bei der alten Nummer', datei: 'package.json', anker: '"version": "1.1.10"', ersatz: '"version": "1.0.0"', trifft: /package\.json/ },
+  { name: 'Cache erhöht, Version vergessen', datei: 'sw.js', anker: "const CACHE_VERSION = 'workfloh-pdf-v115';", ersatz: "const CACHE_VERSION = 'workfloh-pdf-v116';", trifft: /CACHE_VERSION/ },
   { name: 'der Fuß zeigt keine Version', datei: A, anker: "const f = $('versionFuss'); if (f) { f.textContent = v ? z : ''; f.hidden = !v; }", ersatz: ';', trifft: /Fuß/ },
   { name: 'die Einstellungen zeigen keine Version', datei: A, anker: '<p class="hinweis einst-version" data-einst-version>Version ${h(versionNummer())}</p>', ersatz: '', trifft: /Einstellungen|Probe lief durch/ },
   { name: 'die Pro-Nummer wird nicht übernommen', datei: A, anker: "document.addEventListener('wfp-version', versionZeigen);", ersatz: '', trifft: /Pro-Weg/ },
   { name: 'eine falsch geformte Nummer wird angezeigt', datei: A, anker: "return m && /^\\d+\\.\\d+\\.\\d+$/.test(m.content) ? m.content : '';", ersatz: "return m ? m.content : '';", trifft: /falsch geformte/ },
-  { name: 'die russische Übersetzung fehlt', datei: 'assets/sprache-texte.js', anker: '  "Version {}": "Версия {1}",\n', ersatz: '', trifft: /RU/ }
+  { name: 'die russische Übersetzung fehlt', datei: 'assets/sprache-texte.js', anker: '  "Version {}": "Версия {1}",\n', ersatz: '', trifft: /Fuß auf RU/ },
+  // Update-Fähnchen (Klaus 2026-11-13)
+  { name: 'FAHNE: version.json bleibt bei der alten Fassung', datei: 'version.json', anker: '"version": "1.1.10"', ersatz: '"version": "1.1.9"', trifft: /version\.json nennt/ },
+  { name: 'FAHNE: der Worker liefert version.json aus dem Vorrat', datei: 'sw.js', anker: "  if (new URL(r.url).pathname.endsWith('/version.json')) return;", ersatz: '  ;', trifft: /Worker bedient version\.json/ },
+  { name: 'FAHNE: beim Start wird nicht gefragt', datei: A, anker: 'setTimeout(neueFassungPruefen, 1500);', ersatz: '', trifft: /erscheint von selbst/ },
+  { name: 'FAHNE: jedes Zurückholen fragt neu', datei: A, anker: "document.visibilityState === 'hidden' || Date.now() - FASSUNG.zuletzt < 3600000", ersatz: "document.visibilityState === 'hidden'", trifft: /höchstens einmal je Stunde/ },
+  { name: 'FAHNE: auch dieselbe Fassung zeigt ein Fähnchen', datei: A, anker: 'vorratZahl(j && j.cache) > ich', ersatz: 'vorratZahl(j && j.cache) >= ich', trifft: /dieselbe Fassung/ },
+  { name: 'FAHNE: eine falsch geformte Nummer wird gezeigt', datei: A, anker: " && /^\\d+\\.\\d+\\.\\d+$/.test(String(j.version || '')) ? j.version : '';", ersatz: " ? j.version : '';", trifft: /falsch geformte Antwort/ },
+  { name: 'FAHNE: der Tipp tut nichts', datei: A, anker: "if (!b.onclick) b.onclick = () => { const n = $('btnNeu'); if (n) n.click(); };", ersatz: '', trifft: /Tipp geht den vorhandenen Weg/ },
+  { name: 'FAHNE: in den Einstellungen fehlt es', datei: A, anker: 'versionZeigen(); fahneZeigen(d);', ersatz: 'versionZeigen();', trifft: /auch in den Einstellungen/ },
+  { name: 'FAHNE: die englische Übersetzung fehlt', datei: 'assets/sprache-texte.js', anker: '  "Update {}": "Update {1}",\n', ersatz: '', trifft: /Fähnchen auf EN/ }
 ];
 
 let gefangen = 0, durch = 0, falsch = 0, tot = 0;
