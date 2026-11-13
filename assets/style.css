@@ -496,6 +496,8 @@ body.zieht .dok-gitter,body.zieht .ordner-leiste{touch-action:none}
 /* Impressum & Datenschutz unter der Bibliothek (Klaus 2026-09-27) */
 .rechtfuss{text-align:center;font-size:.8rem;margin:22px 0 6px;opacity:.75}
 .rechtfuss a{color:inherit}
+.rechtfuss-zeile{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px;margin:0 0 10px}.rechtfuss-zeile .rechtfuss-version{margin:0}
+.update-fahne{padding:1px 8px;border:0;border-radius:4px 4px 4px 0;background:#c62828;color:#fff;font:inherit;font-size:.75rem;font-weight:600;line-height:1.5;cursor:pointer;white-space:nowrap}.update-fahne[hidden]{display:none}
 .rechtfuss-version{text-align:center;font-size:.75rem;margin:0 0 10px;opacity:.65}.rechtfuss-version[hidden]{display:none}
 .einst-version{text-align:center;margin:10px 0 0;opacity:.7}
 /* „Alle prüfen" (Klaus 2026-10-22): gleiche gelbe Farbe wie der Prüfpunkt an der Karte */
